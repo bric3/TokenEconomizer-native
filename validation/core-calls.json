@@ -1,0 +1,15 @@
+{
+  "accounting.effective": 462,
+  "pricing.effective_tokens": 46,
+  "pricing.cache_write_1h_tokens": 6,
+  "pricing.weights_for": 31,
+  "names.repo_filename": 1035,
+  "lifecycle.update": 523,
+  "lifecycle.firing_rate": 372,
+  "lifecycle.injectable": 658,
+  "pricing.approx_tokens": 314,
+  "accounting.summarize": 53,
+  "accounting.fmt_tokens": 86,
+  "ledger.overhead": 23,
+  "ledger.effective_exec": 2
+}
