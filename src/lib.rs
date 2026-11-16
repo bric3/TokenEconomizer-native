@@ -10,6 +10,7 @@ pub mod pricing;
 pub mod rules;
 pub mod runner;
 pub mod store;
+pub mod toolprune;
 pub mod trace;
 
 mod value;

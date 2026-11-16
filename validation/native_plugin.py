@@ -71,7 +71,17 @@ def wrap(original, operation):
             arguments["config"] = dataclasses.asdict(arguments["config"])
         obj = arguments.get("self")
         if obj is not None:
-            if operation.startswith(("prefix.", "layers.")):
+            if operation == "tooling.new":
+                arguments.pop("self")
+                arguments["cfg"] = dataclasses.asdict(arguments["cfg"])
+                arguments["runner"] = arguments.pop("judge_tool_runner")
+                arguments.pop("untool_runner")
+            elif operation.startswith("tooling."):
+                arguments["self"] = tooling_data(obj)
+                arguments["runner"], arguments["adapter"] = obj.judge_tool_runner, obj.adapter
+            elif operation.startswith("toolprune.codex."):
+                arguments["self"] = codex_profile_data(obj)
+            elif operation.startswith(("prefix.", "layers.")):
                 layers = obj.distiller if operation.startswith("prefix.") else obj
                 arguments["self"] = prefix_data(obj) if operation.startswith("prefix.") else layers_data(obj)
                 arguments["runner"], arguments["external"] = layers_callbacks(layers)
@@ -181,11 +191,25 @@ def wrap(original, operation):
             if "fact" in arguments:
                 arguments["fact"] = proposed_fact_data(arguments["fact"])
         external = arguments.get("external")
+        adapter = arguments.get("adapter")
+        if operation.startswith("tooling."):
+            arguments["adapter"] = adapter is not None
+        if operation.startswith(("tooling.", "toolprune.tools.")):
+            arguments["runner"] = runner is not None
+        if operation.startswith("toolprune.codex."):
+            for name in ("logical_capabilities", "applied_pruned", "hints", "pruned", "protected", "capabilities"):
+                if name in arguments and arguments[name] is not None:
+                    arguments[name] = list(arguments[name])
         if operation.startswith(("distiller.", "prefix.", "layers.")) and obj is not None:
             runner = arguments["runner"]
             arguments["runner"] = runner is not None
             arguments["external"] = external is not None
         result = invoke(operation, arguments)
+        if operation.startswith("toolprune.codex."):
+            if obj is not None:
+                restore_codex_profile(obj, result["self"])
+                return result["value"]
+            return set(result) if operation.endswith(("._item_capabilities", "._audit_capabilities")) else result
         if operation.startswith("stage."):
             if isinstance(result, dict) and "raised" in result:
                 raise KeyError(result["message"])
@@ -232,7 +256,7 @@ def wrap(original, operation):
             return tuple(result) if result is not None else None
         if operation in ("lifecycle.edited_files", "lifecycle.edited_pyfiles"):
             return set(result)
-        if operation.startswith(("turn.", "judge.", "store.", "distiller.", "prefix.", "layers.")) or operation in ("pricing.runner_effective_or_approx", "lifecycle.write_json_atomic", "envelope.load_envelope"):
+        if operation.startswith(("turn.", "judge.", "store.", "distiller.", "prefix.", "layers.", "tooling.", "toolprune.tools.")) or operation in ("pricing.runner_effective_or_approx", "lifecycle.write_json_atomic", "envelope.load_envelope"):
             replies = []
             while isinstance(result, dict) and "callback" in result:
                 if result.get("guard") is not None:
@@ -256,12 +280,33 @@ def wrap(original, operation):
                         value = state_store.read(result["name"])
                     elif result["callback"] == "external":
                         value = list(external())
+                    elif result["callback"] == "adapter":
+                        method = result["method"]
+                        if method == "parse_catalog_with_source" and not hasattr(adapter, method):
+                            value = adapter.parse_catalog(*result["args"]), "unknown"
+                        else:
+                            value = getattr(adapter, method)(*result["args"])
+                        if isinstance(value, (set, frozenset)):
+                            value = sorted(value)
                     else:
                         value = (writer if result["callback"] == "writer" else judge)(result["digest"])
                     replies.append({"value": value, "guard": turn_data(obj) if operation.startswith("turn.") and obj is not None else None})
                 except Exception as error:
                     replies.append({"error": str(error), "error_kind": type(error).__name__})
                 result = invoke(operation, dict(arguments, replies=replies))
+        if operation == "toolprune.tools.judge_tools_for_task":
+            return tuple(result)
+        if operation.startswith("tooling."):
+            if operation == "tooling.new":
+                obj.adapter, obj.judge_tool_runner = adapter, runner
+            restore_tooling(obj, result["self"])
+            for message in result["messages"]:
+                print(message, flush=True)
+            if operation == "tooling.after_task":
+                srow = bound.arguments["srow"]
+                srow.clear()
+                srow.update(result["srow"])
+            return result.get("value")
         if operation.startswith(("prefix.", "layers.")):
             if operation.startswith("prefix."):
                 restore_prefix(obj, result["self"])
@@ -394,6 +439,8 @@ def pytest_configure(config):
         "microskills.distiller": ("load_calls", "bash_cmds", "build_digest", "build_generic_digest", "_command_failed", "_relative", "error_signature",
                                   "_templates", "proposer_view", "_rx", "build_proposer_prompt", "parse_payload", "_detector_fields_ok", "_reparse_cmds", "_forgotten_evidence"),
         "microskills.stage": ("_saved_layers", "forget_facts", "forgotten_facts"),
+        "toolprune.codex": ("_item_capabilities", "task_hints", "_wire_text", "_audit_capabilities", "inspect_usage", "relay_capabilities", "_contract_fingerprint"),
+        "toolprune.tools": ("judge_tools_for_task",),
         "names": ("repo_filename",),
         "config": ("needs_optimizer",),
         "loopguard.rules": ("scaled_thresholds", "gate_for_judge", "is_stuck", "nudge_text", "assess_abort"),
@@ -502,6 +549,24 @@ def pytest_configure(config):
         setattr(ComposedDistiller, name, wrap(getattr(ComposedDistiller, name), "layers." + name))
     ComposedDistiller.opt_tokens = property(lambda self: invoke("layers.opt_tokens", {"self": layers_data(self)})["value"])
     ComposedDistiller.now = property(lambda self: invoke("layers.now", {"self": layers_data(self)})["value"])
+
+    from tokeneconomizer.toolprune import codex as capabilities, tools as toolsets
+    from tokeneconomizer.toolprune.stage import ToolingStage
+    constants = invoke("toolprune.tools.constants", {})
+    assert frozenset(constants["PROTECTED_TOOLS"]) == toolsets.PROTECTED_TOOLS
+    assert tuple(constants["INAPPLICABLE_TOOLS"]) == toolsets.INAPPLICABLE_TOOLS
+    assert constants["TOOL_JUDGE_DOMAIN"] == toolsets.TOOL_JUDGE_DOMAIN
+    assert constants["CONTRACT_FINGERPRINT"] == capabilities.CONTRACT_FINGERPRINT
+    toolsets.PROTECTED_TOOLS = frozenset(constants["PROTECTED_TOOLS"])
+    toolsets.INAPPLICABLE_TOOLS = tuple(constants["INAPPLICABLE_TOOLS"])
+    toolsets.TOOL_JUDGE_DOMAIN = constants["TOOL_JUDGE_DOMAIN"]
+    capabilities.CONTRACT_FINGERPRINT = constants["CONTRACT_FINGERPRINT"]
+    capabilities.CodexUntoolProfile.__init__ = codex_profile_constructor
+    for name in ("_new_state", "_load", "save", "_choose_probe", "_eligible_demotions", "begin_task", "_transition", "observe"):
+        setattr(capabilities.CodexUntoolProfile, name, wrap(getattr(capabilities.CodexUntoolProfile, name), "toolprune.codex." + name))
+    ToolingStage.__init__ = wrap(ToolingStage.__init__, "tooling.new")
+    for name in ("build_tools", "run_kwargs", "after_task"):
+        setattr(ToolingStage, name, wrap(getattr(ToolingStage, name), "tooling." + name))
 
     from tokeneconomizer.loopguard.state import SpiralState
     SpiralState.__init__ = lambda self: restore_spiral(self, invoke("state.new", {}))
@@ -691,6 +756,50 @@ def restore_envfact(fact, data):
 
 def envfact_constructor(self, fid, family, high, params=None):
     restore_envfact(self, invoke("envfact.new", {"fid": fid, "family": family, "high": high, "params": params}))
+
+
+def codex_profile_data(profile):
+    return dict(vars(profile), path=os.fspath(profile.path))
+
+
+def restore_codex_profile(profile, data):
+    state = getattr(profile, "state", {})
+    state.clear()
+    state.update(data["state"])
+    profile.__dict__.update(data)
+    profile.state = state
+
+
+def codex_profile_constructor(self, repo, results_root, *, fresh=False):
+    restore_codex_profile(self, invoke("toolprune.codex.new", {"repo": repo, "results_root": os.fspath(results_root), "fresh": fresh}))
+
+
+def tooling_data(stage):
+    data = {key: value for key, value in vars(stage).items() if key not in ("cfg", "adapter", "judge_tool_runner", "codex_profile")}
+    data["cfg"] = dataclasses.asdict(stage.cfg)
+    data["codex_profile"] = codex_profile_data(stage.codex_profile) if stage.codex_profile is not None else None
+    for name in ("used_tools", "catalog_tools"):
+        data[name] = sorted(data[name])
+    return data
+
+
+def restore_tooling(stage, data):
+    from tokeneconomizer.config import ToolingConfig
+    from tokeneconomizer.toolprune.codex import CodexUntoolProfile
+    cfg = getattr(stage, "cfg", None)
+    cfg = cfg if cfg is not None else ToolingConfig.__new__(ToolingConfig)
+    cfg.__dict__.update(data["cfg"])
+    profile = getattr(stage, "codex_profile", None)
+    if data["codex_profile"] is not None:
+        profile = profile if profile is not None else CodexUntoolProfile.__new__(CodexUntoolProfile)
+        restore_codex_profile(profile, data["codex_profile"])
+    for name in ("used_tools", "catalog_tools"):
+        values = getattr(stage, name, set())
+        values.clear()
+        values.update(data[name])
+        data[name] = values
+    stage.__dict__.update(data)
+    stage.cfg, stage.codex_profile = cfg, profile
 
 
 def layers_data(layers):

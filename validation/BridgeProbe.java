@@ -123,6 +123,9 @@ class BridgeProbe {
       checkEnvironmentFacts(input, output);
       checkComposition(input, output);
       checkSavedLayers(directory, input, output);
+      checkToolJudge(input, output);
+      checkToolingJudge(input, output);
+      checkCapabilityRecovery(directory, input, output);
 
       input.println("""
           {"op":"rules.nudge_text","args":{"state":{"edit_counts":{"one file":5,"other":1}}}}
@@ -298,6 +301,109 @@ class BridgeProbe {
     }
     expect(input, output, "{\"op\":\"stage.forget_facts\",\"args\":{" + base + ",\"ids\":[\"missing-record\"],\"undo\":true}}",
         "{\"result\":[[\"missing-record\",\"no record\",\"\"]]}");
+  }
+
+  private static void checkToolJudge(PrintWriter input, BufferedReader output) throws Exception {
+    var base = "\"problem_statement\":\"repair\",\"catalog\":{\"Bash\":\"shell\",\"WebFetch\":\"http\"},\"runner\":true";
+    expect(input, output, "{\"op\":\"toolprune.tools.judge_tools_for_task\",\"args\":{" + base
+        + ",\"replies\":[{\"value\":[\"{\\\"Bash\\\":{\\\"load\\\":false},\\\"WebFetch\\\":false}\",7]}]}}",
+        "{\"result\":[{\"Bash\":true,\"WebFetch\":false},7.0]}");
+    expect(input, output, "{\"op\":\"toolprune.tools.judge_tools_for_task\",\"args\":{" + base
+        + ",\"replies\":[{\"value\":[\"invalid {json}\",7]}]}}", "{\"result\":[{},7.0]}");
+    expect(input, output, "{\"op\":\"toolprune.tools.judge_tools_for_task\",\"args\":{" + base
+        + ",\"replies\":[{\"error\":\"offline\"}]}}", "{\"result\":[{},0.0]}");
+    var unicode = "\"problem_statement\":\"é😀ab\",\"catalog\":{\"Bash\":\"shell\"},\"runner\":true,\"domain\":\"brief\",\"max_issue_chars\":2";
+    var callback = request(input, output, "{\"op\":\"toolprune.tools.judge_tools_for_task\",\"args\":{" + unicode + "}}");
+    if (!callback.contains("\\nISSUE:\\né😀\\n\\nTOOLS:") || callback.contains("é😀a")) {
+      throw new AssertionError("Tool judge did not truncate the issue by Unicode characters: " + callback);
+    }
+    var prompt = "brief\nISSUE:\né😀\n\nTOOLS:\n- Bash: shell\n\nReturn the JSON classification:";
+    var approximate = Math.max(1, prompt.codePointCount(0, prompt.length()) / 4) + 5;
+    expect(input, output, "{\"op\":\"toolprune.tools.judge_tools_for_task\",\"args\":{" + unicode
+        + ",\"replies\":[{\"value\":[\"{}\",null]}]}}", "{\"result\":[{}," + approximate + ".0]}");
+  }
+
+  private static void checkToolingJudge(PrintWriter input, BufferedReader output) throws Exception {
+    var constructor = "\"cfg\":{\"evidence\":2,\"evidence_reaudit\":3,\"judge\":true},\"agent\":\"claude\",\"optimizer_model\":\"agent\"";
+    var created = request(input, output, "{\"op\":\"tooling.new\",\"args\":{" + constructor + "}}");
+    var stage = created.substring("{\"result\":{\"self\":".length(), created.indexOf(",\"messages\":"))
+        .replace("\"catalog_tools\":[]", "\"catalog_tools\":[\"Bash\",\"WebFetch\",\"Workflow\",\"Used\"]")
+        .replace("\"used_tools\":[]", "\"used_tools\":[\"Used\"]")
+        .replace("\"tool_unused_streaks\":{}", "\"tool_unused_streaks\":{\"Workflow\":2,\"Used\":9}")
+        .replace("\"catalog_desc\":{}", "\"catalog_desc\":{\"WebFetch\":\"http\"}")
+        .replace("\"problem_by_iid\":{}", "\"problem_by_iid\":{\"w-1\":\"repair\"}");
+    var build = request(input, output, "{\"op\":\"tooling.build_tools\",\"args\":{\"self\":" + stage
+        + ",\"task\":{\"instance_id\":\"w-1\"},\"i\":1,\"adapter\":true,\"runner\":true,\"replies\":[{\"value\":[\"Bash\"]},"
+        + "{\"value\":[\"{\\\"WebFetch\\\":false,\\\"Used\\\":false,\\\"unknown\\\":false}\",11]}]}}");
+    if (!build.contains("\"value\":[\"WebFetch\",\"Workflow\"]") || !build.contains("\"_task_judge_tokens\":11.0")
+        || !build.contains("\"_task_judge_dropped\":[\"WebFetch\"]")) throw new AssertionError("Evidence/judge exclusions were not filtered: " + build);
+    var completed = request(input, output, "{\"op\":\"tooling.after_task\",\"args\":{\"self\":" + profileSelf(build)
+        + ",\"row\":{},\"srow\":{},\"run_dir_path\":\"unused\",\"adapter\":true,\"replies\":[{\"value\":{}}]}}");
+    if (!completed.contains("\"untool_judge_tokens\":11.0") || !completed.contains("\"untool_judge_dropped\":[\"WebFetch\"]")
+        || !completed.contains("\"value\":0,")) throw new AssertionError("Judge costs were lost after the task: " + completed);
+    var reaudit = request(input, output, "{\"op\":\"tooling.build_tools\",\"args\":{\"self\":" + profileSelf(completed)
+        + ",\"task\":{\"instance_id\":\"w-1\"},\"i\":3,\"adapter\":true,\"runner\":true}}");
+    if (!reaudit.contains("\"value\":[]") || !reaudit.contains("\"_ev_reaudit\":true") || !reaudit.contains("\"_task_judge_tokens\":0.0")) {
+      throw new AssertionError("Reaudit did not restore the full tool catalog: " + reaudit);
+    }
+    var noProblems = request(input, output, "{\"op\":\"tooling.new\",\"args\":{" + constructor + ",\"adapter\":true,\"replies\":[{\"error\":\"offline\"}]}}");
+    if (!noProblems.contains("could not load problem statements (offline); judge disabled") || !noProblems.contains("\"problem_by_iid\":{}")) throw new AssertionError(noProblems);
+  }
+
+  private static String profileSelf(String response) {
+    var start = "{\"result\":{\"self\":";
+    int end = response.indexOf(",\"value\":");
+    if (!response.startsWith(start) || end < 0) throw new AssertionError("Invalid profile response: " + response);
+    return response.substring(start.length(), end);
+  }
+
+  private static void checkCapabilityRecovery(Path directory, PrintWriter input, BufferedReader output) throws Exception {
+    var base = "\"repo\":\"probe/recovery\",\"results_root\":\"" + directory.toString().replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    var fresh = request(input, output, "{\"op\":\"toolprune.codex.new\",\"args\":{" + base + ",\"fresh\":true}}");
+    var profile = fresh.substring("{\"result\":".length(), fresh.length() - 1);
+    var noPending = request(input, output, "{\"op\":\"toolprune.codex.observe\",\"args\":{\"self\":" + profile + ",\"usage\":{}}}");
+    if (!noPending.contains("observe() called without begin_task()")) throw new AssertionError(noPending);
+    profile = profile.replace("\"tasks_completed\":0", "\"tasks_completed\":24")
+        .replace("\"current_pruned\":[]", "\"current_pruned\":[\"image_media\",\"skills\",\"web\"]");
+    var selected = request(input, output, "{\"op\":\"toolprune.codex.begin_task\",\"args\":{\"self\":" + profile + ",\"task_id\":\"probe\"}}");
+    if (!selected.contains("\"probe_capability\":\"image_media\"") || !selected.contains("\"logical_capabilities\":[\"skills\",\"web\"]")) {
+      throw new AssertionError("Sparse probe restored the wrong package: " + selected);
+    }
+    profile = profileSelf(selected);
+    var protectedUse = request(input, output, "{\"op\":\"toolprune.codex.observe\",\"args\":{\"self\":" + profile
+        + ",\"usage\":{\"attempted\":{\"image_media\":1},\"completed\":{\"image_media\":1}}}}");
+    if (!protectedUse.contains("\"probe_gap\":64") || !protectedUse.contains("\"next_probe_at\":56")
+        || !protectedUse.contains("\"probe_cursor\":1") || !protectedUse.contains("\"ever_completed\":[\"image_media\"]")
+        || !protectedUse.contains("\"kind\":\"probe-protect\"")) throw new AssertionError("Successful probe was not protected: " + protectedUse);
+    var loaded = request(input, output, "{\"op\":\"toolprune.codex.new\",\"args\":{" + base + "}}");
+    if (!loaded.contains("\"tasks_completed\":25") || !loaded.contains("\"ever_completed\":[\"image_media\"]")) throw new AssertionError("Saved controller was not restored: " + loaded);
+    profile = loaded.substring("{\"result\":".length(), loaded.length() - 1);
+    var hinted = request(input, output, "{\"op\":\"toolprune.codex.begin_task\",\"args\":{\"self\":" + profile + ",\"task_id\":\"hint\",\"problem_statement\":\"update a Codex plugin\"}}");
+    if (!hinted.contains("\"logical_capabilities\":[\"collaboration\",\"goals\",\"web\"]") || !hinted.contains("\"task_hints\":[\"skills\"]")) {
+      throw new AssertionError("Task hint restored unrelated packages: " + hinted);
+    }
+    var saved = directory.resolve("interface_state/probe__recovery/codex_untool.json");
+    var compatible = Files.readString(saved);
+    for (var field : new String[]{"version", "contract_fingerprint", "repo"}) {
+      Files.writeString(saved, compatible.replace("\"" + field + "\": \"", "\"" + field + "\": \"old-"));
+      var reset = request(input, output, "{\"op\":\"toolprune.codex.new\",\"args\":{" + base + "}}");
+      if (!reset.contains("\"tasks_completed\":0") || !reset.contains("\"current_pruned\":[]")) throw new AssertionError("Incompatible " + field + " was reused: " + reset);
+    }
+    var fingerprint = Pattern.compile("\\\"contract_fingerprint\\\": \\\"([a-f0-9]+)\\\"").matcher(compatible);
+    if (!fingerprint.find()) throw new AssertionError("Missing contract fingerprint");
+    Files.writeString(saved, "{\"version\":\"codex-recent-experience-untool-indirect-use-core\",\"contract_fingerprint\":\"" + fingerprint.group(1)
+        + "\",\"repo\":\"probe/recovery\",\"attempted_total\":{\"web\":\"2\",\"unknown\":99},\"current_pruned\":[\"web\",\"deferred_wait\",\"unknown\"],"
+        + "\"ever_completed\":[\"goals\",\"unknown\"],\"recent_loaded_outcomes\":{\"web\":[\"completed\",\"junk\",\"unused\",\"incomplete_attempt\",\"unused\"]},\"core_capabilities\":[]}");
+    var sanitized = request(input, output, "{\"op\":\"toolprune.codex.new\",\"args\":{" + base + "}}");
+    if (sanitized.contains("unknown") || sanitized.contains("junk") || !sanitized.contains("\"current_pruned\":[\"web\"]")
+        || !sanitized.contains("\"ever_completed\":[\"goals\"]") || !sanitized.contains("\"web\":[\"unused\",\"incomplete_attempt\",\"unused\"]")
+        || !sanitized.contains("\"attempted_total\":{\"collaboration\":0,\"web\":2,") || !sanitized.contains("\"core_capabilities\":[\"deferred_wait\"]")) {
+      throw new AssertionError("Saved evidence was not normalized: " + sanitized);
+    }
+    var trace = directory.resolve("tooling.jsonl");
+    Files.writeString(trace, "\n{\"type\":\"item.started\",\"item\":{\"type\":\"web_search\"}}\n\n{\"type\":\"item.completed\",\"item\":{\"type\":\"web_search\",\"id\":\"2\"}}\n");
+    var usage = request(input, output, "{\"op\":\"toolprune.codex.inspect_usage\",\"args\":{\"transcript_path\":\"" + trace.toString().replace("\\", "\\\\").replace("\"", "\\\"") + "\"}}");
+    if (usage.contains("\"web\":2") || !usage.contains("\"tools\":{\"web_search\":1}")) throw new AssertionError("Blank lines changed fallback item IDs: " + usage);
   }
 
   private static void checkStorage(Path root, Path directory, PrintWriter input, BufferedReader output) throws Exception {

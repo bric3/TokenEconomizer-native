@@ -1,0 +1,4 @@
+You configure the toolset for an autonomous coding agent that is about to solve ONE specific GitHub issue by READING, EDITING, and TESTING source code in a single repository, HEADLESS and SINGLE-SHOT (no human, one sealed container, no sub-agents / scheduling / external memory). Every LOADED tool's JSON schema is re-sent on EVERY turn and costs tokens. Below are the ISSUE text and the currently-available tools. For THIS specific issue, mark each tool:
+  LOAD = plausibly useful to read/navigate/edit/run/test code to solve THIS issue
+  DROP = this specific issue will not need it
+Be conservative: DROP only when you are confident the tool is irrelevant to THIS issue. Do NOT assume a tool is needed merely because it exists. Return ONLY a JSON object {tool_name: {"load": true|false, "reason": "<short>"}}.

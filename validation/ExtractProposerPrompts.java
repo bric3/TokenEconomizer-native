@@ -29,6 +29,11 @@ class ExtractProposerPrompts {
       if (write) { Files.createDirectories(directory); Files.writeString(path, text); }
       if (!Files.readString(path).equals(text)) throw new AssertionError("Native prompt differs: " + path);
     }
+    var tools = Files.readString(Path.of("reference/upstream/tokeneconomizer/toolprune/tools.py"));
+    var judge = constant(tools, "TOOL_JUDGE_DOMAIN", "");
+    var judgePath = Path.of("src/toolprune/prompts/judge.txt");
+    if (write) { Files.createDirectories(judgePath.getParent()); Files.writeString(judgePath, judge); }
+    if (!Files.readString(judgePath).equals(judge)) throw new AssertionError("Native tool-judge prompt differs");
     System.out.println("Verified native proposer prompts; paper SHA-256: " + hash);
   }
 

@@ -66,6 +66,12 @@ complete while any runtime component delegates production behaviour to Python.
   Composition passes the environment layer's current claims to the paid proposer
   and reports its per-task token delta. Saved-layer discovery, forgetting and
   restoration also execute in Rust.
+- Tool pruning now executes in Rust: loaded-but-unused evidence, periodic reaudits,
+  protected and ever-used tools, per-task judge classifications and costs, and the
+  Codex capability controller. The controller audits traces, freezes masks, protects
+  completed uses, applies task hints and sparse probes, and persists its original
+  state format and SHA-256 contract fingerprint. Domain adapters and model calls
+  still cross callback boundaries until their production implementations are ported.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -81,7 +87,6 @@ complete while any runtime component delegates production behaviour to Python.
   pass, including word boundaries, whitespace classes and syntax. The current
   library rejects Python's `(?a)` flag; this remains a required compatibility fix.
 - Audit JSON numeric edge cases, including non-finite values accepted by Python.
-- Port tool-pruning evidence, Codex capabilities and pruning stages.
 - Port plugin configuration, paths and repository identity,
   deny lists, host settings, history, context, folding, controller and queues.
 - Port side calls, model probes, tool checks, repository maps, CLI commands and
@@ -172,6 +177,18 @@ complete while any runtime component delegates production behaviour to Python.
   checks cover duplicate IDs, environment ownership of shared IDs, unknown-ID
   validation before any write, restoration without a record and saving only the
   changed layer. Clippy and the 256-file upstream integrity check also pass.
+- Tooling, routing, trace and controller-focused run: 372 passed, 2 skipped.
+  Full suite with native tool pruning: 1,558 passed, 33 skipped (93.73 seconds).
+  `validation/tooling-calls.json` records 357 tooling-stage constructions, 689
+  selections and 1,025 task folds reaching Rust, including callback replay. Native
+  constants and the controller fingerprint match the pinned original at test startup.
+- The bridge probe checks protected-tool enforcement, malformed judge responses,
+  runner failures, cost approximation, Unicode issue limits, stage-level candidate
+  filtering and ledger fields, periodic reaudits and adapter failures. Controller
+  checks cover sparse recovery, permanent protection, probe backoff, task hints,
+  saved-state normalization, incompatible version/fingerprint/repository resets,
+  and fallback transcript IDs across blank lines. Clippy, prompt verification and
+  the 256-file upstream integrity check also pass.
 
 ## Dependencies
 
@@ -187,6 +204,9 @@ SQLite connections opened explicitly with `SQLITE_OPEN_READ_ONLY` and a five-sec
 busy timeout. The lockfile pins both libraries and their transitive dependencies.
 `fancy-regex` 0.20.2 preserves the upstream patterns' lookarounds and backreferences.
 `md5` 0.8.1 preserves existing short failure fingerprints.
+`sha2` 0.10.9 preserves the Codex pruning controller's SHA-256 contract fingerprint,
+which decides whether saved evidence can be reused. Its API is verified against the
+pinned crate's source documentation and its result against the original controller.
 `indexmap` 2.14.2 was already present through `serde_json`; it is now declared
 directly with serialization support for typed fact maps. Discovery order determines
 ties in fact selection and rendering.

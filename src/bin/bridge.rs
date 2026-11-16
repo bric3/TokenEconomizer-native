@@ -13,6 +13,8 @@ mod prefix_dispatch;
 mod proposer_dispatch;
 #[path = "bridge/storage.rs"]
 mod storage_dispatch;
+#[path = "bridge/tooling.rs"]
+mod tooling_dispatch;
 #[path = "bridge/trace.rs"]
 mod trace_dispatch;
 
@@ -30,6 +32,9 @@ use tokeneconomizer::{
 
 fn dispatch(request: &Value) -> Result<Value, String> {
     let args = &request["args"];
+    if let Some(value) = tooling_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
+        return Ok(value);
+    }
     if let Some(value) = prefix_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
         return Ok(value);
     }
