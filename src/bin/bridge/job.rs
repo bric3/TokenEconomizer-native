@@ -8,6 +8,7 @@ use std::{
         mpsc,
     },
     thread,
+    time::Duration,
 };
 
 enum Event {
@@ -16,6 +17,7 @@ enum Event {
 }
 struct Job {
     callback: String,
+    polling: bool,
     send: mpsc::Sender<Value>,
     receive: mpsc::Receiver<Event>,
 }
@@ -47,9 +49,23 @@ pub(super) fn advance(id: u64, reply: Option<Value>) -> Result<Value, String> {
     if let Some(reply) = reply {
         job.send.send(reply).map_err(|e| e.to_string())?;
     }
-    match job.receive.recv().map_err(|e| e.to_string())? {
-        Event::Done(value) => Ok(value),
-        Event::Callback(mut request) => {
+    let event = if job.polling {
+        match job.receive.recv_timeout(Duration::from_millis(10)) {
+            Ok(event) => Some(event),
+            Err(mpsc::RecvTimeoutError::Timeout) => None,
+            Err(error) => return Err(error.to_string()),
+        }
+    } else {
+        Some(job.receive.recv().map_err(|e| e.to_string())?)
+    };
+    match event {
+        Some(Event::Done(value)) => Ok(value),
+        event => {
+            let mut request = match event {
+                Some(Event::Callback(request)) => request,
+                None => json!({"method":"pending","args":[]}),
+                _ => unreachable!(),
+            };
             request["job"] = json!(id);
             request["callback"] = json!(job.callback);
             JOBS.lock().unwrap().insert(id, job);
@@ -62,6 +78,19 @@ pub(super) fn start(
     callback: &str,
     run: impl FnOnce(Channel) -> Value + Send + 'static,
 ) -> Result<Value, String> {
+    start_job(callback, false, run)
+}
+pub(super) fn start_polling(
+    callback: &str,
+    run: impl FnOnce(Channel) -> Value + Send + 'static,
+) -> Result<Value, String> {
+    start_job(callback, true, run)
+}
+fn start_job(
+    callback: &str,
+    polling: bool,
+    run: impl FnOnce(Channel) -> Value + Send + 'static,
+) -> Result<Value, String> {
     let (event_send, event_receive) = mpsc::channel();
     let (reply_send, reply_receive) = mpsc::channel();
     let id = NEXT.fetch_add(1, Ordering::Relaxed);
@@ -69,6 +98,7 @@ pub(super) fn start(
         id,
         Job {
             callback: callback.into(),
+            polling,
             send: reply_send,
             receive: event_receive,
         },

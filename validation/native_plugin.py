@@ -28,6 +28,7 @@ NATIVE_STORE_WRITE = None
 NATIVE_DENY_FUNCTIONS = {}
 NATIVE_JUDGE_FUNCTIONS = {}
 NATIVE_JUDGE_STORE = {}
+NATIVE_QUEUE_ENQUEUE = None
 
 
 def invoke(operation, arguments):
@@ -58,6 +59,8 @@ def wrap(original, operation):
         bound = signature.bind(*args, **kwargs)
         bound.apply_defaults()
         arguments = dict(bound.arguments)
+        if operation.startswith("hookqueue."):
+            return hookqueue_call(operation, arguments)
         if operation == "trace.copilot.copilot_mcp_servers":
             arguments["home"] = os.path.expanduser("~")
             if arguments["env"] is None:
@@ -597,6 +600,7 @@ def pytest_configure(config):
         "plugin.accounting": ("effective", "overhead_total", "summarize", "fmt_tokens"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
+        "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
         "plugin.paths": ("state_root", "secure_root", "launcher_path", "ensure_launcher", "home_dir", "_gitdir_of_file", "is_git_entry", "find_repo_root", "_git_common_dir", "origin_url", "normalize_remote", "_slug", "digest", "_main_checkout", "repo_identity", "repo_state_dir"),
         "plugin.repos": ("repos_dir", "_repo_dir", "_record_error", "_pin_store", "_pin_name", "_repo_from", "pinned", "pin", "prune_pins", "_legacy_root", "legacy_key", "_host_dirs", "_sessions", "_transcript_cwd", "session_cwd", "_imported", "_transcript_of", "_has_learned", "dir_label", "note_repo", "_write_lines", "_rename_label", "_take_learned", "_merge_applied", "_merge_envelope", "_merge_host", "merge_whole", "_resolve", "plan_dir", "_live", "migrate_dir", "_record_moves", "_candidates", "_prune_index", "adopt", "migrate_all", "merge", "needs_migration", "start_migration", "run_migration", "migration_notice", "refold_moved", "settle", "how_words", "describe", "ignored_git_entries", "listing", "home_git_note"),
         "plugin.denylist": ("_canon", "applied_by_path", "kept_by_path", "write_applied", "supports", "unit", "settings_path", "_read_settings", "_guard_target", "write_json", "_write_text", "_exclude_from_git", "kept_for", "set_kept", "applied", "applied_for", "_record", "_json_list_keys", "_apply_json_list", "_restore_json_list", "_sections", "_key_set", "_toml_insert", "_toml_remove", "_toml_valid", "_git_tracked", "codex_config_error", "_apply_codex", "_restore_codex", "copilot_trusted_folders", "copilot_folder_trusted", "codex_home", "codex_project_trusted", "apply", "restore", "copilot_server_proposal"),
@@ -664,6 +668,8 @@ def pytest_configure(config):
                 operation = "live_config." + name
             if module_name == "plugin.adapter":
                 operation = "live_adapter." + name
+            if module_name == "plugin.hookqueue":
+                operation = "hookqueue." + name
             if module_name == "plugin.denylist":
                 operation = ("applied." if name in ("_canon", "applied_by_path", "kept_by_path", "write_applied") else "denylist.") + name
             operation = operation.removeprefix("loopguard.")
@@ -824,6 +830,18 @@ def pytest_configure(config):
     for name in ("load_trajectory", "tool_usage", "parse_catalog", "parse_catalog_with_source", "protected_tools", "inapplicable_tools", "hardcoded_exclusions", "spiral_snapshot", "problem_statements", "env_vocabulary"):
         setattr(live_adapter.LiveAdapter, name, wrap(getattr(live_adapter.LiveAdapter, name), "live_adapter." + name))
 
+    from tokeneconomizer.plugin import hookqueue
+    constants = invoke("hookqueue.constants", {})
+    assert constants["WAITS"] == hookqueue.WAITS
+    assert frozenset(constants["QUEUED"]) == hookqueue.QUEUED
+    hookqueue.WAITS = constants["WAITS"]
+    hookqueue.QUEUED = frozenset(constants["QUEUED"])
+    for name in ("DRAIN_MAX_EVENTS", "DRAIN_BUDGET_S", "IDLE_S"):
+        assert constants[name] == getattr(hookqueue, name)
+        setattr(hookqueue, name, constants[name])
+    global NATIVE_QUEUE_ENQUEUE
+    NATIVE_QUEUE_ENQUEUE = hookqueue.enqueue
+
     from tokeneconomizer.loopguard.envelope import EnvelopeTracker
     EnvelopeTracker.__init__ = state_constructor(EnvelopeTracker, "envelope.new")
     EnvelopeTracker.update = wrap(EnvelopeTracker.update, "envelope.update")
@@ -840,6 +858,60 @@ def pytest_configure(config):
 
 def config_constructor(cls):
     return state_constructor(cls, "config." + cls.__name__)
+
+
+def hookqueue_call(operation, arguments):
+    from tokeneconomizer.plugin import hookqueue
+    arguments = dict(arguments)
+    ctrl = arguments.pop("ctrl", None)
+    handler = arguments.pop("handler", None)
+    if ctrl is not None:
+        arguments.update(root=os.fspath(getattr(getattr(ctrl, "ctx", None), "root", ".")),
+                         host=getattr(getattr(ctrl, "host", None), "name", ""),
+                         session_id=getattr(ctrl, "sid", ""),
+                         repomap=getattr(getattr(ctrl, "cfg", None), "repomap", ""))
+        if operation == "hookqueue.run":
+            arguments["payload"] = ctrl.p
+    for name in ("base", "queue", "root"):
+        if name in arguments:
+            arguments[name] = os.path.abspath(arguments[name])
+    arguments.update(wait=hookqueue.WAITS.get(arguments.get("event")), max_events=hookqueue.DRAIN_MAX_EVENTS,
+                     budget=hookqueue.DRAIN_BUDGET_S, idle=hookqueue.IDLE_S,
+                     enqueue_callback=hookqueue.enqueue is not NATIVE_QUEUE_ENQUEUE)
+    result = invoke(operation, arguments)
+    other, replay_handler, last_error = None, None, None
+    while isinstance(result, dict) and result.get("callback") == "hookqueue":
+        method, args = result["method"], result["args"]
+        if method == "pending":
+            result = invoke("hookqueue.resume", {"job": result["job"]})
+            continue
+        try:
+            if method == "prepare_replay":
+                other = type(ctrl)(ctrl.ctx, args[0])
+                replay_handler = other.handler(args[1])
+                value = {"session_id": other.sid, "handler": bool(replay_handler)}
+            elif method == "replay_handler":
+                other.replaying = args[0]
+                replay_handler()
+                value = None
+            elif method == "record_error":
+                try:
+                    raise last_error
+                except Exception:
+                    ctrl._record_error()
+                value = None
+            elif method == "handler":
+                value = handler()
+            elif method == "enqueue":
+                value = hookqueue.enqueue(*args)
+            else:
+                raise AssertionError("Unknown queue callback: " + method)
+            reply = {"value": value}
+        except Exception as error:
+            last_error = error
+            reply = {"error": str(error), "error_kind": type(error).__name__}
+        result = invoke("hookqueue.resume", {"job": result["job"], "reply": reply})
+    return storage_result(result)
 
 
 def live_judge_call(operation, ctx=None, session_id="", job_id="", threshold=None, guard=None, digest=""):

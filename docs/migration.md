@@ -98,6 +98,11 @@ complete while any runtime component delegates production behaviour to Python.
   Protected tools retain both names and user-defined patterns through the pruning
   stage. Pattern matching follows Python's case-sensitive shell wildcard rules,
   including bracket classes, Unicode and descending ranges.
+- Hook queues now execute in Rust: session locks, bounded waits, atomic enqueue,
+  ordered drains, removal before replay, session checks, replay error isolation,
+  event and time budgets, fallback handling and idle pruning. Taking a lock
+  refreshes its timestamps before pruning. Controller construction and handler
+  calls remain callbacks until the controller is ported.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -115,8 +120,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit JSON numeric edge cases, including non-finite values accepted by Python.
   Configuration numeric coercion still needs Unicode decimal digits and integers
   outside the current i64 range. Audit path-normalisation edge cases too.
-- Port host settings and integration, history, context, folding,
-  controller and queues.
+- Port host settings and integration, history, context, folding and controller.
 - Port side calls, model probes, tool checks, repository maps, CLI commands and
   hooks. Verify each host integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
@@ -269,6 +273,16 @@ complete while any runtime component delegates production behaviour to Python.
   also verifies pattern protection inside the pruning stage, saved descriptions,
   deferred tools, Copilot checkpoints with bare CR line endings and malformed
   saved-catalog recovery. Clippy, formatting and upstream integrity checks pass.
+- Hook queue focused run: 17 passed. Full suite with native queues: 1,558 passed,
+  33 skipped (52.86 seconds). `validation/hookqueue-calls.json` records native
+  entries, including 4,801 queue runs. Callback resumes are transport operations.
+- `QueueProbe.java` verifies nine native processes sharing a session lock without
+  losing updates, plus ordering, event/time limits, foreign-session checks,
+  removal before replay, replay failure isolation, contended prompt fallback,
+  draining after a failed handler and lock release. It also verifies that a waiting
+  hook leaves the bridge available to its lock holder. The established bridge
+  probe, Clippy, formatting and upstream integrity checks pass. Native Windows
+  execution and the complete native hook executable remain unverified.
 
 ## Dependencies
 
@@ -357,6 +371,7 @@ Small Java validation tools check the migration infrastructure:
 ```sh
 jbang validation/VerifyReference.java
 jbang validation/BridgeProbe.java
+jbang validation/QueueProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 
@@ -366,6 +381,13 @@ redirect regression where a file is literally named `one file`. It also checks
 structured Cursor result text, partial-record offsets and decimal cost rounding. These
 probes also cover metadata limits and read-only database access. The upstream
 test suite is still the main driver.
+
+The queue probe starts nine native bridge processes against one session lock
+and checks that their handlers preserve every shared-state update. It also
+checks queue ordering, event and time limits, removal before replay, foreign
+session refusal, failure recovery, contended fallback and a waiting job sharing
+the bridge with its lock holder. It does not use the reference hook executable;
+the user-facing native hook and CLI workflows remain pending.
 
 IntelliJ has no open project for this checkout. Use Cargo's compiler, formatter
 and Clippy until IDE access becomes available.
