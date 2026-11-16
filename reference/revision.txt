@@ -1,0 +1,6 @@
+repository=https://github.com/microsoft/TokenEconomizer
+revision=583fff78bf504b59d542f953c31e87d01d02ab42
+archive=upstream
+
+The upstream tree is an unmodified git archive of this revision. It is retained
+as the behavioural reference and original test suite during the Rust port.
