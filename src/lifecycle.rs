@@ -1,6 +1,7 @@
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 pub const K_PROMOTE: usize = 3;
 pub const GAMMA: f64 = 0.8;
@@ -8,6 +9,45 @@ pub const LAMBDA: f64 = 5.0;
 pub const SCORE_FLOOR: f64 = 0.0;
 pub const FIRE_GATE: f64 = 0.40;
 pub const FIRE_MIN_N: u64 = 4;
+
+pub fn edited_files<'a>(
+    calls: impl IntoIterator<Item = (&'a str, &'a Value)>,
+    python_only: bool,
+) -> BTreeSet<String> {
+    let mut files = BTreeSet::new();
+    for (tool, args) in calls {
+        let paths = if tool == "apply_patch" {
+            args["paths"]
+                .as_array()
+                .map(|a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>())
+                .unwrap_or_default()
+        } else if ["edit", "multiedit", "write", "create", "str_replace_editor"].contains(&tool) {
+            vec![
+                args["file_path"]
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+                    .or_else(|| args["path"].as_str())
+                    .unwrap_or(""),
+            ]
+        } else {
+            continue;
+        };
+        for path in paths {
+            if (python_only && path.ends_with(".py"))
+                || (!python_only && (tool == "apply_patch" || !path.is_empty()))
+            {
+                let name = if cfg!(windows) {
+                    path.rsplit(['/', '\\']).next()
+                } else {
+                    path.rsplit('/').next()
+                }
+                .unwrap_or("");
+                files.insert(name.into());
+            }
+        }
+    }
+    files
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Lifecycle {

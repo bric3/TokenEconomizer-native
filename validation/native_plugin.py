@@ -121,7 +121,22 @@ def wrap(original, operation):
             arguments["judge"] = judge is not None
         if "files" in arguments:
             arguments["files"] = sorted(arguments["files"])
+        if "vocab" in arguments and arguments["vocab"] is not None:
+            arguments["vocab"] = vocabulary_data(arguments["vocab"])
+        if operation in ("lifecycle.edited_files", "lifecycle.edited_pyfiles"):
+            arguments["calls"] = list(arguments["calls"])
+        if operation.startswith("observe.") and "o" in arguments:
+            arguments["o"] = observation_data(arguments["o"])
         result = invoke(operation, arguments)
+        if operation == "observe.classify_command":
+            return [restore_observation(value) for value in result]
+        if operation == "observe.observe_task":
+            result["obs"] = [restore_observation(value) for value in result["obs"]]
+            return result
+        if operation in ("observe._test_labels", "observe.label_rule"):
+            return tuple(result) if result is not None else None
+        if operation in ("lifecycle.edited_files", "lifecycle.edited_pyfiles"):
+            return set(result)
         if operation.startswith(("turn.", "judge.", "store.")) or operation in ("pricing.runner_effective_or_approx", "lifecycle.write_json_atomic", "envelope.load_envelope"):
             replies = []
             while isinstance(result, dict) and "callback" in result:
@@ -235,7 +250,11 @@ def pytest_configure(config):
                     "effective_tokens", "approx_tokens", "runner_effective_or_approx"),
         "ledger": ("overhead", "effective_exec"),
         "plugin.accounting": ("effective", "overhead_total", "summarize", "fmt_tokens"),
-        "microskills.lifecycle": ("write_json_atomic",),
+        "microskills.lifecycle": ("write_json_atomic", "edited_files", "edited_pyfiles"),
+        "microskills.observe": ("unwrap", "segments", "_tokens", "repository_top", "_cd_target", "_shell_path", "_shell_isabs",
+                                "classify_command", "_runner_script", "_probe_kind", "error_class", "_exit_code_hint", "_label_failed",
+                                "_test_labels", "label_rule", "_env_calls", "form_failed", "form_worked", "observe_task", "_error_line",
+                                "_base", "_not_found_name", "is_bare"),
         "names": ("repo_filename",),
         "config": ("needs_optimizer",),
         "loopguard.rules": ("scaled_thresholds", "gate_for_judge", "is_stuck", "nudge_text", "assess_abort"),
@@ -349,6 +368,23 @@ def config_constructor(cls):
 
 def spiral_data(state):
     return {name: getattr(state, name) for name in state.__slots__}
+
+
+def vocabulary_data(vocabulary):
+    return {field.name: list(value) if isinstance(value, (tuple, set, frozenset)) else value
+            for field in dataclasses.fields(vocabulary) for value in (getattr(vocabulary, field.name),)}
+
+
+def observation_data(observation):
+    return {name: getattr(observation, name) for name in observation.__slots__}
+
+
+def restore_observation(data):
+    from tokeneconomizer.microskills.observe import Observation
+    observation = Observation.__new__(Observation)
+    for name, value in data.items():
+        setattr(observation, name, tuple(value) if name in ("hosts", "labels") else value)
+    return observation
 
 
 def storage_result(result):

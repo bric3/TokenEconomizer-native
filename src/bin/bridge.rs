@@ -5,6 +5,8 @@ use std::path::Path;
 mod callback;
 #[path = "bridge/guard.rs"]
 mod guard_dispatch;
+#[path = "bridge/microskills.rs"]
+mod microskills_dispatch;
 #[path = "bridge/storage.rs"]
 mod storage_dispatch;
 #[path = "bridge/trace.rs"]
@@ -24,6 +26,10 @@ use tokeneconomizer::{
 
 fn dispatch(request: &Value) -> Result<Value, String> {
     let args = &request["args"];
+    if let Some(value) = microskills_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)?
+    {
+        return Ok(value);
+    }
     if let Some(value) = storage_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
         return Ok(value);
     }

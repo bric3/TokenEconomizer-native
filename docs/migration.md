@@ -52,6 +52,9 @@ complete while any runtime component delegates production behaviour to Python.
   Runner processes still need conversion.
 - The JSON state store, atomic fact writes, JSONL logs and lock timeouts now execute
   in Rust, including bounded Windows retry decisions and temporary-file cleanup.
+- Command observation is native: vocabulary-based intent and form classification,
+  working-directory tracking, labels, environment-variable evidence, network and
+  VCS outcomes, missing-tool attribution and edited-file selection.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -67,7 +70,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit Unicode regular-expression compatibility with Python in the production
   parity pass, including word boundaries and whitespace classes.
 - Audit JSON numeric edge cases, including non-finite values accepted by Python.
-- Port command observation, environment facts, proposed facts and prefix stages.
+- Port environment facts, proposed facts and prefix stages.
 - Port tool-pruning evidence, Codex capabilities and pruning stages.
 - Port plugin configuration, paths and repository identity,
   deny lists, host settings, history, context, folding, controller and queues.
@@ -131,6 +134,9 @@ complete while any runtime component delegates production behaviour to Python.
   rename, cross-process lock exclusion and concurrent envelope updates. Two native
   bridge processes each record 32 turns without losing updates; history stays
   bounded at 500 turns.
+- Observation-focused run: 366 passed. Full suite with native observation:
+  1,558 passed, 33 skipped (95.20 seconds). `validation/observe-calls.json` records
+  native bridge coverage; observation's nested trace and lifecycle calls stay in Rust.
 
 ## Dependencies
 
