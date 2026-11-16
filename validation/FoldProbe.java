@@ -3,27 +3,13 @@
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.Comparator;
 import java.util.regex.Pattern;
 
 /** Native folding locks, callback failure cleanup and imported-session boundaries. */
 class FoldProbe {
   static class Client extends ContextProbe.Client {
-    Client(Path executable) throws Exception { super(executable); }
-    @Override String call(String op, String args) throws Exception {
-      var line = once(op, args);
-      long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
-      while (line.contains("\"method\":\"pending\"")) {
-        if (System.nanoTime() >= deadline) throw new AssertionError("Fold job remained pending");
-        line = once("fold.resume", "\"job\":" + ContextProbe.job(line));
-      }
-      return line;
-    }
-    @Override String resume(String pending, String method, String reply) throws Exception {
-      if (!pending.contains("\"method\":\"" + method + "\"")) throw new AssertionError(pending);
-      return call("fold.resume", "\"job\":" + ContextProbe.job(pending) + ",\"reply\":" + reply);
-    }
+    Client(Path executable) throws Exception { super(executable, "fold"); }
   }
   static String quote(Object value) { return ContextProbe.quote(value.toString()); }
   static void expect(String actual, String expected) { ContextProbe.expect(actual, expected); }

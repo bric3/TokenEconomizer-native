@@ -23,7 +23,12 @@ class ContextProbe {
     final Process process;
     final PrintWriter input;
     final BufferedReader output;
+    final String namespace;
     Client(Path executable) throws Exception {
+      this(executable, "context");
+    }
+    Client(Path executable, String namespace) throws Exception {
+      this.namespace = namespace;
       process = new ProcessBuilder(executable.toString()).redirectError(ProcessBuilder.Redirect.INHERIT).start();
       input = new PrintWriter(new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
       output = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
@@ -39,13 +44,13 @@ class ContextProbe {
       long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
       while (line.contains("\"method\":\"pending\"")) {
         if (System.nanoTime() >= deadline) throw new AssertionError("Context job remained pending");
-        line = once("context.resume", "\"job\":" + job(line));
+        line = once(namespace + ".resume", "\"job\":" + job(line));
       }
       return line;
     }
     String resume(String pending, String method, String reply) throws Exception {
       if (!pending.contains("\"method\":\"" + method + "\"")) throw new AssertionError(pending);
-      return call("context.resume", "\"job\":" + job(pending) + ",\"reply\":" + reply);
+      return call(namespace + ".resume", "\"job\":" + job(pending) + ",\"reply\":" + reply);
     }
     public void close() throws Exception {
       input.close();

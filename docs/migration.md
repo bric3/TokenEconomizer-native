@@ -130,6 +130,13 @@ complete while any runtime component delegates production behaviour to Python.
   reuse the native command formatter; Grok and Hermes results reuse their trace
   readers. Stateful host preparation, transcript access and runtime detection
   remain pending.
+- Host session operations now execute in Rust: transcript paths and conversions,
+  usage and prompt counts, history discovery, saved session metadata, headless
+  detection, process ancestry, opencode export recovery, deferred Hermes exports,
+  Copilot's final-event wait and guarded Cursor spool cleanup. Process environment
+  and hook environment remain distinct. Command resolution still calls the
+  side-call component until it is ported. Stateful event preparation and spooling
+  for Cursor, Antigravity and Grok remain pending.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -147,6 +154,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit JSON numeric edge cases, including non-finite values accepted by Python.
   Configuration numeric coercion still needs Unicode decimal digits and integers
   outside the current i64 range. Audit path-normalisation edge cases too.
+- Complete named-user and Windows tilde expansion for extra history directories
+  in the path parity audit.
 - Include history and folding counters beyond i64 in the numeric parity audit.
 - Port host settings and integration, and controller.
 - Port side calls, model probes, tool checks, repository maps, CLI commands and
@@ -354,6 +363,18 @@ complete while any runtime component delegates production behaviour to Python.
   patches, failure-code precedence, metadata booleans and merged contexts and progress.
   Clippy, formatting and the 256-file upstream integrity check pass. Stateful host
   behaviour, transcript orchestration and headless detection remain pending.
+- Host-session focused run: 544 passed, 14 skipped. Full suite with native host
+  session operations: 1,558 passed, 33 skipped (52.26 seconds).
+  `validation/host-session-calls.json` records native entries; conversions, usage,
+  history selection and normal subprocess capture remain inside Rust.
+- `HostSessionProbe.java` runs a local export fixture through the native process
+  launcher, checks its environment and working directory, preserves a saved copy
+  after malformed output and removes temporary files. It verifies relative input
+  and output paths, command-ancestry decisions, bridge responsiveness during a
+  final-event wait, and protecting an external transcript during Cursor cleanup.
+  The context, folding and established bridge probes, Clippy, formatting and all
+  256 pinned reference files pass. Real agent commands and native Windows
+  execution remain unverified.
 
 ## Dependencies
 
@@ -445,6 +466,7 @@ jbang validation/BridgeProbe.java
 jbang validation/QueueProbe.java
 jbang validation/ContextProbe.java
 jbang validation/FoldProbe.java
+jbang validation/HostSessionProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 

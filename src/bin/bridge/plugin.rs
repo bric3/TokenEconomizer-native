@@ -15,6 +15,8 @@ mod denylist_dispatch;
 mod fold_dispatch;
 #[path = "history.rs"]
 mod history_dispatch;
+#[path = "host_session.rs"]
+mod host_session_dispatch;
 #[path = "hosts.rs"]
 mod hosts_dispatch;
 #[path = "live_judge.rs"]
@@ -90,6 +92,9 @@ fn paths_dispatch(op: &str, args: &Value) -> Result<Value, String> {
 }
 
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
+    if op.starts_with("host_runtime.") {
+        return host_session_dispatch::dispatch(op, args);
+    }
     if op.starts_with("fold.") {
         return fold_dispatch::dispatch(op, args);
     }

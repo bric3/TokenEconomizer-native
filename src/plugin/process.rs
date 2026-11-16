@@ -73,6 +73,14 @@ fn command(
 pub fn run_configured(argv: &[String], cwd: &Path, timeout: f64, flags: u32) -> io::Result<Output> {
     capture(command(argv, cwd, None, flags)?, timeout)
 }
+pub fn run_environment(
+    argv: &[String],
+    cwd: &Path,
+    env: &Map<String, Value>,
+    timeout: f64,
+) -> io::Result<Output> {
+    capture(command(argv, cwd, Some(env), 0)?, timeout)
+}
 
 pub fn spawn_logged(
     argv: &[String],

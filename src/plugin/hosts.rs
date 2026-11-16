@@ -8,6 +8,7 @@ use std::sync::LazyLock;
 
 mod protocol;
 pub use protocol::*;
+pub mod session;
 
 pub const RESULT_CAP: usize = 20000;
 pub static EXIT_RE: LazyLock<Regex> = LazyLock::new(|| {

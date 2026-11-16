@@ -34,6 +34,7 @@ NATIVE_HISTORY_FUNCTIONS = {}
 NATIVE_SPAWN_FUNCTIONS = {}
 NATIVE_FOLD_FUNCTIONS = {}
 NATIVE_FOLD_DENY = {}
+NATIVE_HOST_ANCESTORS = None
 
 
 def invoke(operation, arguments):
@@ -72,6 +73,8 @@ def wrap(original, operation):
             return fold_call(operation, arguments)
         if operation.startswith("host_helpers."):
             return host_call(operation, arguments)
+        if operation.startswith("host_runtime."):
+            return host_session_call(operation, arguments)
         if operation.startswith(("context.", "winspawn.")):
             return context_call(operation, arguments)
         if operation == "trace.copilot.copilot_mcp_servers":
@@ -616,7 +619,7 @@ def pytest_configure(config):
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
         "plugin.history": ("_record_error", "read_state", "_num", "_stale", "_ledger_size", "_session_records", "_nothing_folded", "_live_folds", "_folded_by_import", "_refusal", "_identity", "is_this_repository", "_headless", "plan", "_still_eligible", "replay_envelope", "_update", "_save", "_say", "run", "_run_locked", "_import_one", "maybe_start", "notice", "summary", "describe"),
         "plugin.fold": ("_run_dir", "_microskills_config", "_fold_microskills", "forget_microskills", "enough_evidence", "_fold_toolprune", "_server_summary", "_fold_toolprune_codex", "unprotected", "_hold", "last_activity", "apply_pending", "schedule_pending", "import_blocks", "fold_session", "fold_locked", "pending_sessions", "spawn_fold"),
-        "plugin.hosts": ("claude_success_code", "response_text", "merge_outputs", "_failure_response", "_exit_code", "default_host", "detect"),
+        "plugin.hosts": ("claude_success_code", "response_text", "merge_outputs", "_failure_response", "_exit_code", "default_host", "detect", "copilot_home", "_ancestor_args"),
         "plugin.winspawn": ("_windowless_python", "spawn", "_spawn_wmi", "_run"),
         "plugin.paths": ("state_root", "secure_root", "launcher_path", "ensure_launcher", "home_dir", "_gitdir_of_file", "is_git_entry", "find_repo_root", "_git_common_dir", "origin_url", "normalize_remote", "_slug", "digest", "_main_checkout", "repo_identity", "repo_state_dir"),
         "plugin.repos": ("repos_dir", "_repo_dir", "_record_error", "_pin_store", "_pin_name", "_repo_from", "pinned", "pin", "prune_pins", "_legacy_root", "legacy_key", "_host_dirs", "_sessions", "_transcript_cwd", "session_cwd", "_imported", "_transcript_of", "_has_learned", "dir_label", "note_repo", "_write_lines", "_rename_label", "_take_learned", "_merge_applied", "_merge_envelope", "_merge_host", "merge_whole", "_resolve", "plan_dir", "_live", "migrate_dir", "_record_moves", "_candidates", "_prune_index", "adopt", "migrate_all", "merge", "needs_migration", "start_migration", "run_migration", "migration_notice", "refold_moved", "settle", "how_words", "describe", "ignored_git_entries", "listing", "home_git_note"),
@@ -690,7 +693,7 @@ def pytest_configure(config):
             if module_name == "plugin.history":
                 operation = "history." + name
             if module_name == "plugin.hosts":
-                operation = "host_helpers." + name
+                operation = ("host_runtime." if name in ("copilot_home", "_ancestor_args") else "host_helpers.") + name
             if module_name == "plugin.winspawn":
                 operation = "winspawn." + name
             if module_name == "plugin.denylist":
@@ -903,6 +906,11 @@ def pytest_configure(config):
         for name in ("tool_call", "session_id", "turn_key", "env_session_id", "is_subagent", "context", "notice", "relay", "stop_hint", "stopped_normally", "completed_at_end"):
             if name in cls.__dict__:
                 setattr(cls, name, wrap(getattr(cls, name), "host_helpers." + name))
+        for name in ("cwd", "transcript", "headless", "mechanism_trace", "session_usage", "prompt_count", "settle", "complete", "last_active", "session_state", "tool_usage", "history", "log_head", "safe_session_id", "prompt_turns", "turn_calls", "turn_interrupted", "turn_answered", "folder_matches"):
+            if name in cls.__dict__:
+                setattr(cls, name, wrap(getattr(cls, name), "host_runtime." + name))
+    global NATIVE_HOST_ANCESTORS
+    NATIVE_HOST_ANCESTORS = hosts._ancestor_args
 
     from tokeneconomizer.loopguard.envelope import EnvelopeTracker
     EnvelopeTracker.__init__ = state_constructor(EnvelopeTracker, "envelope.new")
@@ -974,6 +982,64 @@ def hookqueue_call(operation, arguments):
             reply = {"error": str(error), "error_kind": type(error).__name__}
         result = invoke("hookqueue.resume", {"job": result["job"], "reply": reply})
     return storage_result(result)
+
+
+def host_session_call(operation, arguments):
+    from tokeneconomizer.plugin import hosts, sidecall
+    arguments = dict(arguments)
+    host = arguments.pop("self", None)
+    if host is not None:
+        arguments["host"] = host.name
+        arguments["limits"] = {"export_tries": getattr(host, "EXPORT_TRIES", 3),
+                               "export_wait": getattr(host, "EXPORT_WAIT_S", 2.0),
+                               "fold_retry": getattr(host, "FOLD_RETRY_S", 7 * 86400)}
+    arguments.update(process_env=dict(os.environ), process_cwd=os.getcwd(), home=os.path.expanduser("~"),
+                     parent_pid=os.getppid(), windows=os.name == "nt")
+    arguments["transport"] = {"run": subprocess.run is not NATIVE_SPAWN_FUNCTIONS["run"],
+                              "ancestors": hosts._ancestor_args is not NATIVE_HOST_ANCESTORS}
+    if "env" in arguments:
+        arguments["env"] = dict(os.environ if arguments["env"] is None else arguments["env"])
+    if "extra_dirs" in arguments:
+        arguments["extra_dirs"] = [os.fspath(path) for path in arguments["extra_dirs"] or ()]
+    if "turn_lines" in arguments:
+        arguments["turn_lines"] = list(arguments["turn_lines"])
+    for name, value in list(arguments.items()):
+        if isinstance(value, os.PathLike):
+            arguments[name] = os.fspath(value)
+    result = invoke(operation, arguments)
+    while isinstance(result, dict) and result.get("callback") == "host_runtime":
+        method, args = result["method"], result["args"]
+        if method == "pending":
+            result = invoke("host_runtime.resume", {"job": result["job"]})
+            continue
+        try:
+            if method == "program":
+                value = list(sidecall.program(*args))
+            elif method == "ancestors":
+                value = list(hosts._ancestor_args())
+            elif method == "run":
+                argv, cwd, env, timeout = args
+                kwargs = dict(capture_output=True, encoding="utf-8", errors="replace", timeout=timeout)
+                if env is not None:
+                    kwargs.update(cwd=cwd, env=env, stdin=subprocess.DEVNULL)
+                out = subprocess.run(argv, **kwargs)
+                value = {"code": out.returncode, "stdout": out.stdout or "", "stderr": out.stderr or ""}
+            else:
+                raise AssertionError("Unknown host session callback: " + method)
+            reply = {"value": value}
+        except Exception as error:
+            reply = {"error": str(error), "error_kind": type(error).__name__}
+        result = invoke("host_runtime.resume", {"job": result["job"], "reply": reply})
+    if result.get("raised") == "FoldLater":
+        raise hosts.FoldLater(result["message"])
+    value = storage_result(result)
+    if operation == "host_runtime.prompt_turns":
+        return iter(value)
+    if operation == "host_runtime.turn_calls":
+        return [tuple(row) for row in value]
+    if operation == "host_runtime.tool_usage":
+        return collections.Counter(value)
+    return value
 
 
 def host_call(operation, arguments):
