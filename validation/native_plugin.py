@@ -4,6 +4,7 @@ This is test compatibility code, retained only until the final test conversion.
 Production calculations live in Rust. Original test files remain unmodified.
 """
 import collections
+from collections.abc import Iterator
 import contextlib
 import dataclasses
 import functools
@@ -29,6 +30,7 @@ NATIVE_DENY_FUNCTIONS = {}
 NATIVE_JUDGE_FUNCTIONS = {}
 NATIVE_JUDGE_STORE = {}
 NATIVE_QUEUE_ENQUEUE = None
+NATIVE_HISTORY_FUNCTIONS = {}
 
 
 def invoke(operation, arguments):
@@ -61,6 +63,8 @@ def wrap(original, operation):
         arguments = dict(bound.arguments)
         if operation.startswith("hookqueue."):
             return hookqueue_call(operation, arguments)
+        if operation.startswith("history."):
+            return history_call(operation, arguments)
         if operation == "trace.copilot.copilot_mcp_servers":
             arguments["home"] = os.path.expanduser("~")
             if arguments["env"] is None:
@@ -601,6 +605,8 @@ def pytest_configure(config):
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
+        "plugin.history": ("_record_error", "read_state", "_num", "_stale", "_ledger_size", "_session_records", "_nothing_folded", "_live_folds", "_folded_by_import", "_refusal", "_identity", "is_this_repository", "_headless", "plan", "_still_eligible", "replay_envelope", "_update", "_save", "_say", "run", "_run_locked", "_import_one", "maybe_start", "notice", "summary", "describe"),
+        "plugin.hosts": ("claude_success_code",),
         "plugin.paths": ("state_root", "secure_root", "launcher_path", "ensure_launcher", "home_dir", "_gitdir_of_file", "is_git_entry", "find_repo_root", "_git_common_dir", "origin_url", "normalize_remote", "_slug", "digest", "_main_checkout", "repo_identity", "repo_state_dir"),
         "plugin.repos": ("repos_dir", "_repo_dir", "_record_error", "_pin_store", "_pin_name", "_repo_from", "pinned", "pin", "prune_pins", "_legacy_root", "legacy_key", "_host_dirs", "_sessions", "_transcript_cwd", "session_cwd", "_imported", "_transcript_of", "_has_learned", "dir_label", "note_repo", "_write_lines", "_rename_label", "_take_learned", "_merge_applied", "_merge_envelope", "_merge_host", "merge_whole", "_resolve", "plan_dir", "_live", "migrate_dir", "_record_moves", "_candidates", "_prune_index", "adopt", "migrate_all", "merge", "needs_migration", "start_migration", "run_migration", "migration_notice", "refold_moved", "settle", "how_words", "describe", "ignored_git_entries", "listing", "home_git_note"),
         "plugin.denylist": ("_canon", "applied_by_path", "kept_by_path", "write_applied", "supports", "unit", "settings_path", "_read_settings", "_guard_target", "write_json", "_write_text", "_exclude_from_git", "kept_for", "set_kept", "applied", "applied_for", "_record", "_json_list_keys", "_apply_json_list", "_restore_json_list", "_sections", "_key_set", "_toml_insert", "_toml_remove", "_toml_valid", "_git_tracked", "codex_config_error", "_apply_codex", "_restore_codex", "copilot_trusted_folders", "copilot_folder_trusted", "codex_home", "codex_project_trusted", "apply", "restore", "copilot_server_proposal"),
@@ -670,6 +676,10 @@ def pytest_configure(config):
                 operation = "live_adapter." + name
             if module_name == "plugin.hookqueue":
                 operation = "hookqueue." + name
+            if module_name == "plugin.history":
+                operation = "history." + name
+            if module_name == "plugin.hosts":
+                operation = "host_helpers." + name
             if module_name == "plugin.denylist":
                 operation = ("applied." if name in ("_canon", "applied_by_path", "kept_by_path", "write_applied") else "denylist.") + name
             operation = operation.removeprefix("loopguard.")
@@ -842,6 +852,15 @@ def pytest_configure(config):
     global NATIVE_QUEUE_ENQUEUE
     NATIVE_QUEUE_ENQUEUE = hookqueue.enqueue
 
+    from tokeneconomizer.plugin import history
+    constants = invoke("history.constants", {})
+    for name, value in constants.items():
+        original = getattr(history, name)
+        assert value == original
+        setattr(history, name, type(original)(value))
+    global NATIVE_HISTORY_FUNCTIONS
+    NATIVE_HISTORY_FUNCTIONS = {"plan": history.plan, "clock": history._clock}
+
     from tokeneconomizer.loopguard.envelope import EnvelopeTracker
     EnvelopeTracker.__init__ = state_constructor(EnvelopeTracker, "envelope.new")
     EnvelopeTracker.update = wrap(EnvelopeTracker.update, "envelope.update")
@@ -912,6 +931,92 @@ def hookqueue_call(operation, arguments):
             reply = {"error": str(error), "error_kind": type(error).__name__}
         result = invoke("hookqueue.resume", {"job": result["job"], "reply": reply})
     return storage_result(result)
+
+
+def history_call(operation, arguments):
+    from tokeneconomizer.plugin import history, fold
+    arguments = dict(arguments)
+    ctx = arguments.pop("ctx", None)
+    store = arguments.pop("store", getattr(ctx, "store", None))
+    log, change = arguments.pop("log", None), arguments.pop("change", None)
+    original_doc, original_skipped, original_cache = arguments.get("doc"), arguments.get("skipped"), arguments.get("cache")
+    aliased_skipped = isinstance(original_doc, dict) and original_doc.get("skipped") is original_skipped and original_skipped is not None
+    arguments["ctx"] = {"root": os.fspath(getattr(ctx, "root", ".")), "base": os.fspath(getattr(store, "base", ".")),
+                        "host": getattr(getattr(ctx, "host", None), "name", "claude"),
+                        "keeps_history": bool(getattr(getattr(ctx, "host", None), "keeps_history", False)),
+                        "config": dataclasses.asdict(ctx.config) if ctx is not None and hasattr(ctx, "config") else {},
+                        "env": dict(getattr(ctx, "env", {})), "home": os.path.expanduser("~")}
+    if ctx is not None and hasattr(ctx, "repo"):
+        arguments["ctx"]["repo"] = dataclasses.asdict(ctx.repo)
+    arguments["log"] = log is not None
+    arguments["limits"] = {"max_bytes": history.MAX_BYTES, "max_attempts": history.MAX_ATTEMPTS,
+                           "heartbeat_stale": history.HEARTBEAT_STALE_S, "history_lock": history.HISTORY_LOCK_S,
+                           "fold_lock": fold.FOLD_LOCK_WAIT_S, "stale": fold.STALE_S}
+    arguments["transport"] = {name: getattr(history, name if name == "plan" else "_clock") is not original
+                              for name, original in NATIVE_HISTORY_FUNCTIONS.items()}
+    for name, value in list(arguments.items()):
+        if isinstance(value, os.PathLike):
+            arguments[name] = os.fspath(value)
+    if operation == "history._record_error":
+        arguments["error"] = traceback.format_exc()
+    result, cancelled = invoke(operation, arguments), None
+    while isinstance(result, dict) and result.get("callback") == "history":
+        method, args = result["method"], result["args"]
+        if method == "pending":
+            result = invoke("history.resume", {"job": result["job"]})
+            continue
+        try:
+            if method == "host":
+                name, params = args
+                value = getattr(ctx.host, name)(ctx.env, *params) if name == "history" else getattr(ctx.host, name)(*params)
+                if isinstance(value, Iterator):
+                    value = list(value)
+            elif method == "plan":
+                value = history.plan(ctx, now=args[0])
+            elif method == "fold":
+                sid, path, imported, span = args
+                value = fold.fold_locked(ctx, sid, path, imported=True, span=tuple(span)) if imported else fold.fold_locked(ctx, sid)
+            elif method == "pending_sessions":
+                value = fold.pending_sessions(ctx)
+            elif method == "spawn":
+                value = ctx.spawn(*args)
+            elif method == "log":
+                log(*args)
+                value = None
+            elif method == "clock":
+                value = history._clock()
+            elif method == "change":
+                doc = args[0]
+                value = {"value": change(doc), "doc": doc}
+            else:
+                raise AssertionError("Unknown history callback: " + method)
+            reply = {"value": value}
+        except BaseException as error:
+            fatal = not isinstance(error, Exception)
+            if fatal:
+                cancelled = error
+            reply = {"error": traceback.format_exc(), "fatal": fatal}
+        result = invoke("history.resume", {"job": result["job"], "reply": reply})
+    if isinstance(result, dict) and result.get("cancelled"):
+        if cancelled is None:
+            raise AssertionError("A history job cancelled without a source exception")
+        raise cancelled
+    value = storage_result(result)
+    if operation in ("history._identity", "history.is_this_repository"):
+        if original_cache is not None:
+            original_cache.clear()
+            original_cache.update(value["cache"])
+        return value["value"]
+    if operation in ("history._run_locked", "history._import_one"):
+        original_doc.clear()
+        original_doc.update(value["doc"])
+        if original_skipped is not None:
+            original_skipped.clear()
+            original_skipped.update(value["skipped"])
+            if aliased_skipped:
+                original_doc["skipped"] = original_skipped
+        return value["value"]
+    return value
 
 
 def live_judge_call(operation, ctx=None, session_id="", job_id="", threshold=None, guard=None, digest=""):

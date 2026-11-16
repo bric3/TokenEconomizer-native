@@ -103,6 +103,13 @@ complete while any runtime component delegates production behaviour to Python.
   event and time budgets, fallback handling and idle pruning. Taking a lock
   refreshes its timestamps before pruning. Controller construction and handler
   calls remain callbacks until the controller is ported.
+- History import orchestration now executes in Rust: repository matching, ordered
+  plans, eligibility checks, fold refusal, budgets, checkpoints, crash attempts,
+  heartbeats, restart and stop decisions, notices and status summaries. Imported
+  prompt turns seed the envelope through native guards with no judge or envelope
+  intervention. The shared Claude shell success-code helper is also native.
+  Host log access, folding and process spawning remain callbacks until those
+  production components are ported.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -120,7 +127,9 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit JSON numeric edge cases, including non-finite values accepted by Python.
   Configuration numeric coercion still needs Unicode decimal digits and integers
   outside the current i64 range. Audit path-normalisation edge cases too.
-- Port host settings and integration, history, context, folding and controller.
+- Include history counters beyond i64 in the numeric parity audit. Replace its
+  temporary context data structure when native `LiveContext` construction is ported.
+- Port host settings and integration, context, folding and controller.
 - Port side calls, model probes, tool checks, repository maps, CLI commands and
   hooks. Verify each host integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
@@ -283,6 +292,15 @@ complete while any runtime component delegates production behaviour to Python.
   hook leaves the bridge available to its lock holder. The established bridge
   probe, Clippy, formatting and upstream integrity checks pass. Native Windows
   execution and the complete native hook executable remain unverified.
+- History import focused run: 31 passed. Full suite with native import
+  orchestration: 1,558 passed, 33 skipped (52.44 seconds).
+  `validation/history-import-calls.json` records native entries; nested planning,
+  persistence, guard replay and envelope updates remain inside Rust.
+- The original tests verify oldest-first selection, stale heartbeats, refusal
+  after live folds, budget resumes, fold-lock contention, bounded crash retries,
+  recovery after a fold committed before process death, no model calls and green
+  turn seeding. Clippy, formatting, both native probe tools and the 256-file
+  upstream integrity check pass. Host and folding callbacks remain pending.
 
 ## Dependencies
 

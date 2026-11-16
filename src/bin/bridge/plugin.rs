@@ -9,6 +9,8 @@ use tokeneconomizer::plugin::{
 mod adapter_dispatch;
 #[path = "denylist.rs"]
 mod denylist_dispatch;
+#[path = "history.rs"]
+mod history_dispatch;
 #[path = "live_judge.rs"]
 mod judge_dispatch;
 #[path = "hookqueue.rs"]
@@ -82,6 +84,18 @@ fn paths_dispatch(op: &str, args: &Value) -> Result<Value, String> {
 }
 
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
+    if op == "host_helpers.claude_success_code" {
+        return Ok(Some(json!(
+            tokeneconomizer::plugin::hosts::claude_success_code(
+                text(args, "name"),
+                &args["args"],
+                args.get("resp")
+            )?
+        )));
+    }
+    if op.starts_with("history.") {
+        return history_dispatch::dispatch(op, args);
+    }
     if op.starts_with("hookqueue.") {
         return queue_dispatch::dispatch(op, args);
     }
