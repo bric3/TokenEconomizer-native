@@ -1,10 +1,7 @@
 use crate::job::{self, Channel};
 use serde_json::{Map, Value, json};
-use std::{collections::BTreeMap, path::PathBuf};
-use tokeneconomizer::{
-    plugin::history::{self, Context, Error, Limits, Runtime},
-    store::Store,
-};
+use std::collections::BTreeMap;
+use tokeneconomizer::plugin::history::{self, Context, Error, Limits, Runtime};
 
 struct Transport {
     channel: Channel,
@@ -70,27 +67,7 @@ fn text<'a>(args: &'a Value, key: &str) -> &'a str {
     args[key].as_str().unwrap_or("")
 }
 fn context(args: &Value) -> history::Result<Context> {
-    let raw = &args["ctx"];
-    Ok(Context {
-        root: PathBuf::from(raw["root"].as_str().unwrap_or(".")),
-        store: Store::new(std::path::Path::new(
-            raw["base"]
-                .as_str()
-                .filter(|s| !s.is_empty())
-                .unwrap_or("."),
-        ))?,
-        repo: serde_json::from_value(
-            raw.get("repo")
-                .cloned()
-                .unwrap_or(json!({"root":".","key":"","label":"","remote":"","how":""})),
-        )
-        .map_err(|e| Error::Failed(e.to_string()))?,
-        host: raw["host"].as_str().unwrap_or("claude").into(),
-        keeps_history: raw["keeps_history"] == true,
-        config: raw.get("config").cloned().unwrap_or(json!({})),
-        env: raw["env"].as_object().cloned().unwrap_or_default(),
-        home: PathBuf::from(raw["home"].as_str().unwrap_or(".")),
-    })
+    super::context_dispatch::context(&args["ctx"]).map_err(Error::Failed)
 }
 fn limits(args: &Value) -> Limits {
     let raw = &args["limits"];

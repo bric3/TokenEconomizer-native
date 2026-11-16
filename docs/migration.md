@@ -110,6 +110,13 @@ complete while any runtime component delegates production behaviour to Python.
   intervention. The shared Claude shell success-code helper is also native.
   Host log access, folding and process spawning remain callbacks until those
   production components are ported.
+- Live context construction now executes in Rust: deferred settlement, session
+  pins, configuration reload after migration, headless-mode overrides and mechanism
+  directories. Native processes preserve arguments, environment, append-only logs
+  and POSIX session detachment. Windows breakaway and WMI fallback decisions,
+  command quoting, private spec files and worker cleanup are native too. Host
+  detection still crosses a callback. Detached commands and WMI workers retain
+  migration entry points until native CLI packaging replaces them.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -127,9 +134,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit JSON numeric edge cases, including non-finite values accepted by Python.
   Configuration numeric coercion still needs Unicode decimal digits and integers
   outside the current i64 range. Audit path-normalisation edge cases too.
-- Include history counters beyond i64 in the numeric parity audit. Replace its
-  temporary context data structure when native `LiveContext` construction is ported.
-- Port host settings and integration, context, folding and controller.
+- Include history counters beyond i64 in the numeric parity audit.
+- Port host settings and integration, folding and controller.
 - Port side calls, model probes, tool checks, repository maps, CLI commands and
   hooks. Verify each host integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
@@ -301,6 +307,18 @@ complete while any runtime component delegates production behaviour to Python.
   recovery after a fold committed before process death, no model calls and green
   turn seeding. Clippy, formatting, both native probe tools and the 256-file
   upstream integrity check pass. Host and folding callbacks remain pending.
+- Context, Windows spawning, repository, history and status focused run: 113 passed.
+  Full suite with native context: 1,558 passed, 33 skipped (52.05 seconds).
+  `validation/context-calls.json` records 4,897 context constructions, 4,802
+  settlements and 737 mechanism-directory requests reaching Rust. Callback
+  resumes are transport operations; nested repository and store calls stay native.
+- `ContextProbe.java` verifies deferred writes, session pinning, repeated settlement,
+  literal arguments and Unicode, environment propagation and combined log output.
+  A child verifies its POSIX session ID and finishes after the native parent exits.
+  WMI checks cover spaces and apostrophes, failed-launch cleanup, owner-only spec
+  permissions and removing the spec before running its command. The established
+  bridge and queue probes, Clippy, formatting and all 256 reference files pass.
+  Actual Windows execution and native CLI packaging remain pending.
 
 ## Dependencies
 
@@ -321,7 +339,7 @@ which decides whether saved evidence can be reused. Its API is verified against 
 pinned crate's source documentation and its result against the original controller.
 `sha1` 0.10.7 preserves the existing repository-key digest. `libc` 0.2.191 was already
 transitive; the direct dependency supplies POSIX ownership and executable-access
-checks for private state and launchers.
+checks for private state and launchers, and POSIX process session detachment.
 `indexmap` 2.14.2 was already present through `serde_json`; it is now declared
 directly with serialization support for typed fact maps. Discovery order determines
 ties in fact selection and rendering.
@@ -390,6 +408,7 @@ Small Java validation tools check the migration infrastructure:
 jbang validation/VerifyReference.java
 jbang validation/BridgeProbe.java
 jbang validation/QueueProbe.java
+jbang validation/ContextProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 

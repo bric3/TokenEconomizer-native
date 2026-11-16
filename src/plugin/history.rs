@@ -1,6 +1,6 @@
 use super::{
     hosts::{self, EXIT_RE, RESULT_CAP},
-    paths::{self, RepoId},
+    paths,
 };
 use crate::{
     envelope,
@@ -13,7 +13,7 @@ use std::{
     collections::BTreeMap,
     fmt, fs,
     io::{self, Write},
-    path::{Path, PathBuf},
+    path::Path,
     sync::LazyLock,
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
@@ -65,17 +65,7 @@ impl From<String> for Error {
 }
 pub type Result<T> = std::result::Result<T, Error>;
 
-// shortcut: this context copies LiveContext data, replace it when native context construction is ported.
-pub struct Context {
-    pub root: PathBuf,
-    pub store: Store,
-    pub repo: RepoId,
-    pub host: String,
-    pub keeps_history: bool,
-    pub config: Value,
-    pub env: Map<String, Value>,
-    pub home: PathBuf,
-}
+pub use super::context::LiveContext as Context;
 pub struct Limits {
     pub max_bytes: u64,
     pub max_attempts: i64,

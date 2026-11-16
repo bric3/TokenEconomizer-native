@@ -1,6 +1,7 @@
 pub mod adapter;
 pub mod applied;
 pub mod config;
+pub mod context;
 pub mod denylist;
 pub mod history;
 pub mod hookqueue;
@@ -9,3 +10,4 @@ pub mod judge;
 pub mod paths;
 pub mod process;
 pub mod repos;
+pub mod winspawn;

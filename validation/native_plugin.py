@@ -31,6 +31,7 @@ NATIVE_JUDGE_FUNCTIONS = {}
 NATIVE_JUDGE_STORE = {}
 NATIVE_QUEUE_ENQUEUE = None
 NATIVE_HISTORY_FUNCTIONS = {}
+NATIVE_SPAWN_FUNCTIONS = {}
 
 
 def invoke(operation, arguments):
@@ -65,6 +66,8 @@ def wrap(original, operation):
             return hookqueue_call(operation, arguments)
         if operation.startswith("history."):
             return history_call(operation, arguments)
+        if operation.startswith(("context.", "winspawn.")):
+            return context_call(operation, arguments)
         if operation == "trace.copilot.copilot_mcp_servers":
             arguments["home"] = os.path.expanduser("~")
             if arguments["env"] is None:
@@ -607,6 +610,7 @@ def pytest_configure(config):
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
         "plugin.history": ("_record_error", "read_state", "_num", "_stale", "_ledger_size", "_session_records", "_nothing_folded", "_live_folds", "_folded_by_import", "_refusal", "_identity", "is_this_repository", "_headless", "plan", "_still_eligible", "replay_envelope", "_update", "_save", "_say", "run", "_run_locked", "_import_one", "maybe_start", "notice", "summary", "describe"),
         "plugin.hosts": ("claude_success_code",),
+        "plugin.winspawn": ("_windowless_python", "spawn", "_spawn_wmi", "_run"),
         "plugin.paths": ("state_root", "secure_root", "launcher_path", "ensure_launcher", "home_dir", "_gitdir_of_file", "is_git_entry", "find_repo_root", "_git_common_dir", "origin_url", "normalize_remote", "_slug", "digest", "_main_checkout", "repo_identity", "repo_state_dir"),
         "plugin.repos": ("repos_dir", "_repo_dir", "_record_error", "_pin_store", "_pin_name", "_repo_from", "pinned", "pin", "prune_pins", "_legacy_root", "legacy_key", "_host_dirs", "_sessions", "_transcript_cwd", "session_cwd", "_imported", "_transcript_of", "_has_learned", "dir_label", "note_repo", "_write_lines", "_rename_label", "_take_learned", "_merge_applied", "_merge_envelope", "_merge_host", "merge_whole", "_resolve", "plan_dir", "_live", "migrate_dir", "_record_moves", "_candidates", "_prune_index", "adopt", "migrate_all", "merge", "needs_migration", "start_migration", "run_migration", "migration_notice", "refold_moved", "settle", "how_words", "describe", "ignored_git_entries", "listing", "home_git_note"),
         "plugin.denylist": ("_canon", "applied_by_path", "kept_by_path", "write_applied", "supports", "unit", "settings_path", "_read_settings", "_guard_target", "write_json", "_write_text", "_exclude_from_git", "kept_for", "set_kept", "applied", "applied_for", "_record", "_json_list_keys", "_apply_json_list", "_restore_json_list", "_sections", "_key_set", "_toml_insert", "_toml_remove", "_toml_valid", "_git_tracked", "codex_config_error", "_apply_codex", "_restore_codex", "copilot_trusted_folders", "copilot_folder_trusted", "codex_home", "codex_project_trusted", "apply", "restore", "copilot_server_proposal"),
@@ -680,6 +684,8 @@ def pytest_configure(config):
                 operation = "history." + name
             if module_name == "plugin.hosts":
                 operation = "host_helpers." + name
+            if module_name == "plugin.winspawn":
+                operation = "winspawn." + name
             if module_name == "plugin.denylist":
                 operation = ("applied." if name in ("_canon", "applied_by_path", "kept_by_path", "write_applied") else "denylist.") + name
             operation = operation.removeprefix("loopguard.")
@@ -861,6 +867,17 @@ def pytest_configure(config):
     global NATIVE_HISTORY_FUNCTIONS
     NATIVE_HISTORY_FUNCTIONS = {"plan": history.plan, "clock": history._clock}
 
+    from tokeneconomizer.plugin import context, winspawn
+    constants = invoke("winspawn.constants", {})
+    assert constants["_FLAGS"] == winspawn._FLAGS and constants["_BREAKAWAY"] == winspawn._BREAKAWAY
+    winspawn._FLAGS, winspawn._BREAKAWAY = constants["_FLAGS"], constants["_BREAKAWAY"]
+    global NATIVE_SPAWN_FUNCTIONS
+    NATIVE_SPAWN_FUNCTIONS = {"popen": subprocess.Popen, "run": subprocess.run, "call": subprocess.call, "wmi": winspawn._spawn_wmi}
+    context.LiveContext.build = classmethod(context_build)
+    for name in ("settle", "is_headless", "spawn"):
+        setattr(context.LiveContext, name, wrap(getattr(context.LiveContext, name), "context." + name))
+    context.LiveContext.mech_dir = property(wrap(context.LiveContext.mech_dir.fget, "context.mech_dir"))
+
     from tokeneconomizer.loopguard.envelope import EnvelopeTracker
     EnvelopeTracker.__init__ = state_constructor(EnvelopeTracker, "envelope.new")
     EnvelopeTracker.update = wrap(EnvelopeTracker.update, "envelope.update")
@@ -941,13 +958,7 @@ def history_call(operation, arguments):
     log, change = arguments.pop("log", None), arguments.pop("change", None)
     original_doc, original_skipped, original_cache = arguments.get("doc"), arguments.get("skipped"), arguments.get("cache")
     aliased_skipped = isinstance(original_doc, dict) and original_doc.get("skipped") is original_skipped and original_skipped is not None
-    arguments["ctx"] = {"root": os.fspath(getattr(ctx, "root", ".")), "base": os.fspath(getattr(store, "base", ".")),
-                        "host": getattr(getattr(ctx, "host", None), "name", "claude"),
-                        "keeps_history": bool(getattr(getattr(ctx, "host", None), "keeps_history", False)),
-                        "config": dataclasses.asdict(ctx.config) if ctx is not None and hasattr(ctx, "config") else {},
-                        "env": dict(getattr(ctx, "env", {})), "home": os.path.expanduser("~")}
-    if ctx is not None and hasattr(ctx, "repo"):
-        arguments["ctx"]["repo"] = dataclasses.asdict(ctx.repo)
+    arguments["ctx"] = context_data(ctx, store)
     arguments["log"] = log is not None
     arguments["limits"] = {"max_bytes": history.MAX_BYTES, "max_attempts": history.MAX_ATTEMPTS,
                            "heartbeat_stale": history.HEARTBEAT_STALE_S, "history_lock": history.HISTORY_LOCK_S,
@@ -1017,6 +1028,104 @@ def history_call(operation, arguments):
                 original_doc["skipped"] = original_skipped
         return value["value"]
     return value
+
+
+def context_data(ctx, store=None):
+    store = store if store is not None else getattr(ctx, "store", None)
+    data = {"root": os.fspath(getattr(ctx, "root", ".")), "base": os.fspath(getattr(store, "base", ".")),
+            "host": getattr(getattr(ctx, "host", None), "name", "claude"),
+            "keeps_history": bool(getattr(getattr(ctx, "host", None), "keeps_history", False)),
+            "config": dataclasses.asdict(ctx.config) if ctx is not None and hasattr(ctx, "config") else {},
+            "env": dict(getattr(ctx, "env", {})), "home": os.path.expanduser("~"),
+            "unsettled": getattr(ctx, "unsettled", None)}
+    if ctx is not None and hasattr(ctx, "repo"):
+        data["repo"] = dataclasses.asdict(ctx.repo)
+    return data
+
+
+def restore_context(ctx, data, host):
+    from tokeneconomizer.plugin.paths import RepoId
+    from tokeneconomizer.plugin.store import Store
+    from tokeneconomizer.plugin.config import LiveConfig
+    ctx.host, ctx.repo, ctx.root, ctx.env = host, RepoId(**data["repo"]), data["root"], data["env"]
+    ctx.store = Store.__new__(Store)
+    ctx.store.base = data["base"]
+    cfg = getattr(ctx, "config", None)
+    if cfg is None:
+        cfg = LiveConfig.__new__(LiveConfig)
+    cfg.__dict__.clear()
+    cfg.__dict__.update(data["config"])
+    ctx.config = cfg
+    ctx.unsettled = tuple(data["unsettled"]) if data["unsettled"] is not None else None
+
+
+def context_build(cls, host, cwd, env=None, session_id=None, settle=True):
+    data = context_call("context.build", {"host": host, "cwd": cwd, "env": env, "session_id": session_id, "settle": settle})
+    ctx = cls.__new__(cls)
+    restore_context(ctx, data, host)
+    return ctx
+
+
+def context_call(operation, arguments):
+    from tokeneconomizer.plugin import context, winspawn
+    arguments = dict(arguments)
+    ctx = arguments.get("self")
+    host = ctx.host if ctx is not None else arguments.get("host")
+    if operation == "context.build":
+        arguments.update(host=host.name, keeps_history=bool(getattr(host, "keeps_history", False)),
+                         env=dict(os.environ if arguments["env"] is None else arguments["env"]))
+    if ctx is not None:
+        arguments["self"] = context_data(ctx)
+    if operation.startswith("winspawn.") and "cmd" in arguments:
+        arguments["spec"] = {"cmd": list(arguments.pop("cmd")), "cwd": os.fspath(arguments.pop("cwd")),
+                             "env": dict(arguments.pop("env")), "log": os.fspath(arguments.pop("log_path"))}
+    arguments.update(home=os.path.expanduser("~"), executable=winspawn.sys.executable,
+                     core=str(Path(context.__file__).absolute().parents[2]), runner=os.path.abspath(winspawn.__file__),
+                     windows=context.os.name == "nt")
+    arguments["transport"] = {name: (getattr(winspawn, "_spawn_wmi") if name == "wmi" else getattr(subprocess, {"popen": "Popen"}.get(name, name))) is not original
+                              for name, original in NATIVE_SPAWN_FUNCTIONS.items()}
+    for name, value in list(arguments.items()):
+        if isinstance(value, os.PathLike):
+            arguments[name] = os.fspath(value)
+    result = invoke(operation, arguments)
+    while isinstance(result, dict) and result.get("callback") == "context":
+        method, args = result["method"], result["args"]
+        if method == "pending":
+            result = invoke("context.resume", {"job": result["job"]})
+            continue
+        try:
+            if method == "headless":
+                value = host.headless(*args)
+            elif method == "popen":
+                spec, flags, new_session = args
+                with open(spec["log"], "a", encoding="utf-8") as log:
+                    kwargs = dict(stdin=subprocess.DEVNULL, stdout=log, stderr=log, cwd=spec["cwd"], env=spec["env"])
+                    if new_session:
+                        kwargs["start_new_session"] = True
+                    else:
+                        kwargs.update(creationflags=flags, close_fds=True)
+                    subprocess.Popen(spec["cmd"], **kwargs)
+                value = None
+            elif method == "powershell":
+                value = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", args[0]],
+                                       stdin=subprocess.DEVNULL, capture_output=True, timeout=15, creationflags=0x08000000).returncode
+            elif method == "wmi":
+                spec = args[0]
+                value = winspawn._spawn_wmi(spec["cmd"], spec["cwd"], spec["env"], spec["log"])
+            elif method == "call":
+                spec, flags = args
+                with open(spec["log"], "a", encoding="utf-8") as log:
+                    value = subprocess.call(spec["cmd"], stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+                                            cwd=spec["cwd"], env=spec["env"], creationflags=flags)
+            else:
+                raise AssertionError("Unknown context callback: " + method)
+            reply = {"value": value}
+        except Exception as error:
+            reply = {"error": str(error), "error_kind": type(error).__name__}
+        result = invoke("context.resume", {"job": result["job"], "reply": reply})
+    if ctx is not None and isinstance(result, dict) and "self" in result:
+        restore_context(ctx, result["self"], host)
+    return storage_result(result)
 
 
 def live_judge_call(operation, ctx=None, session_id="", job_id="", threshold=None, guard=None, digest=""):

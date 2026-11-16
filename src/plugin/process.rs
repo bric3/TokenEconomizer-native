@@ -10,6 +10,16 @@ use std::{
 
 use super::paths::executable;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
+
+#[derive(Serialize, Deserialize)]
+pub struct Launch {
+    pub cmd: Vec<String>,
+    pub cwd: PathBuf,
+    pub env: Map<String, Value>,
+    pub log: PathBuf,
+}
 
 pub struct Output {
     pub code: i32,
@@ -18,20 +28,126 @@ pub struct Output {
 }
 
 pub fn run(argv: &[String], cwd: &Path, timeout: f64, sidecall: bool) -> io::Result<Output> {
-    let timeout = Duration::try_from_secs_f64(timeout).map_err(io::Error::other)?;
+    let mut command = command(argv, cwd, None, 0)?;
+    if sidecall {
+        command.env("TE_SIDECALL", "1");
+    }
+    capture(command, timeout)
+}
+
+fn command(
+    argv: &[String],
+    cwd: &Path,
+    env: Option<&Map<String, Value>>,
+    flags: u32,
+) -> io::Result<Command> {
     let mut command = Command::new(
         argv.first()
             .ok_or_else(|| io::Error::other("empty command"))?,
     );
+    command.args(&argv[1..]).current_dir(cwd);
+    if let Some(env) = env {
+        command.env_clear();
+        for (key, value) in env {
+            command.env(
+                key,
+                value.as_str().ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "process environment values must be strings",
+                    )
+                })?,
+            );
+        }
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(flags);
+    }
+    #[cfg(not(windows))]
+    let _ = flags;
+    Ok(command)
+}
+
+pub fn run_configured(argv: &[String], cwd: &Path, timeout: f64, flags: u32) -> io::Result<Output> {
+    capture(command(argv, cwd, None, flags)?, timeout)
+}
+
+pub fn spawn_logged(
+    argv: &[String],
+    cwd: &Path,
+    env: &Map<String, Value>,
+    log: &Path,
+    flags: u32,
+    new_session: bool,
+) -> io::Result<()> {
+    let mut command = logged(argv, cwd, env, log, flags)?;
+    #[cfg(unix)]
+    if new_session {
+        use std::os::unix::process::CommandExt;
+        // Start a session before exec so the child leaves its hook's session.
+        unsafe {
+            command.pre_exec(|| {
+                if libc::setsid() < 0 {
+                    Err(io::Error::last_os_error())
+                } else {
+                    Ok(())
+                }
+            });
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = new_session;
+    let mut child = command.spawn()?;
+    thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
+}
+pub fn call_logged(
+    argv: &[String],
+    cwd: &Path,
+    env: &Map<String, Value>,
+    log: &Path,
+    flags: u32,
+) -> io::Result<i32> {
+    Ok(exit_code(logged(argv, cwd, env, log, flags)?.status()?))
+}
+fn logged(
+    argv: &[String],
+    cwd: &Path,
+    env: &Map<String, Value>,
+    log: &Path,
+    flags: u32,
+) -> io::Result<Command> {
+    let file = fs::OpenOptions::new().append(true).create(true).open(log)?;
+    let mut command = command(argv, cwd, Some(env), flags)?;
     command
-        .args(&argv[1..])
-        .current_dir(cwd)
+        .stdin(Stdio::null())
+        .stdout(file.try_clone()?)
+        .stderr(file);
+    Ok(command)
+}
+fn exit_code(status: std::process::ExitStatus) -> i32 {
+    status.code().unwrap_or_else(|| {
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+            -status.signal().unwrap_or(1)
+        }
+        #[cfg(not(unix))]
+        {
+            -1
+        }
+    })
+}
+fn capture(mut command: Command, timeout: f64) -> io::Result<Output> {
+    let timeout = Duration::try_from_secs_f64(timeout).map_err(io::Error::other)?;
+    command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    if sidecall {
-        command.env("TE_SIDECALL", "1");
-    }
     let mut child = command.spawn()?;
     let (send, receive) = mpsc::channel();
     let mut stdout = child.stdout.take().unwrap();
@@ -64,17 +180,7 @@ pub fn run(argv: &[String], cwd: &Path, timeout: f64, sidecall: bool) -> io::Res
                         .replace('\r', "\n")
                 };
                 return Ok(Output {
-                    code: status.code().unwrap_or_else(|| {
-                        #[cfg(unix)]
-                        {
-                            use std::os::unix::process::ExitStatusExt;
-                            -status.signal().unwrap_or(1)
-                        }
-                        #[cfg(not(unix))]
-                        {
-                            -1
-                        }
-                    }),
+                    code: exit_code(status),
                     stdout: text(out),
                     stderr: text(err),
                 });
