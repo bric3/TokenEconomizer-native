@@ -120,6 +120,8 @@ class BridgeProbe {
       expect(input, output, "{\"op\":\"judge.llm_nudge_writer\",\"args\":{\"digest\":\"actions\",\"runner\":true,\"replies\":[{\"value\":[\"  " + longRedirect + "  \",7]}]}}",
           "{\"result\":{\"text\":\"" + "😀".repeat(1_200) + "\",\"_tokens\":7.0}}");
 
+      checkEnvironmentFacts(input, output);
+
       input.println("""
           {"op":"rules.nudge_text","args":{"state":{"edit_counts":{"one file":5,"other":1}}}}
           """.strip());
@@ -213,6 +215,33 @@ class BridgeProbe {
     var actual = request(input, output, request);
     if (!expected.equals(actual)) {
       throw new AssertionError("Expected " + expected + ", received " + actual);
+    }
+  }
+
+  private static void checkEnvironmentFacts(PrintWriter input, BufferedReader output) throws Exception {
+    expect(input, output, """
+        {"op":"lifecycle.from_dict","args":{"d":{"key":"old","high":false}}}
+        """, "{\"result\":{\"key\":\"old\",\"high\":false,\"drift\":true,\"state\":\"CANDIDATE\",\"confirms\":[],\"contradicts\":[],\"fire_num\":0,\"fire_den\":0,\"promoted_at\":null,\"retired_at\":null}}");
+    var unknown = request(input, output, """
+        {"op":"envfacts.forget","args":{"self":{},"fid":"unknown"}}
+        """);
+    if (!unknown.endsWith("\"value\":{\"raised\":\"KeyError\",\"message\":\"unknown\"}}}")
+        || !unknown.contains("\"facts\":{},\"forgotten\":{}")) {
+      throw new AssertionError("An unknown fact changed the distiller: " + unknown);
+    }
+    var unrecorded = request(input, output, """
+        {"op":"envfacts.unforget","args":{"self":{"forgotten":{"gone":{"claim":"remember"}}},"fid":"gone"}}
+        """);
+    if (!unrecorded.endsWith("\"value\":\"no record\"}}") || !unrecorded.contains("\"facts\":{},\"forgotten\":{}")) {
+      throw new AssertionError("A forgotten id without a record was restored: " + unrecorded);
+    }
+    var activeFact = """
+        {"id":"%s","family":"empty_probe","params":{},"life":{"key":"key","high":false,"drift":false,"state":"ACTIVE","confirms":[],"contradicts":[],"fire_num":4,"fire_den":4,"promoted_at":null,"retired_at":null}}
+        """.strip();
+    var selected = request(input, output, "{\"op\":\"envfacts._select\",\"args\":{\"self\":{\"max_facts\":1,\"max_tokens\":1000,\"facts\":{\"z\":"
+        + activeFact.formatted("z") + ",\"a\":" + activeFact.formatted("a") + "}}}}");
+    if (!selected.endsWith("\"value\":[\"z\"]}}")) {
+      throw new AssertionError("Selection lost insertion order when facts tied: " + selected);
     }
   }
 

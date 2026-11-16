@@ -71,7 +71,13 @@ def wrap(original, operation):
             arguments["config"] = dataclasses.asdict(arguments["config"])
         obj = arguments.get("self")
         if obj is not None:
-            if operation.startswith("turn."):
+            if operation.startswith("envfacts."):
+                arguments["self"] = envfacts_data(obj)
+            elif operation.startswith("envfact."):
+                arguments["self"] = envfact_data(obj)
+            elif operation.startswith("lifecycle."):
+                arguments["self"] = vars(obj)
+            elif operation.startswith("turn."):
                 arguments["self"] = turn_data(obj)
             elif operation.startswith("state."):
                 arguments["self"] = spiral_data(obj)
@@ -127,7 +133,37 @@ def wrap(original, operation):
             arguments["calls"] = list(arguments["calls"])
         if operation.startswith("observe.") and "o" in arguments:
             arguments["o"] = observation_data(arguments["o"])
+        if operation == "envfacts.typed_ok":
+            arguments["o"] = observation_data(arguments["o"])
+        if operation == "envfacts.fold":
+            arguments["fact"] = envfact_data(arguments["fact"])
+        if operation == "envfacts._merged_lines":
+            arguments["facts"] = [envfact_data(fact) for fact in arguments["facts"]]
+        if operation == "envfacts.update" and arguments["edited"] is not None:
+            arguments["edited"] = sorted(arguments["edited"])
+        if operation == "envfacts.seed_injected" and arguments["ids"] is not None:
+            arguments["ids"] = list(arguments["ids"])
+        if operation == "envfacts._join":
+            arguments["items"] = list(arguments["items"])
         result = invoke(operation, arguments)
+        if operation.startswith("envfact.") and obj is not None:
+            restore_envfact(obj, result["self"])
+            return result["value"]
+        if operation.startswith("envfacts.") and obj is not None:
+            restore_envfacts(obj, result["self"])
+            value = result["value"]
+            if isinstance(value, dict) and "raised" in value:
+                raise KeyError(value["message"])
+            if operation == "envfacts._select":
+                return [obj.facts[fid] for fid in value]
+            if operation == "envfacts.known_ids":
+                return set(value)
+            if operation == "envfacts.debug_row" and "_task" in value:
+                restore_verdicts(value["_task"])
+            return value
+        if operation == "envfacts.fold":
+            restore_envfact(bound.arguments["fact"], result)
+            return None
         if operation == "observe.classify_command":
             return [restore_observation(value) for value in result]
         if operation == "observe.observe_task":
@@ -255,6 +291,7 @@ def pytest_configure(config):
                                 "classify_command", "_runner_script", "_probe_kind", "error_class", "_exit_code_hint", "_label_failed",
                                 "_test_labels", "label_rule", "_env_calls", "form_failed", "form_worked", "observe_task", "_error_line",
                                 "_base", "_not_found_name", "is_bare"),
+        "microskills.envfacts": ("fold", "typed_ok", "_repairs", "_tool_of", "_moves_shell", "_usage", "_root", "_join", "lint_ok"),
         "names": ("repo_filename",),
         "config": ("needs_optimizer",),
         "loopguard.rules": ("scaled_thresholds", "gate_for_judge", "is_stuck", "nudge_text", "assess_abort"),
@@ -311,8 +348,23 @@ def pytest_configure(config):
             setattr(module, name, replacement)
 
     from tokeneconomizer.microskills.lifecycle import Lifecycle
-    for name in ("_drifted_confirms", "score", "firing_rate", "injectable", "update"):
+    Lifecycle.__init__ = state_constructor(Lifecycle, "lifecycle.new")
+    Lifecycle.from_dict = classmethod(lifecycle_from_record)
+    for name in ("_drifted_confirms", "score", "firing_rate", "injectable", "update", "to_dict"):
         setattr(Lifecycle, name, wrap(getattr(Lifecycle, name), "lifecycle." + name))
+
+    from tokeneconomizer.microskills.envfacts import EnvFact, EnvFactsDistiller
+    EnvFact.__init__ = envfact_constructor
+    EnvFact.from_dict = classmethod(envfact_from_record)
+    for name in ("claim", "_best", "working_form", "to_dict", "injectable", "firing_rate"):
+        setattr(EnvFact, name, wrap(getattr(EnvFact, name), "envfact." + name))
+    EnvFact.state = property(lambda self: invoke("envfact.state", {"self": envfact_data(self)})["value"])
+    EnvFactsDistiller.__init__ = envfacts_constructor
+    EnvFactsDistiller.load = classmethod(envfacts_load)
+    EnvFactsDistiller._path = staticmethod(wrap(EnvFactsDistiller._path, "envfacts._path"))
+    for name in ("render", "injected_ids", "seed_injected", "injectable_claims", "_select", "_merged_lines", "update", "save", "debug_row", "known_ids", "forget", "unforget", "drop_forgotten"):
+        setattr(EnvFactsDistiller, name, wrap(getattr(EnvFactsDistiller, name), "envfacts." + name))
+    EnvFactsDistiller.header = property(lambda self: invoke("envfacts.header", {"self": envfacts_data(self)})["value"])
 
     from tokeneconomizer.loopguard.state import SpiralState
     SpiralState.__init__ = lambda self: restore_spiral(self, invoke("state.new", {}))
@@ -373,6 +425,80 @@ def spiral_data(state):
 def vocabulary_data(vocabulary):
     return {field.name: list(value) if isinstance(value, (tuple, set, frozenset)) else value
             for field in dataclasses.fields(vocabulary) for value in (getattr(vocabulary, field.name),)}
+
+
+def lifecycle_from_record(cls, d):
+    life = cls.__new__(cls)
+    life.__dict__.update(invoke("lifecycle.from_dict", {"d": d}))
+    return life
+
+
+def envfact_data(fact):
+    return {"id": fact.id, "family": fact.family, "params": fact.params, "life": vars(fact.life)}
+
+
+def restore_envfact(fact, data):
+    from tokeneconomizer.microskills.lifecycle import Lifecycle
+    life = getattr(fact, "life", None)
+    if life is None:
+        life = Lifecycle.__new__(Lifecycle)
+    life.__dict__.update(data["life"])
+    fact.__dict__.update(data)
+    fact.life = life
+
+
+def envfact_constructor(self, fid, family, high, params=None):
+    restore_envfact(self, invoke("envfact.new", {"fid": fid, "family": family, "high": high, "params": params}))
+
+
+def envfact_from_record(cls, d):
+    fact = cls.__new__(cls)
+    restore_envfact(fact, invoke("envfact.from_dict", {"d": d}))
+    return fact
+
+
+def envfacts_data(distiller):
+    return dict(vars(distiller), facts={fid: envfact_data(fact) for fid, fact in distiller.facts.items()},
+                vocab=vocabulary_data(distiller.vocab), last_injected=sorted(distiller.last_injected))
+
+
+def restore_envfacts(distiller, data):
+    from tokeneconomizer.microskills.envfacts import EnvFact
+    from tokeneconomizer.microskills.observe import Vocabulary
+    facts = getattr(distiller, "facts", {})
+    restored = {}
+    for fid, record in data["facts"].items():
+        fact = facts.get(fid)
+        if fact is None:
+            fact = EnvFact.__new__(EnvFact)
+        restore_envfact(fact, record)
+        restored[fid] = fact
+    facts.clear()
+    facts.update(restored)
+    vocabulary = Vocabulary(**{field.name: field.type(data["vocab"][field.name]) if field.type in (tuple, frozenset) else data["vocab"][field.name]
+                               for field in dataclasses.fields(Vocabulary)})
+    if data["last_digest"] is not None:
+        restore_verdicts(data["last_digest"])
+    distiller.__dict__.update(data)
+    distiller.facts = facts
+    distiller.vocab = vocabulary
+    distiller.last_injected = set(data["last_injected"])
+
+
+def restore_verdicts(digest):
+    digest["verdicts"] = {fid: tuple(verdict) for fid, verdict in digest["verdicts"].items()}
+
+
+def envfacts_constructor(self, repo, runner=None, model="agent", vocab=None, max_facts=None, max_tokens=None):
+    restore_envfacts(self, invoke("envfacts.new", {"repo": repo, "vocab": vocabulary_data(vocab) if vocab is not None else None,
+                                                "max_facts": max_facts, "max_tokens": max_tokens}))
+
+
+def envfacts_load(cls, repo, root, runner=None, model="agent", vocab=None, max_facts=None, max_tokens=None):
+    distiller = cls.__new__(cls)
+    restore_envfacts(distiller, invoke("envfacts.load", {"repo": repo, "root": os.fspath(root), "vocab": vocabulary_data(vocab) if vocab is not None else None,
+                                                       "max_facts": max_facts, "max_tokens": max_tokens}))
+    return distiller
 
 
 def observation_data(observation):

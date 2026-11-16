@@ -1,7 +1,8 @@
 use std::collections::{BTreeSet, HashSet};
 
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value, json};
 
 pub const K_PROMOTE: usize = 3;
 pub const GAMMA: f64 = 0.8;
@@ -69,6 +70,19 @@ fn default_drift() -> bool {
 }
 
 impl Lifecycle {
+    pub fn from_record(data: &Value) -> Result<Self, String> {
+        let key = data["key"].as_str().ok_or("expected lifecycle key")?;
+        let high = data["high"]
+            .as_bool()
+            .ok_or("expected lifecycle high flag")?;
+        let mut record = serde_json::to_value(Self::new(key.into(), high, true)).unwrap();
+        record
+            .as_object_mut()
+            .unwrap()
+            .extend(data.as_object().ok_or("expected lifecycle record")?.clone());
+        serde_json::from_value(record).map_err(|e| e.to_string())
+    }
+
     pub fn new(key: String, high: bool, drift: bool) -> Self {
         Self {
             key,
@@ -156,5 +170,83 @@ impl Lifecycle {
             self.state = "RETIRED".into();
             self.retired_at = Some(now);
         }
+    }
+}
+
+pub trait FactRecord: Serialize + Sized {
+    fn claim(&self) -> String;
+    fn from_record(record: &Value) -> Result<Self, String>;
+}
+
+#[derive(Debug)]
+pub enum ForgetError {
+    UnknownId(String),
+    InvalidRecord(String),
+}
+
+impl std::fmt::Display for ForgetError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnknownId(id) => write!(f, "{id}"),
+            Self::InvalidRecord(error) => write!(f, "{error}"),
+        }
+    }
+}
+impl std::error::Error for ForgetError {}
+
+pub fn known_ids<F>(
+    facts: &IndexMap<String, F>,
+    forgotten: &Map<String, Value>,
+) -> BTreeSet<String> {
+    facts.keys().chain(forgotten.keys()).cloned().collect()
+}
+
+pub fn forget<F: FactRecord>(
+    facts: &mut IndexMap<String, F>,
+    forgotten: &mut Map<String, Value>,
+    id: &str,
+    evidence: Option<Value>,
+) -> Result<bool, ForgetError> {
+    if forgotten.contains_key(id) {
+        return Ok(false);
+    }
+    let fact = facts
+        .get(id)
+        .ok_or_else(|| ForgetError::UnknownId(id.into()))?;
+    let mut entry = json!({"claim": fact.claim(), "record": serde_json::to_value(fact).map_err(|e| ForgetError::InvalidRecord(e.to_string()))?});
+    if let Some(evidence) = evidence {
+        entry["evidence"] = evidence;
+    }
+    facts.shift_remove(id);
+    forgotten.insert(id.into(), entry);
+    Ok(true)
+}
+
+pub fn unforget<F: FactRecord>(
+    facts: &mut IndexMap<String, F>,
+    forgotten: &mut Map<String, Value>,
+    id: &str,
+) -> Result<Value, ForgetError> {
+    let Some(entry) = forgotten.remove(id) else {
+        return if facts.contains_key(id) {
+            Ok(json!(false))
+        } else {
+            Err(ForgetError::UnknownId(id.into()))
+        };
+    };
+    let record = &entry["record"];
+    if !crate::value::truthy(record) {
+        return Ok(json!("no record"));
+    }
+    facts.insert(
+        id.into(),
+        F::from_record(record).map_err(ForgetError::InvalidRecord)?,
+    );
+    Ok(json!(true))
+}
+
+pub fn drop_forgotten<F>(facts: &mut IndexMap<String, F>, forgotten: &Map<String, Value>) {
+    for id in forgotten.keys() {
+        facts.shift_remove(id);
     }
 }

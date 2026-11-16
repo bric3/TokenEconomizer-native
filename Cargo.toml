@@ -9,6 +9,7 @@ description = "Native experience-driven cost control for coding agents"
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 fancy-regex = { version = "0.20", default-features = false, features = ["std", "unicode", "perf"] }
+indexmap = { version = "2", features = ["serde"] }
 md5 = "0.8"
 regex = "1"
 rusqlite = { version = "0.43", default-features = false, features = ["bundled"] }

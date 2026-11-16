@@ -55,6 +55,10 @@ complete while any runtime component delegates production behaviour to Python.
 - Command observation is native: vocabulary-based intent and form classification,
   working-directory tracking, labels, environment-variable evidence, network and
   VCS outcomes, missing-tool attribution and edited-file selection.
+- Environment facts learn, select, merge, render, forget and reload in Rust. This
+  includes all six upstream families, contradiction streaks, firing gates, rendering
+  caps, lifecycle defaults and the shared forgetting helpers. Proposed-fact consumers
+  still need conversion.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -63,14 +67,14 @@ complete while any runtime component delegates production behaviour to Python.
 
 ## Remaining production work
 
-- Complete fact lifecycle utilities, forgetting and their remaining consumers.
 - Audit trace-reader edge cases, including the ISO timestamp formats accepted by
   Python's `datetime.fromisoformat`. Trace consumers still run through the reference
   plugin during migration.
 - Audit Unicode regular-expression compatibility with Python in the production
   parity pass, including word boundaries and whitespace classes.
 - Audit JSON numeric edge cases, including non-finite values accepted by Python.
-- Port environment facts, proposed facts and prefix stages.
+- Port proposed facts and prefix stages, including their remaining lifecycle and
+  forgetting consumers.
 - Port tool-pruning evidence, Codex capabilities and pruning stages.
 - Port plugin configuration, paths and repository identity,
   deny lists, host settings, history, context, folding, controller and queues.
@@ -137,6 +141,13 @@ complete while any runtime component delegates production behaviour to Python.
 - Observation-focused run: 366 passed. Full suite with native observation:
   1,558 passed, 33 skipped (95.20 seconds). `validation/observe-calls.json` records
   native bridge coverage; observation's nested trace and lifecycle calls stay in Rust.
+- Environment-fact-focused run: 103 passed. Full suite with native environment
+  facts: 1,558 passed, 33 skipped (109.54 seconds).
+  `validation/envfacts-calls.json` records 702 updates, 716 renders, 393 loads and
+  400 saves reaching Rust. Updates call the native observer and lifecycle internally.
+- The Java probe also checks lifecycle defaults from a minimal record, unknown
+  forgotten IDs, an unforget with no saved record, and insertion order when fact
+  selection ties at the rendering cap.
 
 ## Dependencies
 
@@ -152,6 +163,9 @@ SQLite connections opened explicitly with `SQLITE_OPEN_READ_ONLY` and a five-sec
 busy timeout. The lockfile pins both libraries and their transitive dependencies.
 `fancy-regex` 0.20.2 preserves the upstream patterns' lookarounds and backreferences.
 `md5` 0.8.1 preserves existing short failure fingerprints.
+`indexmap` 2.14.2 was already present through `serde_json`; it is now declared
+directly with serialization support for typed fact maps. Discovery order determines
+ties in fact selection and rendering.
 The state store uses the standard library's
 [file locks](https://doc.rust-lang.org/std/fs/struct.File.html#method.try_lock),
 available since Rust 1.89. Native Windows filesystem behaviour remains untested
