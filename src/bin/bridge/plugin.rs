@@ -5,6 +5,8 @@ use tokeneconomizer::plugin::{
     config::{self, LiveConfig, SettingValue},
     paths::{self, RepoId},
 };
+#[path = "denylist.rs"]
+mod denylist_dispatch;
 #[path = "repos.rs"]
 mod repos_dispatch;
 
@@ -74,7 +76,8 @@ fn paths_dispatch(op: &str, args: &Value) -> Result<Value, String> {
 }
 
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
-    if !op.starts_with("paths.")
+    if !op.starts_with("denylist.")
+        && !op.starts_with("paths.")
         && !op.starts_with("live_config.")
         && !op.starts_with("repos.")
         && !op.starts_with("applied.")
@@ -85,7 +88,9 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
     if let Some(cwd) = args["process_cwd"].as_str() {
         std::env::set_current_dir(cwd).map_err(|e| e.to_string())?;
     }
-    let result = if op.starts_with("repos.") || op.starts_with("applied.") {
+    let result = if op.starts_with("denylist.") {
+        denylist_dispatch::dispatch(op, args).map(Some)
+    } else if op.starts_with("repos.") || op.starts_with("applied.") {
         repos_dispatch::dispatch(op, args).map(Some)
     } else if op.starts_with("paths.") {
         paths_dispatch(op, args).map(Some)

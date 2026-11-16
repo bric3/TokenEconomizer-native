@@ -83,6 +83,10 @@ complete while any runtime component delegates production behaviour to Python.
   notices and repository listings. Rust also reads and merges applied-tool ownership
   records. Starting a process and refolding through the remaining context/fold
   components still cross the test adapter's callback boundary.
+- Deny-list settings now execute in Rust: Claude and Copilot JSON lists, Codex
+  marked TOML edits and rollback, applied and restored ownership, trust checks,
+  repository-local exclusions and Copilot server proposals. Native subprocesses
+  check tracked files and validate Codex configuration without calling a model.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -100,7 +104,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit JSON numeric edge cases, including non-finite values accepted by Python.
   Configuration numeric coercion still needs Unicode decimal digits and integers
   outside the current i64 range. Audit path-normalisation edge cases too.
-- Port deny-list settings, host settings and integration, history, context, folding,
+- Port host settings and integration, history, context, folding,
   controller and queues.
 - Port side calls, model probes, tool checks, repository maps, CLI commands and
   hooks. Verify each host integration and its launcher and packaging contracts.
@@ -228,6 +232,14 @@ complete while any runtime component delegates production behaviour to Python.
   upstream integrity check pass. Native Windows execution remains unverified.
 - The adapter forwards a test-patched `Store.write` to preserve the original
   apply/restore failure injection; record construction and normal I/O remain native.
+- Deny-list focused run: 148 passed, 2 skipped. Full suite with native deny-list
+  settings: 1,558 passed, 33 skipped (92.44 seconds). Native bridge entries are
+  recorded in `validation/denylist-calls.json`. The original tests check ownership
+  isolation, symlink refusal, committed-file protection, trust and Codex rollback.
+- The bridge probe checks unbilled Codex validation through a local CLI fixture:
+  both output streams beyond pipe capacity, Unicode truncation, line endings,
+  exit and signal codes, timeout, success and missing executables. Clippy and the
+  256-file upstream integrity check pass. Native Windows execution is unverified.
 
 ## Dependencies
 
@@ -252,6 +264,9 @@ checks for private state and launchers.
 `indexmap` 2.14.2 was already present through `serde_json`; it is now declared
 directly with serialization support for typed fact maps. Discovery order determines
 ties in fact selection and rendering.
+[TOML](https://docs.rs/toml/1.2.1+spec-1.1.0/toml/) 1.2.1 validates the complete
+Codex configuration before writing. The native line editor preserves comments and
+existing keys; parsing checks that the edited document remains valid.
 The state store uses the standard library's
 [file locks](https://doc.rust-lang.org/std/fs/struct.File.html#method.try_lock),
 available since Rust 1.89. Native Windows filesystem behaviour remains untested
@@ -293,6 +308,10 @@ For injected filesystem operations, the bridge transports the original tests'
 read/replace callbacks and their errors. Lock acquisition runs in a bridge worker
 so a waiting Python thread leaves the request channel available to the holder.
 The timeout and lock decisions stay in Rust.
+
+Deny-list write and validation callbacks suspend and resume the same native
+operation. This preserves the original failure-injection tests' write ordering
+and avoids replaying an operation after its settings file has changed.
 
 Small Java validation tools check the migration infrastructure:
 

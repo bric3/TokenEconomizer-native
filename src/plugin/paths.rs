@@ -67,7 +67,7 @@ pub fn launcher_path(
         .join("te"))
 }
 
-fn executable(path: &Path) -> Result<bool, String> {
+pub(crate) fn executable(path: &Path) -> Result<bool, String> {
     #[cfg(unix)]
     {
         use std::{ffi::CString, os::unix::ffi::OsStrExt};

@@ -25,6 +25,7 @@ PROCESS = None
 ORIGINAL_REPLACE = os.replace
 LIVE_CONFIG_ENV = []
 NATIVE_STORE_WRITE = None
+NATIVE_DENY_FUNCTIONS = {}
 
 
 def invoke(operation, arguments):
@@ -76,8 +77,23 @@ def wrap(original, operation):
         if operation == "live_config.load_config":
             env = os.environ if arguments["env"] is None else arguments["env"]
             arguments["env"] = {key: env[key] for key in LIVE_CONFIG_ENV if key in env}
-        if operation.startswith(("paths.", "live_config.", "repos.", "applied.")):
+        if operation.startswith(("paths.", "live_config.", "repos.", "applied.", "denylist.")):
             arguments["process_cwd"] = os.getcwd()
+        if operation.startswith("denylist."):
+            from tokeneconomizer.plugin import denylist as deny_module
+            arguments["home"] = os.path.expanduser("~")
+            if "env" in arguments:
+                environment = os.environ if arguments["env"] is None else arguments["env"]
+                arguments["env"] = {key: environment[key] for key in ("COPILOT_HOME", "CODEX_HOME") if key in environment}
+            for name in ("tools", "items", "capabilities", "add", "remove", "raw", "catalog", "used", "servers", "tags"):
+                if arguments.get(name) is not None:
+                    arguments[name] = list(arguments[name])
+            if operation.rsplit(".", 1)[-1] in ("apply", "restore", "set_kept", "_record", "_apply_json_list", "_restore_json_list", "_apply_codex", "_restore_codex"):
+                flags = {name: getattr(deny_module, name) is not original for name, original in NATIVE_DENY_FUNCTIONS.items()}
+                if arguments.get("store") is not None:
+                    method = arguments["store"].write
+                    flags["store_write"] = getattr(method, "__func__", method) is not NATIVE_STORE_WRITE
+                arguments["transport"] = flags
         if operation.startswith("repos."):
             arguments["home"] = os.path.expanduser("~")
             if "ctx" in arguments:
@@ -257,6 +273,25 @@ def wrap(original, operation):
             arguments["runner"] = runner is not None
             arguments["external"] = external is not None
         result = invoke(operation, arguments)
+        if operation.startswith("denylist."):
+            while isinstance(result, dict) and result.get("callback") == "denylist":
+                try:
+                    if result["method"] == "store_write":
+                        value = state_store.write(*result["args"])
+                    elif result["method"] == "codex_config_error":
+                        value = deny_module.codex_config_error(result["args"][0], cli=result["args"][1], timeout=result["args"][2])
+                    else:
+                        value = getattr(deny_module, result["method"])(*result["args"])
+                    reply = {"value": value}
+                except Exception as error:
+                    reply = {"error": str(error), "error_kind": type(error).__name__}
+                result = invoke("denylist.resume", {"job": result["job"], "reply": reply})
+            value = storage_result(result)
+            if operation == "denylist._sections":
+                return [tuple(row) for row in value]
+            if operation in ("denylist._toml_insert", "denylist._json_list_keys"):
+                return tuple(value)
+            return value
         if operation.startswith("repos."):
             from tokeneconomizer.plugin.paths import RepoId
             if operation in ("repos._resolve", "repos.plan_dir", "repos._live", "repos.migrate_dir"):
@@ -544,7 +579,7 @@ def pytest_configure(config):
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.paths": ("state_root", "secure_root", "launcher_path", "ensure_launcher", "home_dir", "_gitdir_of_file", "is_git_entry", "find_repo_root", "_git_common_dir", "origin_url", "normalize_remote", "_slug", "digest", "_main_checkout", "repo_identity", "repo_state_dir"),
         "plugin.repos": ("repos_dir", "_repo_dir", "_record_error", "_pin_store", "_pin_name", "_repo_from", "pinned", "pin", "prune_pins", "_legacy_root", "legacy_key", "_host_dirs", "_sessions", "_transcript_cwd", "session_cwd", "_imported", "_transcript_of", "_has_learned", "dir_label", "note_repo", "_write_lines", "_rename_label", "_take_learned", "_merge_applied", "_merge_envelope", "_merge_host", "merge_whole", "_resolve", "plan_dir", "_live", "migrate_dir", "_record_moves", "_candidates", "_prune_index", "adopt", "migrate_all", "merge", "needs_migration", "start_migration", "run_migration", "migration_notice", "refold_moved", "settle", "how_words", "describe", "ignored_git_entries", "listing", "home_git_note"),
-        "plugin.denylist": ("_canon", "applied_by_path", "kept_by_path", "write_applied"),
+        "plugin.denylist": ("_canon", "applied_by_path", "kept_by_path", "write_applied", "supports", "unit", "settings_path", "_read_settings", "_guard_target", "write_json", "_write_text", "_exclude_from_git", "kept_for", "set_kept", "applied", "applied_for", "_record", "_json_list_keys", "_apply_json_list", "_restore_json_list", "_sections", "_key_set", "_toml_insert", "_toml_remove", "_toml_valid", "_git_tracked", "codex_config_error", "_apply_codex", "_restore_codex", "copilot_trusted_folders", "copilot_folder_trusted", "codex_home", "codex_project_trusted", "apply", "restore", "copilot_server_proposal"),
         "microskills.lifecycle": ("write_json_atomic", "edited_files", "edited_pyfiles"),
         "microskills.observe": ("unwrap", "segments", "_tokens", "repository_top", "_cd_target", "_shell_path", "_shell_isabs",
                                 "classify_command", "_runner_script", "_probe_kind", "error_class", "_exit_code_hint", "_label_failed",
@@ -608,7 +643,7 @@ def pytest_configure(config):
             if module_name == "plugin.config":
                 operation = "live_config." + name
             if module_name == "plugin.denylist":
-                operation = "applied." + name
+                operation = ("applied." if name in ("_canon", "applied_by_path", "kept_by_path", "write_applied") else "denylist.") + name
             operation = operation.removeprefix("loopguard.")
             operation = operation.removeprefix("microskills.")
             replacement = wrap(original, operation)
@@ -736,6 +771,9 @@ def pytest_configure(config):
     Store.locked = store_locked
     global NATIVE_STORE_WRITE
     NATIVE_STORE_WRITE = Store.write
+    from tokeneconomizer.plugin import denylist
+    global NATIVE_DENY_FUNCTIONS
+    NATIVE_DENY_FUNCTIONS = {name: getattr(denylist, name) for name in ("write_json", "_write_text", "_git_tracked", "codex_config_error")}
 
     from tokeneconomizer.loopguard.envelope import EnvelopeTracker
     EnvelopeTracker.__init__ = state_constructor(EnvelopeTracker, "envelope.new")

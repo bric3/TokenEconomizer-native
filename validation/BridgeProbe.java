@@ -21,6 +21,10 @@ import java.util.regex.Pattern;
 /** Checks the new test transport and text reader without translating upstream tests. */
 class BridgeProbe {
   public static void main(String[] args) throws Exception {
+    if (args.length > 0 && args[0].equals("--config-fixture")) {
+      configFixture(args);
+      return;
+    }
     var root = Path.of(args.length == 0 ? "." : args[0]).toAbsolutePath().normalize();
     var process = new ProcessBuilder(root.resolve("target/debug/te-bridge").toString())
         .redirectError(ProcessBuilder.Redirect.INHERIT).start();
@@ -131,6 +135,7 @@ class BridgeProbe {
       checkLauncher(directory, input, output);
       checkRepositoryMerge(directory, input, output);
       checkCopyMove(directory, input, output);
+      checkConfigProcess(directory, input, output);
 
       input.println("""
           {"op":"rules.nudge_text","args":{"state":{"edit_counts":{"one file":5,"other":1}}}}
@@ -226,6 +231,53 @@ class BridgeProbe {
     if (!expected.equals(actual)) {
       throw new AssertionError("Expected " + expected + ", received " + actual);
     }
+  }
+
+  private static void configFixture(String[] args) throws Exception {
+    if (args.length != 3 || !args[1].equals("features") || !args[2].equals("list")
+        || !"1".equals(System.getenv("TE_SIDECALL"))) System.exit(99);
+    switch (Files.readString(Path.of("mode"))) {
+      case "success" -> { return; }
+      case "timeout" -> Thread.sleep(5_000);
+      case "signal" -> new ProcessBuilder("/bin/kill", "-KILL", Long.toString(ProcessHandle.current().pid())).start().waitFor();
+      case "large" -> {
+        System.out.print("x".repeat(100_000));
+        System.err.print("😀".repeat(600) + "y".repeat(100_000));
+      }
+      case "stdout" -> System.out.print("  first\r\nsecond\rthird  ");
+      case "empty" -> { }
+      default -> throw new AssertionError("Unknown config fixture");
+    }
+    System.exit(7);
+  }
+
+  private static void checkConfigProcess(Path directory, PrintWriter input, BufferedReader output) throws Exception {
+    var cwd = Files.createDirectory(directory.resolve("config-process"));
+    var cli = cwd.resolve("codex-probe");
+    var java = Path.of(System.getProperty("java.home"), "bin/java").toString();
+    var classpath = System.getProperty("java.class.path");
+    Files.writeString(cli, "#!/bin/sh\nexec '" + java.replace("'", "'\\''") + "' -cp '"
+        + classpath.replace("'", "'\\''") + "' BridgeProbe --config-fixture \"$@\"\n");
+    Files.setPosixFilePermissions(cli, PosixFilePermissions.fromString("rwx------"));
+    var base = "{\"op\":\"denylist.codex_config_error\",\"args\":{\"repo_root\":\"" + cwd
+        + "\",\"cli\":\"" + cli + "\",\"timeout\":";
+    Files.writeString(cwd.resolve("mode"), "large");
+    expect(input, output, base + "10}}", "{\"result\":{\"value\":\"" + "😀".repeat(500) + "\"}}");
+    Files.writeString(cwd.resolve("mode"), "stdout");
+    expect(input, output, base + "10}}", "{\"result\":{\"value\":\"first\\nsecond\\nthird\"}}");
+    Files.writeString(cwd.resolve("mode"), "empty");
+    expect(input, output, base + "10}}", "{\"result\":{\"value\":\"exit 7\"}}");
+    Files.writeString(cwd.resolve("mode"), "success");
+    expect(input, output, base + "10}}", "{\"result\":{\"value\":null}}");
+    Files.writeString(cwd.resolve("mode"), "signal");
+    expect(input, output, base + "10}}", "{\"result\":{\"value\":\"exit -9\"}}");
+    Files.writeString(cwd.resolve("mode"), "timeout");
+    var started = System.nanoTime();
+    expect(input, output, base + "0.1}}", "{\"result\":{\"value\":null}}");
+    if (System.nanoTime() - started > TimeUnit.SECONDS.toNanos(2))
+      throw new AssertionError("Config validation exceeded its timeout");
+    Files.delete(cli);
+    expect(input, output, base + "10}}", "{\"result\":{\"value\":null}}");
   }
 
   private static void checkEnvironmentFacts(PrintWriter input, BufferedReader output) throws Exception {
