@@ -37,6 +37,10 @@ complete while any runtime component delegates production behaviour to Python.
 - Envelope calculations and Claude trace calls, usage, prompts, turns, safe
   session IDs and deferred tools also execute in Rust. Persistence hooks and
   Claude history metadata still need conversion.
+- Codex and Copilot calls, usage and metadata; Pi active branches and usage;
+  opencode exports and run replies; Cursor hook traces; Antigravity incremental
+  reads; and Grok updates and results now execute in Rust. The shared trajectory
+  loader, working-directory alignment, tool usage and catalog selection are native.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -46,8 +50,8 @@ complete while any runtime component delegates production behaviour to Python.
 ## Remaining production work
 
 - Complete fact lifecycle utilities, forgetting and atomic persistence.
-- Complete Claude history discovery and metadata, every other agent's trace
-  reader, common call dispatch and tool catalogs.
+- Complete Claude history discovery and metadata, and the Droid and Hermes trace
+  readers. Their consumers still run through the reference plugin during migration.
 - Port command observation, environment facts, proposed facts and prefix stages.
 - Port tool-pruning evidence, Codex capabilities and pruning stages.
 - Port loop state, shell edits, turn tracking, judges and envelope persistence.
@@ -73,6 +77,14 @@ complete while any runtime component delegates production behaviour to Python.
   reader/validation corrections: 1,558 passed, 33 skipped (28.68 seconds).
 - `VerifyReference.java` verified all 256 upstream files against the pinned Git
   tree. It accounts for upstream `.gitattributes` exporting `.cmd` with CRLF.
+- Codex/Copilot and trajectory-focused run: 345 passed, 3 skipped.
+- Catalog-focused run: 66 passed. Pi/opencode and consumer run: 430 passed,
+  2 skipped. Cursor/Antigravity run: 60 passed, 6 skipped. Grok run: 28 passed.
+- The full suite with the expanded trace substitutions passes: 1,558 passed,
+  33 skipped. `validation/traces-calls.json` records this phase's native calls.
+  Counters record bridge entries; nested Rust calls stay inside the Rust process.
+- Java probes cover UTF-8 byte offsets across partial Antigravity records and
+  vendor-cost rounding against `BigDecimal`'s exact value of the stored double.
 
 ## Validation
 
@@ -115,7 +127,8 @@ jbang validation/BridgeProbe.java
 
 The bridge probe covers malformed-request recovery, pricing validation, Unicode
 character counts, JSON object filtering, all three text line endings and a
-redirect regression where a file is literally named `one file`. These
+redirect regression where a file is literally named `one file`. It also checks
+structured Cursor result text, partial-record offsets and decimal cost rounding. These
 are infrastructure checks; the upstream test suite is still the main driver.
 
 IntelliJ has no open project for this checkout. Use Cargo's compiler, formatter

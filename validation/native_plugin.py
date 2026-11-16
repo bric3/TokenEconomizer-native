@@ -49,6 +49,12 @@ def wrap(original, operation):
         bound = signature.bind(*args, **kwargs)
         bound.apply_defaults()
         arguments = dict(bound.arguments)
+        if operation == "trace.copilot.copilot_mcp_servers":
+            arguments["home"] = os.path.expanduser("~")
+            if arguments["env"] is None:
+                arguments["env"] = {"COPILOT_HOME": os.environ.get("COPILOT_HOME", "")}
+        if "servers" in arguments:
+            arguments["servers"] = list(arguments["servers"])
         arguments = {name: os.fspath(value) if isinstance(value, os.PathLike) else value
                      for name, value in arguments.items()}
         for name in ("lines", "turn_lines"):
@@ -83,8 +89,28 @@ def wrap(original, operation):
             return None
         if operation in ("accounting.effective", "rules.assess_abort"):
             return tuple(result)
-        if operation == "trace.claude.claude_calls":
+        if operation in ("trace.claude.claude_calls", "trace.codex.codex_exec_calls",
+                         "trace.copilot.copilot_event_calls", "trace.calls.load_trajectory"):
             return [tuple(call) for call in result]
+        if operation == "trace.copilot.copilot_turns":
+            return [[tuple(call) for call in turn] for turn in result]
+        if operation in ("trace.catalog.parse_catalog_with_source", "trace.catalog._catalog_rank"):
+            return tuple(result)
+        if operation in ("trace.pi.pi_json_reply", "trace.opencode.opencode_run_reply", "trace.opencode._load"):
+            return tuple(result)
+        if operation in ("trace.antigravity.antigravity_tool", "trace.antigravity.antigravity_result",
+                         "trace.antigravity.antigravity_read"):
+            return tuple(result)
+        if operation == "trace.antigravity._read_rows":
+            return [tuple(row) for row in result]
+        if operation in ("trace.grok.grok_tool", "trace.grok.grok_json_reply", "trace.grok.grok_result"):
+            return tuple(result) if result is not None else None
+        if operation == "trace.catalog.catalog_sources":
+            return [tuple(source) for source in result]
+        if operation == "trace.codex._shell_patch_paths":
+            return tuple(result)
+        if operation == "trace.copilot.copilot_mcp_servers":
+            return set(result)
         if operation == "trace.claude.claude_deferred_tools":
             return set(result)
         if generator:
@@ -106,6 +132,26 @@ def pytest_configure(config):
         "loopguard.rules": ("scaled_thresholds", "gate_for_judge", "is_stuck", "nudge_text", "assess_abort"),
         "loopguard.envelope": ("_percentile", "thresholds", "base_thresholds"),
         "trace.jsonl": ("lines", "records"),
+        "trace.grok": ("grok_tool", "_bytes_text", "grok_result", "_content_text", "grok_session_to_claude",
+                       "grok_prompt_count", "grok_session_usage", "grok_json_reply"),
+        "trace.cursor": ("_response_text", "_exit_code", "cursor_events_to_claude", "cursor_prompt_count"),
+        "trace.antigravity": ("antigravity_tool", "antigravity_result", "_prompt_text", "_read_rows", "_is_result",
+                              "antigravity_read", "antigravity_session_to_claude", "antigravity_session_usage",
+                              "antigravity_prompt_count"),
+        "trace.pi": ("pi_session_header", "pi_active_branch", "pi_prompt_count", "_pi_usage", "_pi_text",
+                     "pi_session_to_claude", "pi_json_reply", "pi_session_usage"),
+        "trace.opencode": ("_nested", "_load", "_text", "_usage", "opencode_session_info", "opencode_prompt_count",
+                           "opencode_session_to_claude", "opencode_session_usage", "opencode_run_reply"),
+        "trace.catalog": ("parse_tool_catalog_flat", "parse_tool_catalog", "_load_claude_catalog_snapshot",
+                          "parse_tool_catalog_claude", "parse_tool_names_copilot", "catalog_sources",
+                          "parse_catalog_with_source", "parse_catalog", "_catalog_rank"),
+        "trace.calls": ("strip_rtk_prefix", "_is_codex_exec", "load_trajectory", "call_cwds", "tool_usage"),
+        "trace.codex": ("_shell_patch_paths", "_command_text", "codex_exec_calls", "rollout_item_to_exec",
+                        "codex_rollout_to_exec", "codex_capability_trace", "codex_prompt_count",
+                        "codex_session_meta", "codex_session_usage"),
+        "trace.copilot": ("copilot_event_calls", "copilot_session_cwd", "copilot_session_meta",
+                          "copilot_session_usage", "copilot_turns", "copilot_prompt_count",
+                          "copilot_mcp_servers", "mcp_server_of"),
         "trace.claude": ("claude_calls", "_is_prompt", "_is_notification",
                          "claude_safe_session_id", "claude_project_folder", "claude_prompt_count",
                          "claude_prompt_turns", "claude_turn_interrupted", "claude_turn_answered",

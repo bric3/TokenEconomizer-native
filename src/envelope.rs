@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::rules::{scaled_thresholds, threshold};
+use crate::value::round_decimal;
 
 pub const ENVELOPE_HISTORY: usize = 500;
 pub const ENVELOPE_KEYS: [&str; 3] = ["envelope_margin", "envelope_pct", "envelope_min_samples"];
@@ -109,7 +110,7 @@ impl EnvelopeTracker {
                 .max(threshold(&thr, "error_outputs"))
                 .into();
             thr["stagnation"] = threshold(&self.base_thr, "stagnation")
-                .max((signal("stagnation") * 1000.0).round_ties_even() / 1000.0)
+                .max(round_decimal(signal("stagnation"), 3))
                 .into();
         }
         thr

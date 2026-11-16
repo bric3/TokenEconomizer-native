@@ -1,6 +1,9 @@
 use std::io::{self, BufRead, Write};
 use std::path::Path;
 
+#[path = "bridge/trace.rs"]
+mod trace_dispatch;
+
 use serde_json::{Value, json};
 use tokeneconomizer::{
     accounting,
@@ -15,6 +18,9 @@ use tokeneconomizer::{
 
 fn dispatch(request: &Value) -> Result<Value, String> {
     let args = &request["args"];
+    if let Some(value) = trace_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
+        return Ok(value);
+    }
     let result = match request["op"].as_str().unwrap_or("") {
         "trace.jsonl.lines" => json!(
             jsonl::lines(Path::new(args["path"].as_str().ok_or("expected path")?))
