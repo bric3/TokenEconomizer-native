@@ -87,6 +87,11 @@ complete while any runtime component delegates production behaviour to Python.
   marked TOML edits and rollback, applied and restored ownership, trust checks,
   repository-local exclusions and Copilot server proposals. Native subprocesses
   check tracked files and validate Codex configuration without calling a model.
+- Background judge orchestration now executes in Rust: request identity and
+  persistence, pending-verdict polling, superseded jobs, paused-host runner
+  selection, the local confidence floor, redirect selection, immediate cost
+  recording and verdict publication. Runner selection and process spawning still
+  cross callbacks until side calls and the native context are ported.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -240,6 +245,15 @@ complete while any runtime component delegates production behaviour to Python.
   both output streams beyond pipe capacity, Unicode truncation, line endings,
   exit and signal codes, timeout, success and missing executables. Clippy and the
   256-file upstream integrity check pass. Native Windows execution is unverified.
+- Background judge focused run: 135 passed, 2 skipped. Local-model follow-up:
+  29 passed. Full suite with native background jobs: 1,558 passed, 33 skipped
+  (90.31 seconds). `validation/live-judge-calls.json` records native calls; nested
+  storage, verdict decoding and redirect generation remain inside Rust.
+- The bridge probe checks superseded jobs, paused-host selection, stale verdicts,
+  request persistence before spawning and detached command construction. It also
+  injects a publication failure after model replies and verifies that both calls'
+  costs remain recorded. Clippy, formatting and upstream integrity checks pass.
+  Actual detached process launch still uses the reference context callback.
 
 ## Dependencies
 
@@ -312,6 +326,10 @@ The timeout and lock decisions stay in Rust.
 Deny-list write and validation callbacks suspend and resume the same native
 operation. This preserves the original failure-injection tests' write ordering
 and avoids replaying an operation after its settings file has changed.
+Background judge jobs use the same transport to retain their request and model
+replies across callbacks. The native job appends its costs before publishing its
+verdict. Fake stores and patched judge functions are transported for the original
+tests; normal storage and verdict parsing execute in Rust.
 
 Small Java validation tools check the migration infrastructure:
 

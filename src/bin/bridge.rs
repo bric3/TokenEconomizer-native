@@ -5,6 +5,8 @@ use std::path::Path;
 mod callback;
 #[path = "bridge/guard.rs"]
 mod guard_dispatch;
+#[path = "bridge/job.rs"]
+mod job;
 #[path = "bridge/microskills.rs"]
 mod microskills_dispatch;
 #[path = "bridge/plugin.rs"]

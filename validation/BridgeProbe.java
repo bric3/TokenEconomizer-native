@@ -136,6 +136,7 @@ class BridgeProbe {
       checkRepositoryMerge(directory, input, output);
       checkCopyMove(directory, input, output);
       checkConfigProcess(directory, input, output);
+      checkAsyncJudge(directory, input, output);
 
       input.println("""
           {"op":"rules.nudge_text","args":{"state":{"edit_counts":{"one file":5,"other":1}}}}
@@ -249,6 +250,75 @@ class BridgeProbe {
       default -> throw new AssertionError("Unknown config fixture");
     }
     System.exit(7);
+  }
+
+  private static String resumeJudge(PrintWriter input, BufferedReader output, String pending,
+      String method, String reply) throws Exception {
+    var id = Pattern.compile("\"job\":(\\d+)").matcher(pending);
+    if (!pending.contains("\"callback\":\"live_judge\"")
+        || !pending.contains("\"method\":\"" + method + "\"") || !id.find())
+      throw new AssertionError("Expected judge callback " + method + ": " + pending);
+    return request(input, output, "{\"op\":\"live_judge.resume\",\"args\":{\"job\":"
+        + id.group(1) + ",\"reply\":" + reply + "}}");
+  }
+
+  private static void checkAsyncJudge(Path directory, PrintWriter input, BufferedReader output) throws Exception {
+    var base = Files.createDirectory(directory.resolve("async-judge"));
+    Files.createDirectory(base.resolve("judge"));
+    Files.writeString(base.resolve("judge/S.request.json"), "{\"id\":\"J\",\"digest\":\"turns=20\",\"threshold\":0.7}");
+    var args = "\"base\":\"" + base + "\",\"host\":\"claude\",\"session_id\":\"S\",\"job_id\":\"J\"";
+    expect(input, output, "{\"op\":\"live_judge.run_job\",\"args\":{" + args.replace("\"J\"", "\"old\"") + "}}",
+        "{\"result\":{\"value\":null}}");
+
+    // A failed publication retains the already charged cost and never replays model calls.
+    var pending = request(input, output, "{\"op\":\"live_judge.run_job\",\"args\":{" + args + ",\"transport\":{\"store_write\":true}}}");
+    pending = resumeJudge(input, output, pending, "paused", "{\"value\":false}");
+    if (!pending.contains("[\"judge\",false]")) throw new AssertionError("Wrong judge runner selection: " + pending);
+    pending = resumeJudge(input, output, pending, "runner", "{\"value\":true}");
+    if (!pending.contains("[\"nudge\",false]")) throw new AssertionError("Wrong redirect runner selection: " + pending);
+    pending = resumeJudge(input, output, pending, "runner", "{\"value\":true}");
+    pending = resumeJudge(input, output, pending, "run", "{\"value\":[\"{\\\"stuck\\\":true,\\\"confidence\\\":0.95,\\\"reason\\\":\\\"loop\\\"}\",11]}");
+    pending = resumeJudge(input, output, pending, "local_answer", "{\"value\":{\"answered\":false,\"local\":\"local\"}}");
+    pending = resumeJudge(input, output, pending, "run", "{\"value\":[\"  Read another file.  \",3]}");
+    var ledger = Files.readString(base.resolve("ledger.jsonl"));
+    if (!Pattern.compile("\"spiral_judge_tokens\":\\s*11\\.0").matcher(ledger).find()
+        || !Pattern.compile("\"spiral_nudge_writer_tokens\":\\s*3\\.0").matcher(ledger).find()
+        || !Pattern.compile("\"job\":\\s*\"J\"").matcher(ledger).find() || Files.exists(base.resolve("judge/S.result.json"))
+        || !pending.contains("Read another file.") || !pending.contains("judge/S.result.json"))
+      throw new AssertionError("The verdict was published before its cost: " + pending + " / " + ledger);
+    var failed = resumeJudge(input, output, pending, "store_write", "{\"error\":\"disk full\"}");
+    if (!failed.contains("\"raised\":\"RuntimeError\"") || !failed.contains("disk full")
+        || !Files.readString(base.resolve("ledger.jsonl")).equals(ledger))
+      throw new AssertionError("Failed publication lost or duplicated spend: " + failed);
+
+    pending = request(input, output, "{\"op\":\"live_judge.spawn_job\",\"args\":{" + args + "}}");
+    if (!pending.contains("[\"judge\",\"--session\",\"S\",\"--job\",\"J\"]") || !pending.contains("judge.log"))
+      throw new AssertionError("Detached judge command changed: " + pending);
+    var spawned = resumeJudge(input, output, pending, "spawn", "{\"value\":true}");
+    if (!spawned.equals("{\"result\":{\"value\":true}}")) throw new AssertionError("Detached judge result changed: " + spawned);
+
+    pending = request(input, output, "{\"op\":\"live_judge.run_job\",\"args\":{" + args + "}}");
+    pending = resumeJudge(input, output, pending, "paused", "{\"value\":true}");
+    if (!pending.contains("[\"judge\",true]")) throw new AssertionError("Paused judge used the host CLI: " + pending);
+    pending = resumeJudge(input, output, pending, "runner", "{\"value\":false}");
+    if (!pending.contains("[\"nudge\",true]")) throw new AssertionError("Paused redirect used the host CLI: " + pending);
+    var absent = resumeJudge(input, output, pending, "runner", "{\"value\":false}");
+    if (!absent.equals("{\"result\":{\"value\":null}}")
+        || !Files.readString(base.resolve("ledger.jsonl")).equals(ledger))
+      throw new AssertionError("Unavailable runners changed spend: " + absent);
+    var polling = "{\"op\":\"live_judge.poll\",\"args\":{" + args + ",\"guard\":{\"judge_pending\":{\"id\":\"J\"}}}}";
+    expect(input, output, polling, "{\"result\":{\"value\":[true,null]}}");
+    Files.writeString(base.resolve("judge/S.result.json"), "{\"id\":\"old\",\"verdict\":{\"stuck\":true}}");
+    expect(input, output, polling, "{\"result\":{\"value\":[false,null]}}");
+    Files.writeString(base.resolve("judge/S.result.json"), "{\"id\":\"J\",\"verdict\":{\"stuck\":true}}");
+    expect(input, output, polling, "{\"result\":{\"value\":[true,{\"stuck\":true}]}}");
+    pending = request(input, output, "{\"op\":\"live_judge.start\",\"args\":{" + args
+        + ",\"threshold\":\"0.7\",\"digest\":\"turns=30\",\"guard\":{\"turn_key\":\"T\",\"segment\":2,\"judge_calls\":3}}}");
+    var saved = Files.readString(base.resolve("judge/S.request.json"));
+    if (!saved.contains("T:2:3:") || !saved.contains("turns=30") || !saved.contains("0.7"))
+      throw new AssertionError("The job started before its request was saved: " + saved);
+    var started = resumeJudge(input, output, pending, "spawn_job", "{\"value\":null}");
+    if (!started.startsWith("{\"result\":{\"value\":\"T:2:3:")) throw new AssertionError("Wrong background job identity: " + started);
   }
 
   private static void checkConfigProcess(Path directory, PrintWriter input, BufferedReader output) throws Exception {

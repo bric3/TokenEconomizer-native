@@ -7,6 +7,8 @@ use tokeneconomizer::plugin::{
 };
 #[path = "denylist.rs"]
 mod denylist_dispatch;
+#[path = "live_judge.rs"]
+mod judge_dispatch;
 #[path = "repos.rs"]
 mod repos_dispatch;
 
@@ -76,6 +78,9 @@ fn paths_dispatch(op: &str, args: &Value) -> Result<Value, String> {
 }
 
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
+    if op.starts_with("live_judge.") {
+        return judge_dispatch::dispatch(op, args);
+    }
     if !op.starts_with("denylist.")
         && !op.starts_with("paths.")
         && !op.starts_with("live_config.")

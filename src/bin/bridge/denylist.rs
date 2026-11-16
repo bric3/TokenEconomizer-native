@@ -1,14 +1,8 @@
+use crate::job::{self, Channel};
 use serde_json::{Value, json};
 use std::{
-    collections::HashMap,
     io,
     path::{Path, PathBuf},
-    sync::{
-        LazyLock, Mutex,
-        atomic::{AtomicU64, Ordering},
-        mpsc,
-    },
-    thread,
 };
 use tokeneconomizer::{
     plugin::denylist::{self, Error, Runtime},
@@ -33,31 +27,13 @@ fn response(result: Result<Value, Error>) -> Value {
     }
 }
 
-enum Event {
-    Callback(Value),
-    Done(Value),
-}
-struct Job {
-    send: mpsc::Sender<Value>,
-    receive: mpsc::Receiver<Event>,
-}
-static JOBS: LazyLock<Mutex<HashMap<u64, Job>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
-static NEXT: AtomicU64 = AtomicU64::new(1);
-
 struct Transport {
     flags: Value,
-    send: mpsc::Sender<Event>,
-    receive: mpsc::Receiver<Value>,
+    channel: Channel,
 }
 impl Transport {
     fn call(&self, method: &str, args: Value) -> Result<Value, Error> {
-        self.send
-            .send(Event::Callback(json!({"method":method,"args":args})))
-            .map_err(|e| Error::Refused(e.to_string()))?;
-        let reply = self
-            .receive
-            .recv()
-            .map_err(|e| Error::Refused(e.to_string()))?;
+        let reply = self.channel.call(method, args).map_err(Error::Refused)?;
         if let Some(message) = reply["error"].as_str() {
             let error = match reply["error_kind"].as_str() {
                 Some("PermissionError") => Error::Io(io::Error::new(
@@ -119,26 +95,6 @@ impl Runtime for Transport {
                 .map(String::from))
         } else {
             Ok(denylist::codex_config_error(root, cli, timeout))
-        }
-    }
-}
-
-fn advance(id: u64, reply: Option<Value>) -> Result<Value, String> {
-    let job = JOBS
-        .lock()
-        .unwrap()
-        .remove(&id)
-        .ok_or("unknown deny-list job")?;
-    if let Some(reply) = reply {
-        job.send.send(reply).map_err(|e| e.to_string())?;
-    }
-    match job.receive.recv().map_err(|e| e.to_string())? {
-        Event::Done(value) => Ok(value),
-        Event::Callback(mut request) => {
-            request["job"] = json!(id);
-            request["callback"] = json!("denylist");
-            JOBS.lock().unwrap().insert(id, job);
-            Ok(request)
         }
     }
 }
@@ -280,7 +236,7 @@ fn execute(op: &str, args: &Value, runtime: &mut dyn Runtime) -> Result<Value, E
 
 pub(super) fn dispatch(op: &str, args: &Value) -> Result<Value, String> {
     if op == "denylist.resume" {
-        return advance(
+        return job::advance(
             args["job"].as_u64().ok_or("missing deny-list job")?,
             Some(args["reply"].clone()),
         );
@@ -300,24 +256,8 @@ pub(super) fn dispatch(op: &str, args: &Value) -> Result<Value, String> {
     }
     let op = op.to_string();
     let flags = args["transport"].clone();
-    let (event_send, event_receive) = mpsc::channel();
-    let (reply_send, reply_receive) = mpsc::channel();
-    let id = NEXT.fetch_add(1, Ordering::Relaxed);
-    JOBS.lock().unwrap().insert(
-        id,
-        Job {
-            send: reply_send,
-            receive: event_receive,
-        },
-    );
-    thread::spawn(move || {
-        let mut runtime = Transport {
-            flags,
-            send: event_send.clone(),
-            receive: reply_receive,
-        };
-        let result = response(execute(&op, &args, &mut runtime));
-        let _ = event_send.send(Event::Done(result));
-    });
-    advance(id, None)
+    job::start("denylist", move |channel| {
+        let mut runtime = Transport { flags, channel };
+        response(execute(&op, &args, &mut runtime))
+    })
 }

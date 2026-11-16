@@ -26,6 +26,8 @@ ORIGINAL_REPLACE = os.replace
 LIVE_CONFIG_ENV = []
 NATIVE_STORE_WRITE = None
 NATIVE_DENY_FUNCTIONS = {}
+NATIVE_JUDGE_FUNCTIONS = {}
+NATIVE_JUDGE_STORE = {}
 
 
 def invoke(operation, arguments):
@@ -775,6 +777,21 @@ def pytest_configure(config):
     global NATIVE_DENY_FUNCTIONS
     NATIVE_DENY_FUNCTIONS = {name: getattr(denylist, name) for name in ("write_json", "_write_text", "_git_tracked", "codex_config_error")}
 
+    from tokeneconomizer.plugin import judge as live_judge
+    from tokeneconomizer.loopguard import judge as loop_judge
+    global NATIVE_JUDGE_FUNCTIONS, NATIVE_JUDGE_STORE
+    NATIVE_JUDGE_FUNCTIONS = {name: getattr(loop_judge, name) for name in ("llm_stuck_judge", "llm_nudge_writer")}
+    NATIVE_JUDGE_STORE = {name: getattr(Store, name) for name in ("read", "write", "append")}
+    live_judge.AsyncJudge.__init__ = live_judge_constructor
+    live_judge.AsyncJudge.start = live_judge_start
+    live_judge.AsyncJudge.poll = live_judge_poll
+    live_judge.NoVerdict.start = no_verdict_start
+    live_judge.NoVerdict.poll = no_verdict_poll
+    replacements[live_judge.run_job] = live_judge_run_job
+    replacements[live_judge.spawn_job] = live_judge_spawn_job
+    live_judge.run_job = live_judge_run_job
+    live_judge.spawn_job = live_judge_spawn_job
+
     from tokeneconomizer.loopguard.envelope import EnvelopeTracker
     EnvelopeTracker.__init__ = state_constructor(EnvelopeTracker, "envelope.new")
     EnvelopeTracker.update = wrap(EnvelopeTracker.update, "envelope.update")
@@ -791,6 +808,92 @@ def pytest_configure(config):
 
 def config_constructor(cls):
     return state_constructor(cls, "config." + cls.__name__)
+
+
+def live_judge_call(operation, ctx=None, session_id="", job_id="", threshold=None, guard=None, digest=""):
+    from tokeneconomizer.plugin import judge, sidecall
+    from tokeneconomizer.loopguard import judge as loop_judge
+    store = ctx.store if ctx is not None else None
+    flags = {}
+    if store is not None:
+        for name, original in NATIVE_JUDGE_STORE.items():
+            method = getattr(store, name)
+            flags["store_" + name] = getattr(method, "__func__", method) is not original
+    flags.update(judge=loop_judge.llm_stuck_judge is not NATIVE_JUDGE_FUNCTIONS["llm_stuck_judge"],
+                 nudge=loop_judge.llm_nudge_writer is not NATIVE_JUDGE_FUNCTIONS["llm_nudge_writer"])
+    arguments = {"session_id": session_id, "job_id": job_id, "threshold": threshold,
+                 "guard": turn_data(guard) if guard is not None else {}, "digest": digest,
+                 "base": os.fspath(getattr(store, "base", "")), "transport": flags,
+                 "host": ctx.host.name if ctx is not None else "",
+                 "local_floor": getattr(ctx.config, "local_judge_confidence", 0.9) if ctx is not None else 0.9,
+                 "synchronous": getattr(ctx, "env", {}).get("TE_JUDGE_SYNC") == "1"}
+    runners = {}
+    result = invoke(operation, arguments)
+    while isinstance(result, dict) and result.get("callback") == "live_judge":
+        method, args = result["method"], result["args"]
+        try:
+            if method.startswith("store_"):
+                value = getattr(store, method.removeprefix("store_"))(*args)
+                if isinstance(value, os.PathLike):
+                    value = os.fspath(value)
+            elif method == "paused":
+                value = bool(sidecall.paused(ctx.host.name, ctx.root))
+            elif method == "runner":
+                role, local_only = args
+                runners[role] = sidecall.local_runner(role, ctx.config) if local_only else sidecall.runner_for(ctx.host.name, ctx.config, role=role)
+                value = runners[role] is not None
+            elif method == "run":
+                value = runners[args[0]](*args[1:])
+            elif method == "estimate":
+                value = runners[args[0]].estimate_effective(*args[1:])
+            elif method == "local_answer":
+                runner = runners[args[0]]
+                value = {"answered": bool(getattr(runner, "answered_locally", False)), "local": getattr(runner, "local", "local")}
+            elif method == "judge":
+                value = loop_judge.llm_stuck_judge(args[0], runners["judge"], model="agent")
+            elif method == "nudge":
+                value = loop_judge.llm_nudge_writer(args[0], runners["nudge"], model="agent")
+            elif method == "spawn_job":
+                value = judge.spawn_job(ctx, *args)
+            elif method == "spawn":
+                value = ctx.spawn(*args)
+            else:
+                raise AssertionError("Unknown judge callback: " + method)
+            reply = {"value": value}
+        except Exception as error:
+            reply = {"error": str(error), "error_kind": type(error).__name__}
+        result = invoke("live_judge.resume", {"job": result["job"], "reply": reply})
+    value = storage_result(result)
+    return tuple(value) if operation in ("live_judge.poll", "live_judge.no_poll") else value
+
+
+def live_judge_constructor(self, ctx, session_id, threshold):
+    self.ctx, self.sid = ctx, session_id
+    self.threshold = live_judge_call("live_judge.new", threshold=threshold)
+
+
+def live_judge_start(self, guard, digest):
+    return live_judge_call("live_judge.start", self.ctx, self.sid, threshold=self.threshold, guard=guard, digest=digest)
+
+
+def live_judge_poll(self, guard):
+    return live_judge_call("live_judge.poll", self.ctx, self.sid, threshold=self.threshold, guard=guard)
+
+
+def no_verdict_start(self, guard, digest):
+    return live_judge_call("live_judge.no_start", guard=guard, digest=digest)
+
+
+def no_verdict_poll(self, guard):
+    return live_judge_call("live_judge.no_poll", guard=guard)
+
+
+def live_judge_run_job(ctx, session_id, job_id):
+    return live_judge_call("live_judge.run_job", ctx, session_id, job_id)
+
+
+def live_judge_spawn_job(ctx, session_id, job_id):
+    return live_judge_call("live_judge.spawn_job", ctx, session_id, job_id)
 
 
 def spiral_data(state):
