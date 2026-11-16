@@ -4,7 +4,33 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::value::{integer, number};
+use crate::value::{integer, number, truthy};
+
+#[derive(Debug)]
+pub enum PricingError {
+    UnpricedModel(String),
+    InvalidRecord(String),
+}
+
+impl std::fmt::Display for PricingError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnpricedModel(message) | Self::InvalidRecord(message) => {
+                formatter.write_str(message)
+            }
+        }
+    }
+}
+
+impl std::error::Error for PricingError {}
+
+impl From<PricingError> for String {
+    fn from(error: PricingError) -> Self {
+        match error {
+            PricingError::UnpricedModel(message) | PricingError::InvalidRecord(message) => message,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct Weights {
@@ -61,18 +87,26 @@ pub fn model_weights(model: &str) -> Option<Weights> {
     })
 }
 
-pub fn resolve_model(record: &Value) -> Option<&str> {
-    if let Some(model) = record["model"].as_str().filter(|s| !s.is_empty()) {
-        return model.rsplit('/').next();
+pub fn resolve_model(record: &Value) -> Result<Option<&str>, PricingError> {
+    if truthy(&record["model"]) {
+        let model = record["model"].as_str().ok_or_else(|| {
+            PricingError::InvalidRecord("pricing: billed model must be a string".into())
+        })?;
+        return Ok(model.rsplit('/').next());
     }
-    record["agent"]
+    if truthy(&record["agent"]) && !record["agent"].is_string() {
+        return Err(PricingError::InvalidRecord(
+            "pricing: agent must be a string".into(),
+        ));
+    }
+    Ok(record["agent"]
         .as_str()
         .filter(|agent| agent.eq_ignore_ascii_case("codex"))
-        .map(|_| "gpt-5.6-sol")
+        .map(|_| "gpt-5.6-sol"))
 }
 
-pub fn weights_for(record: &Value) -> Result<Weights, String> {
-    let Some(model) = resolve_model(record).filter(|s| !s.is_empty()) else {
+pub fn weights_for(record: &Value) -> Result<Weights, PricingError> {
+    let Some(model) = resolve_model(record)?.filter(|s| !s.is_empty()) else {
         return Ok(WEIGHTS_CLAUDE);
     };
     let key = model.to_lowercase();
@@ -97,10 +131,10 @@ pub fn weights_for(record: &Value) -> Result<Weights, String> {
             ..WEIGHTS_CLAUDE
         });
     }
-    Err(format!(
+    Err(PricingError::UnpricedModel(format!(
         "pricing: no weight entry for billed model {model:?} (agent={:?}). Add it to pricing.MODEL_WEIGHTS (from the vendor's published price list).",
         record["agent"]
-    ))
+    )))
 }
 
 pub fn has_breakdown(record: &Value) -> bool {
@@ -119,19 +153,25 @@ pub fn cache_write_1h_tokens(usage: &Value) -> f64 {
     }
 }
 
-pub fn effective_tokens(record: &Value, weights: Option<Weights>) -> Result<f64, String> {
+pub fn effective_tokens(record: &Value, weights: Option<Weights>) -> Result<f64, PricingError> {
     let w = match weights {
         Some(w) => w,
         None => weights_for(record)?,
     };
     if has_breakdown(record) {
-        let count = |key: &str| number(&record[key]).unwrap_or(0.0);
+        let count = |key: &str| match number(&record[key]) {
+            Some(n) => Ok(n),
+            None if !truthy(&record[key]) => Ok(0.0),
+            _ => Err(PricingError::InvalidRecord(format!(
+                "pricing: {key} must be numeric"
+            ))),
+        };
         let one_hour = cache_write_1h_tokens(record);
-        Ok(count("input_tokens") * w.input
-            + count("cache_read_input_tokens") * w.cache_read
-            + (count("cache_creation_input_tokens") - one_hour) * w.cache_write
+        Ok(count("input_tokens")? * w.input
+            + count("cache_read_input_tokens")? * w.cache_read
+            + (count("cache_creation_input_tokens")? - one_hour) * w.cache_write
             + one_hour * w.cache_write_1h.unwrap_or(w.cache_write)
-            + count("output_tokens") * w.output)
+            + count("output_tokens")? * w.output)
     } else {
         Ok(number(&record["tokens_total"]).unwrap_or(0.0))
     }

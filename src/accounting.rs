@@ -2,7 +2,7 @@ use serde_json::{Value, json};
 
 use crate::{
     ledger,
-    pricing::{self, Weights},
+    pricing::{self, PricingError, Weights},
     value::{integer, number, truthy},
 };
 
@@ -14,20 +14,22 @@ pub const FALLBACK_WEIGHTS: Weights = Weights {
     cache_write_1h: None,
 };
 
-pub fn effective(usage: &Value) -> (Option<f64>, &'static str) {
+pub fn effective(usage: &Value) -> Result<(Option<f64>, &'static str), PricingError> {
     if !pricing::has_breakdown(usage) {
-        return (None, "no_usage");
+        return Ok((None, "no_usage"));
     }
     let mut record = usage.clone();
     // The live ledger resolves by model only; the experiment's agent default is separate.
     record.as_object_mut().unwrap().remove("agent");
-    match pricing::effective_tokens(&record, None) {
-        Ok(value) => (Some(value), "model"),
-        Err(_) => (
-            pricing::effective_tokens(&record, Some(FALLBACK_WEIGHTS)).ok(),
-            "fallback",
-        ),
-    }
+    let (weights, priced_by) = match pricing::weights_for(&record) {
+        Ok(weights) => (weights, "model"),
+        Err(PricingError::UnpricedModel(_)) => (FALLBACK_WEIGHTS, "fallback"),
+        Err(error) => return Err(error),
+    };
+    Ok((
+        Some(pricing::effective_tokens(&record, Some(weights))?),
+        priced_by,
+    ))
 }
 
 pub fn overhead_total(overhead: &Value) -> f64 {

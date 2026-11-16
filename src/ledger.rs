@@ -18,6 +18,6 @@ pub fn overhead(row: &Value) -> f64 {
         .sum()
 }
 
-pub fn effective_exec(row: &Value) -> Result<f64, String> {
+pub fn effective_exec(row: &Value) -> Result<f64, pricing::PricingError> {
     pricing::effective_tokens(row, None)
 }
