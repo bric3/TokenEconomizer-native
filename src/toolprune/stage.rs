@@ -8,12 +8,13 @@ use serde_json::{Map, Value, json};
 
 use super::{
     codex::{self, CodexUntoolProfile},
+    protected::ProtectedTools,
     tools::judge_tools_for_task,
 };
 use crate::{config::ToolingConfig, runner::Runner, value::truthy};
 
 pub trait ToolingAdapter {
-    fn protected_tools(&mut self) -> Result<BTreeSet<String>, String>;
+    fn protected_tools(&mut self) -> Result<ProtectedTools, String>;
     fn tool_usage(&mut self, transcript: &Path) -> Result<BTreeSet<String>, String>;
     fn parse_catalog_with_source(
         &mut self,
@@ -134,12 +135,12 @@ impl ToolingStage {
             if !self.ev_reaudit {
                 let protected = match context.adapter.as_mut() {
                     Some(adapter) => adapter.protected_tools()?,
-                    None => BTreeSet::new(),
+                    None => ProtectedTools::default(),
                 };
                 let candidates: BTreeSet<_> = self
                     .catalog_tools
                     .iter()
-                    .filter(|t| !protected.contains(*t) && !self.used_tools.contains(*t))
+                    .filter(|t| !protected.contains(t) && !self.used_tools.contains(*t))
                     .cloned()
                     .collect();
                 excluded = candidates

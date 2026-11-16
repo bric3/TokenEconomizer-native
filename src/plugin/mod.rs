@@ -1,3 +1,4 @@
+pub mod adapter;
 pub mod applied;
 pub mod config;
 pub mod denylist;

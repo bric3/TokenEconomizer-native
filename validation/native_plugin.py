@@ -79,8 +79,10 @@ def wrap(original, operation):
         if operation == "live_config.load_config":
             env = os.environ if arguments["env"] is None else arguments["env"]
             arguments["env"] = {key: env[key] for key in LIVE_CONFIG_ENV if key in env}
-        if operation.startswith(("paths.", "live_config.", "repos.", "applied.", "denylist.")):
+        if operation.startswith(("paths.", "live_config.", "repos.", "applied.", "denylist.", "live_adapter.")):
             arguments["process_cwd"] = os.getcwd()
+        if operation.startswith("live_adapter.") and "used_tools" in arguments:
+            arguments["used_tools"] = list(arguments["used_tools"])
         if operation.startswith("denylist."):
             from tokeneconomizer.plugin import denylist as deny_module
             arguments["home"] = os.path.expanduser("~")
@@ -139,7 +141,9 @@ def wrap(original, operation):
                 arguments["items"] = list(arguments["items"])
         obj = arguments.get("self")
         if obj is not None:
-            if operation.startswith("live_config."):
+            if operation.startswith("live_adapter."):
+                arguments["self"] = live_adapter_data(obj)
+            elif operation.startswith("live_config."):
                 arguments["self"] = vars(obj)
             elif operation == "tooling.new":
                 arguments.pop("self")
@@ -275,6 +279,17 @@ def wrap(original, operation):
             arguments["runner"] = runner is not None
             arguments["external"] = external is not None
         result = invoke(operation, arguments)
+        if operation.startswith("live_adapter."):
+            if operation in ("live_adapter.detect_vocabulary", "live_adapter.env_vocabulary"):
+                return vocabulary_from_data(result)
+            if operation == "live_adapter.protected_tools":
+                from tokeneconomizer.plugin.adapter import _Protected
+                return _Protected(result["names"], result["patterns"])
+            if operation in ("live_adapter.inapplicable_tools", "live_adapter.parse_catalog_with_source"):
+                return tuple(result)
+            if operation == "live_adapter.load_trajectory":
+                return [tuple(row) for row in result]
+            return result
         if operation.startswith("denylist."):
             while isinstance(result, dict) and result.get("callback") == "denylist":
                 try:
@@ -434,7 +449,9 @@ def wrap(original, operation):
                             value = adapter.parse_catalog(*result["args"]), "unknown"
                         else:
                             value = getattr(adapter, method)(*result["args"])
-                        if isinstance(value, (set, frozenset)):
+                        if method == "protected_tools":
+                            value = {"names": sorted(value), "patterns": list(getattr(value, "patterns", ()))}
+                        elif isinstance(value, (set, frozenset)):
                             value = sorted(value)
                     else:
                         value = (writer if result["callback"] == "writer" else judge)(result["digest"])
@@ -579,6 +596,7 @@ def pytest_configure(config):
         "ledger": ("overhead", "effective_exec"),
         "plugin.accounting": ("effective", "overhead_total", "summarize", "fmt_tokens"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
+        "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
         "plugin.paths": ("state_root", "secure_root", "launcher_path", "ensure_launcher", "home_dir", "_gitdir_of_file", "is_git_entry", "find_repo_root", "_git_common_dir", "origin_url", "normalize_remote", "_slug", "digest", "_main_checkout", "repo_identity", "repo_state_dir"),
         "plugin.repos": ("repos_dir", "_repo_dir", "_record_error", "_pin_store", "_pin_name", "_repo_from", "pinned", "pin", "prune_pins", "_legacy_root", "legacy_key", "_host_dirs", "_sessions", "_transcript_cwd", "session_cwd", "_imported", "_transcript_of", "_has_learned", "dir_label", "note_repo", "_write_lines", "_rename_label", "_take_learned", "_merge_applied", "_merge_envelope", "_merge_host", "merge_whole", "_resolve", "plan_dir", "_live", "migrate_dir", "_record_moves", "_candidates", "_prune_index", "adopt", "migrate_all", "merge", "needs_migration", "start_migration", "run_migration", "migration_notice", "refold_moved", "settle", "how_words", "describe", "ignored_git_entries", "listing", "home_git_note"),
         "plugin.denylist": ("_canon", "applied_by_path", "kept_by_path", "write_applied", "supports", "unit", "settings_path", "_read_settings", "_guard_target", "write_json", "_write_text", "_exclude_from_git", "kept_for", "set_kept", "applied", "applied_for", "_record", "_json_list_keys", "_apply_json_list", "_restore_json_list", "_sections", "_key_set", "_toml_insert", "_toml_remove", "_toml_valid", "_git_tracked", "codex_config_error", "_apply_codex", "_restore_codex", "copilot_trusted_folders", "copilot_folder_trusted", "codex_home", "codex_project_trusted", "apply", "restore", "copilot_server_proposal"),
@@ -644,6 +662,8 @@ def pytest_configure(config):
             operation = module_name.removeprefix("plugin.") + "." + name
             if module_name == "plugin.config":
                 operation = "live_config." + name
+            if module_name == "plugin.adapter":
+                operation = "live_adapter." + name
             if module_name == "plugin.denylist":
                 operation = ("applied." if name in ("_canon", "applied_by_path", "kept_by_path", "write_applied") else "denylist.") + name
             operation = operation.removeprefix("loopguard.")
@@ -792,6 +812,18 @@ def pytest_configure(config):
     live_judge.run_job = live_judge_run_job
     live_judge.spawn_job = live_judge_spawn_job
 
+    from tokeneconomizer.plugin import adapter as live_adapter
+    constants = invoke("live_adapter.constants", {})
+    for name in ("INTERACTIVE_PROTECTED", "COPILOT_PROTECTED", "HIGH_RISK"):
+        assert frozenset(constants[name]) == getattr(live_adapter, name)
+        setattr(live_adapter, name, frozenset(constants[name]))
+    assert constants["HIGH_RISK_FACTOR"] == live_adapter.HIGH_RISK_FACTOR
+    live_adapter.HIGH_RISK_FACTOR = constants["HIGH_RISK_FACTOR"]
+    live_adapter.LiveAdapter.__init__ = live_adapter_constructor
+    live_adapter._Protected.__contains__ = protected_contains
+    for name in ("load_trajectory", "tool_usage", "parse_catalog", "parse_catalog_with_source", "protected_tools", "inapplicable_tools", "hardcoded_exclusions", "spiral_snapshot", "problem_statements", "env_vocabulary"):
+        setattr(live_adapter.LiveAdapter, name, wrap(getattr(live_adapter.LiveAdapter, name), "live_adapter." + name))
+
     from tokeneconomizer.loopguard.envelope import EnvelopeTracker
     EnvelopeTracker.__init__ = state_constructor(EnvelopeTracker, "envelope.new")
     EnvelopeTracker.update = wrap(EnvelopeTracker.update, "envelope.update")
@@ -903,6 +935,32 @@ def spiral_data(state):
 def vocabulary_data(vocabulary):
     return {field.name: list(value) if isinstance(value, (tuple, set, frozenset)) else value
             for field in dataclasses.fields(vocabulary) for value in (getattr(vocabulary, field.name),)}
+
+
+def vocabulary_from_data(data):
+    from tokeneconomizer.microskills import GENERIC, NODE_WEB, PYTHON_GIT
+    from tokeneconomizer.microskills.observe import Vocabulary
+    vocabulary = Vocabulary(**{field.name: field.type(data[field.name]) if field.type in (tuple, frozenset) else data[field.name]
+                               for field in dataclasses.fields(Vocabulary)})
+    for original in (GENERIC, NODE_WEB, PYTHON_GIT):
+        if vocabulary == original:
+            return original
+    return vocabulary
+
+
+def live_adapter_data(adapter):
+    return dict(vars(adapter), host=adapter.host.name, repo_root=os.fspath(adapter.repo_root), protect=list(adapter.protect))
+
+
+def live_adapter_constructor(self, host, repo_root, vocabulary="auto", catalog=None, protect=()):
+    data = invoke("live_adapter.new", {"host": host.name, "repo_root": os.fspath(repo_root), "vocabulary": vocabulary,
+                                      "catalog": dict(catalog or {}), "protect": list(protect)})
+    self.__dict__.update(data)
+    self.host, self.protect = host, tuple(data["protect"])
+
+
+def protected_contains(self, name):
+    return invoke("live_adapter.protected_contains", {"tools": {"names": list(self), "patterns": list(self.patterns)}, "name": str(name)})
 
 
 class NativeRegex:

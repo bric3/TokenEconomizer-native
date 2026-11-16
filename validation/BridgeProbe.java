@@ -137,6 +137,7 @@ class BridgeProbe {
       checkCopyMove(directory, input, output);
       checkConfigProcess(directory, input, output);
       checkAsyncJudge(directory, input, output);
+      checkLiveAdapter(directory, input, output);
 
       input.println("""
           {"op":"rules.nudge_text","args":{"state":{"edit_counts":{"one file":5,"other":1}}}}
@@ -464,6 +465,10 @@ class BridgeProbe {
         + "{\"value\":[\"{\\\"WebFetch\\\":false,\\\"Used\\\":false,\\\"unknown\\\":false}\",11]}]}}");
     if (!build.contains("\"value\":[\"WebFetch\",\"Workflow\"]") || !build.contains("\"_task_judge_tokens\":11.0")
         || !build.contains("\"_task_judge_dropped\":[\"WebFetch\"]")) throw new AssertionError("Evidence/judge exclusions were not filtered: " + build);
+    var protectedBuild = request(input, output, "{\"op\":\"tooling.build_tools\",\"args\":{\"self\":" + stage
+        + ",\"task\":{\"instance_id\":\"w-1\"},\"i\":1,\"adapter\":true,\"runner\":true,\"replies\":[{\"value\":{\"names\":[\"Bash\"],\"patterns\":[\"W*\"]}}]}}");
+    if (!protectedBuild.contains("\"value\":[]") || !protectedBuild.contains("\"_task_judge_tokens\":0.0"))
+      throw new AssertionError("The stage dropped or judged a pattern-protected tool: " + protectedBuild);
     var completed = request(input, output, "{\"op\":\"tooling.after_task\",\"args\":{\"self\":" + profileSelf(build)
         + ",\"row\":{},\"srow\":{},\"run_dir_path\":\"unused\",\"adapter\":true,\"replies\":[{\"value\":{}}]}}");
     if (!completed.contains("\"untool_judge_tokens\":11.0") || !completed.contains("\"untool_judge_dropped\":[\"WebFetch\"]")
@@ -475,6 +480,69 @@ class BridgeProbe {
     }
     var noProblems = request(input, output, "{\"op\":\"tooling.new\",\"args\":{" + constructor + ",\"adapter\":true,\"replies\":[{\"error\":\"offline\"}]}}");
     if (!noProblems.contains("could not load problem statements (offline); judge disabled") || !noProblems.contains("\"problem_by_iid\":{}")) throw new AssertionError(noProblems);
+  }
+
+  private static String jsonString(String text) {
+    var out = new StringBuilder("\"");
+    text.codePoints().forEach(c -> {
+      if (c == '"' || c == '\\') out.append('\\').appendCodePoint(c);
+      else if (c < 32) out.append("\\u%04x".formatted(c));
+      else out.appendCodePoint(c);
+    });
+    return out.append('"').toString();
+  }
+
+  private static void checkLiveAdapter(Path directory, PrintWriter input, BufferedReader output) throws Exception {
+    record Glob(String name, String pattern, boolean matches) {}
+    for (var example : new Glob[] {
+        new Glob("", "", true), new Glob("", "*", true), new Glob("", "?", false),
+        new Glob("😀", "?", true), new Glob("é😀", "??", true), new Glob("a\nb", "a*b", true),
+        new Glob("a/.b/c", "a/*", true), new Glob("Bash", "bash", false),
+        new Glob("abc", "a**?c", true), new Glob("ab", "a*b*c", false),
+        new Glob("a*b", "a[*]b", true), new Glob("?", "[?]", true),
+        new Glob("[", "[[]", true), new Glob("]", "[]]", true),
+        new Glob("[!]", "[!]", true), new Glob("[]", "[]", true), new Glob("[", "[", true),
+        new Glob("abc", "[!a]*", false), new Glob("\n", "[!a]", true),
+        new Glob("\\abc", "\\*", true), new Glob("abc", "\\*", false),
+        new Glob("a", "[z-a]", false), new Glob("a", "[!z-a]", true),
+        new Glob("{a,b}", "{a,b}", true), new Glob("a", "{a,b}", false),
+        new Glob("😀", "[é-🙏]", true), new Glob("😀", "[!é-🙏]", false) }) {
+      expect(input, output, "{\"op\":\"live_adapter.fnmatchcase\",\"args\":{\"name\":" + jsonString(example.name())
+          + ",\"pattern\":" + jsonString(example.pattern()) + "}}", "{\"result\":" + example.matches() + "}");
+    }
+    record Class(String pattern, String members) {}
+    for (var group : new Class[] { new Class("[a-c]", "abc"), new Class("[c-ab]", "b"),
+        new Class("[a--b]", "b"), new Class("[z-a-c]", "-c"), new Class("[a-b-c-a]", "ab-"),
+        new Class("[a-c-x]", "abc-x"), new Class("[^a]", "^a"), new Class("[]!]", "]!"),
+        new Class("[a&~|]", "a&~|"), new Class("[a\\]", "a\\") }) {
+      for (var name : new String[] { "a", "b", "c", "d", "x", "z", "-", "^", "[", "]", "!", "&", "~", "|", "\\", "😀", "\n" }) {
+        expect(input, output, "{\"op\":\"live_adapter.fnmatchcase\",\"args\":{\"name\":" + jsonString(name)
+            + ",\"pattern\":" + jsonString(group.pattern()) + "}}", "{\"result\":" + group.members().contains(name) + "}");
+      }
+    }
+    var base = Files.createDirectory(directory.resolve("live-adapter"));
+    Files.writeString(base.resolve("transcript.jsonl"), "{\"type\":\"attachment\",\"attachment\":{\"type\":\"deferred_tools_delta\",\"addedNames\":[\"Deferred\",\"Probed\"]}}\n");
+    var self = "{\"host\":\"claude\",\"repo_root\":" + jsonString(base.toString())
+        + ",\"vocabulary\":\"auto\",\"catalog\":{\"Probed\":\"description\"},\"protect\":[\"mcp__headroom__*\"]}";
+    expect(input, output, "{\"op\":\"live_adapter.parse_catalog_with_source\",\"args\":{\"self\":" + self
+        + ",\"run_dir_path\":" + jsonString(base.toString()) + "}}",
+        "{\"result\":[{\"Probed\":\"description\",\"Deferred\":\"\"},\"probe+observed\"]}");
+    var protectedTools = request(input, output, "{\"op\":\"live_adapter.protected_tools\",\"args\":{\"self\":" + self + "}}");
+    var tools = protectedTools.substring("{\"result\":".length(), protectedTools.length() - 1);
+    expect(input, output, "{\"op\":\"live_adapter.protected_contains\",\"args\":{\"tools\":" + tools + ",\"name\":\"mcp__headroom__read\"}}", "{\"result\":true}");
+    expect(input, output, "{\"op\":\"live_adapter.protected_contains\",\"args\":{\"tools\":" + tools + ",\"name\":\"WebFetch\"}}", "{\"result\":true}");
+    expect(input, output, "{\"op\":\"live_adapter.protected_contains\",\"args\":{\"tools\":" + tools + ",\"name\":\"mcp__other__read\"}}", "{\"result\":false}");
+    self = self.replace("\"host\":\"claude\"", "\"host\":\"copilot\"").replace("{\"Probed\":\"description\"}", "{}");
+    Files.writeString(base.resolve("transcript.jsonl"), "{}\r{\"data\":{\"promptCacheBreakState\":[{\"models\":{\"model\":{\"tools\":[{\"name\":\"Checkpoint\"}]}}}]}}\r");
+    expect(input, output, "{\"op\":\"live_adapter.parse_catalog_with_source\",\"args\":{\"self\":" + self
+        + ",\"run_dir_path\":" + jsonString(base.toString()) + "}}", "{\"result\":[{\"Checkpoint\":\"\"},\"observed\"]}");
+    var catalog = base.resolve("hosts/claude/catalog.json");
+    Files.createDirectories(catalog.getParent());
+    Files.writeString(catalog, "{\"tools\":[\"A\",null,3,\"B\",\"A\"]}");
+    var load = "{\"op\":\"live_adapter.load_catalog\",\"args\":{\"state_root\":" + jsonString(base.toString()) + ",\"host\":\"claude\"}}";
+    expect(input, output, load, "{\"result\":{\"A\":\"\",\"B\":\"\"}}");
+    Files.writeString(catalog, "broken");
+    expect(input, output, load, "{\"result\":{}}");
   }
 
   private static String profileSelf(String response) {

@@ -92,6 +92,12 @@ complete while any runtime component delegates production behaviour to Python.
   selection, the local confidence floor, redirect selection, immediate cost
   recording and verdict publication. Runner selection and process spawning still
   cross callbacks until side calls and the native context are ported.
+- The live domain adapter now executes in Rust: repository vocabulary selection,
+  saved and observed catalogs, deferred Claude tools, Copilot checkpoint catalogs,
+  usage including Claude subagents, loop snapshots and interactive tool protection.
+  Protected tools retain both names and user-defined patterns through the pruning
+  stage. Pattern matching follows Python's case-sensitive shell wildcard rules,
+  including bracket classes, Unicode and descending ranges.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -254,6 +260,15 @@ complete while any runtime component delegates production behaviour to Python.
   injects a publication failure after model replies and verifies that both calls'
   costs remain recorded. Clippy, formatting and upstream integrity checks pass.
   Actual detached process launch still uses the reference context callback.
+- Live adapter focused run: 160 passed, 2 skipped. Full suite with the native live
+  adapter: 1,558 passed, 33 skipped (92.48 seconds).
+  `validation/live-adapter-calls.json` records native entries. The original tests
+  cover vocabulary singleton identity and restoring a tool after a user protects it.
+- The bridge probe checks Unicode wildcards, bracket and descending ranges,
+  malformed brackets, literal metacharacters, newlines and path separators. It
+  also verifies pattern protection inside the pruning stage, saved descriptions,
+  deferred tools, Copilot checkpoints with bare CR line endings and malformed
+  saved-catalog recovery. Clippy, formatting and upstream integrity checks pass.
 
 ## Dependencies
 
@@ -330,6 +345,12 @@ Background judge jobs use the same transport to retain their request and model
 replies across callbacks. The native job appends its costs before publishing its
 verdict. Fake stores and patched judge functions are transported for the original
 tests; normal storage and verdict parsing execute in Rust.
+The live adapter transport preserves vocabulary singleton identity and the
+protected set's pattern metadata. Membership checks execute in Rust, including
+checks made by the remaining reference folding code. The wildcard contract is
+checked against the maintained [Python documentation](https://docs.python.org/3.15/library/fnmatch.html)
+and installed Python 3.15.2 implementation; the native matcher uses bounded
+dynamic programming without regular-expression backtracking.
 
 Small Java validation tools check the migration infrastructure:
 

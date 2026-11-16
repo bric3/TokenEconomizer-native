@@ -6,6 +6,7 @@ use tokeneconomizer::{
     runner::Runner,
     toolprune::{
         codex::{self, CodexUntoolProfile},
+        protected::ProtectedTools,
         stage::{ToolingAdapter, ToolingContext, ToolingStage},
         tools,
     },
@@ -95,8 +96,14 @@ impl AdapterTransport<'_> {
     }
 }
 impl ToolingAdapter for AdapterTransport<'_> {
-    fn protected_tools(&mut self) -> Result<BTreeSet<String>, String> {
-        serde_json::from_value(self.call("protected_tools", json!([]))?).map_err(|e| e.to_string())
+    fn protected_tools(&mut self) -> Result<ProtectedTools, String> {
+        let value = self.call("protected_tools", json!([]))?;
+        serde_json::from_value(if value.is_array() {
+            json!({"names":value})
+        } else {
+            value
+        })
+        .map_err(|e| e.to_string())
     }
     fn tool_usage(&mut self, path: &Path) -> Result<BTreeSet<String>, String> {
         let value = self.call("tool_usage", json!([path]))?;
