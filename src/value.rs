@@ -1,5 +1,6 @@
 use serde::Serialize;
 use serde_json::Value;
+use serde_json::ser::Formatter;
 use std::io::{self, Write};
 
 struct JsonFormatter {
@@ -62,6 +63,19 @@ pub fn json_text(value: &Value) -> String {
 
 pub fn json_text_utf8(value: &Value) -> String {
     encode_json(value, false)
+}
+
+pub fn json_pretty(value: &Value, sort_keys: bool) -> String {
+    let mut value = value.clone();
+    if sort_keys {
+        value.sort_all_objects();
+    }
+    let text = serde_json::to_string_pretty(&value).unwrap();
+    let mut bytes = Vec::new();
+    JsonFormatter { ascii: true }
+        .write_string_fragment(&mut bytes, &text)
+        .unwrap();
+    String::from_utf8(bytes).unwrap()
 }
 
 fn encode_json(value: &Value, ascii: bool) -> String {

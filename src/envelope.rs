@@ -1,8 +1,13 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::io;
 
 use crate::rules::{scaled_thresholds, threshold};
-use crate::value::round_decimal;
+use crate::{
+    loopguard::turn::TurnGuard,
+    store::Store,
+    value::{integer, round_decimal, truthy},
+};
 
 pub const ENVELOPE_HISTORY: usize = 500;
 pub const ENVELOPE_KEYS: [&str; 3] = ["envelope_margin", "envelope_pct", "envelope_min_samples"];
@@ -140,4 +145,66 @@ pub fn base_thresholds(level: &str, overrides: &Value) -> Value {
         thr.as_object_mut().unwrap().extend(overrides.clone());
     }
     thr
+}
+
+pub fn load_envelope(store: &Store, level: &str, overrides: &Value) -> io::Result<EnvelopeTracker> {
+    let data = store.read("envelope.json", Value::Null)?;
+    tracker_from_history(&data, level, overrides)
+}
+
+pub fn tracker_from_history(
+    data: &Value,
+    level: &str,
+    overrides: &Value,
+) -> io::Result<EnvelopeTracker> {
+    let mut tracker = EnvelopeTracker::new(
+        level,
+        overrides["envelope_margin"].as_f64(),
+        overrides["envelope_pct"].as_f64(),
+        overrides["envelope_min_samples"].as_i64(),
+        None,
+    );
+    for value in data["resolved_turns"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|v| truthy(v))
+    {
+        tracker.resolved_turns.push(integer(value).ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidData, "invalid envelope turn count")
+        })?);
+    }
+    tracker.resolved_snaps = data["resolved_snaps"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|s| s.is_object())
+        .cloned()
+        .collect();
+    Ok(tracker)
+}
+
+pub fn save_envelope(store: &Store, tracker: &EnvelopeTracker) -> io::Result<()> {
+    store.write("envelope.json", &serde_json::json!({"level": tracker.level,
+        "resolved_turns": tracker.resolved_turns[tracker.resolved_turns.len().saturating_sub(ENVELOPE_HISTORY)..],
+        "resolved_snaps": tracker.resolved_snaps[tracker.resolved_snaps.len().saturating_sub(ENVELOPE_HISTORY)..]}))?;
+    Ok(())
+}
+
+pub fn record_turn(
+    store: &Store,
+    guard: &TurnGuard,
+    level: &str,
+    stopped_normally: bool,
+    overrides: &Value,
+) -> io::Result<EnvelopeTracker> {
+    let _lock = store.locked("envelope", 10.0)?;
+    let mut tracker = load_envelope(store, level, overrides)?;
+    tracker.update(
+        guard.cum_turns as f64,
+        guard.resolved_proxy(stopped_normally),
+        Some(guard.whole.snapshot()),
+    );
+    save_envelope(store, &tracker)?;
+    Ok(tracker)
 }

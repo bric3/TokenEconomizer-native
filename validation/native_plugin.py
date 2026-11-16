@@ -4,6 +4,7 @@ This is test compatibility code, retained only until the final test conversion.
 Production calculations live in Rust. Original test files remain unmodified.
 """
 import collections
+import contextlib
 import dataclasses
 import functools
 import importlib
@@ -19,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CALLS = collections.Counter()
 LOCK = threading.Lock()
 PROCESS = None
+ORIGINAL_REPLACE = os.replace
 
 
 def invoke(operation, arguments):
@@ -74,7 +76,14 @@ def wrap(original, operation):
             elif operation.startswith("state."):
                 arguments["self"] = spiral_data(obj)
             else:
-                arguments["self"] = vars(obj) if operation.startswith("envelope.") else obj.to_dict()
+                arguments["self"] = vars(obj) if operation.startswith(("envelope.", "store.")) else obj.to_dict()
+        if operation.startswith("store.") or operation == "lifecycle.write_json_atomic":
+            from tokeneconomizer.plugin import store as store_module
+            arguments["windows"] = store_module._WINDOWS if operation.startswith("store.") else os.name == "nt"
+            arguments["replace_transport"] = store_module.os.replace is not ORIGINAL_REPLACE
+            arguments["read_transport"] = hasattr(store_module, "open")
+            if "parts" in arguments:
+                arguments["parts"] = [os.fspath(part) for part in arguments["parts"]]
         if operation == "state.state_from_trajectory":
             loader = arguments.pop("load_trajectory")
             if loader is not None:
@@ -88,6 +97,12 @@ def wrap(original, operation):
             arguments["st"] = spiral_data(arguments["st"])
         if "tracker" in arguments:
             arguments["tracker"] = vars(arguments["tracker"])
+        state_store = arguments.get("store")
+        if state_store is not None:
+            arguments["store_transport"] = not hasattr(state_store, "base")
+            arguments["store"] = {"base": state_store.base} if hasattr(state_store, "base") else {}
+        if "guard" in arguments:
+            arguments["guard"] = turn_data(arguments["guard"])
         state = arguments.get("state")
         if operation.startswith("rules.") and state is not None:
             arguments["state"] = {name: getattr(state, name) for name in (
@@ -107,7 +122,7 @@ def wrap(original, operation):
         if "files" in arguments:
             arguments["files"] = sorted(arguments["files"])
         result = invoke(operation, arguments)
-        if operation.startswith(("turn.", "judge.")) or operation == "pricing.runner_effective_or_approx":
+        if operation.startswith(("turn.", "judge.", "store.")) or operation in ("pricing.runner_effective_or_approx", "lifecycle.write_json_atomic", "envelope.load_envelope"):
             replies = []
             while isinstance(result, dict) and "callback" in result:
                 if result.get("guard") is not None:
@@ -121,12 +136,30 @@ def wrap(original, operation):
                         value = runner(result["prompt"], result["model"])
                     elif result["callback"] == "estimate":
                         value = runner.estimate_effective(result["prompt"], result["raw"])
+                    elif result["callback"] == "replace":
+                        Path(result["src"]).write_bytes(bytes(result["bytes"]))
+                        value = store_module.os.replace(result["src"], result["dst"])
+                    elif result["callback"] == "read":
+                        with store_module.open(result["path"], encoding="utf-8") as source:
+                            value = source.read()
+                    elif result["callback"] == "store_read":
+                        value = state_store.read(result["name"])
                     else:
                         value = (writer if result["callback"] == "writer" else judge)(result["digest"])
-                    replies.append({"value": value, "guard": turn_data(obj) if obj is not None else None})
+                    replies.append({"value": value, "guard": turn_data(obj) if operation.startswith("turn.") and obj is not None else None})
                 except Exception as error:
-                    replies.append({"error": str(error)})
+                    replies.append({"error": str(error), "error_kind": type(error).__name__})
                 result = invoke(operation, dict(arguments, replies=replies))
+        if operation.startswith("store.") or operation == "lifecycle.write_json_atomic":
+            return storage_result(result)
+        if operation in ("envelope.load_envelope", "envelope.save_envelope", "envelope.record_turn"):
+            result = storage_result(result)
+            if operation == "envelope.save_envelope":
+                return result
+            from tokeneconomizer.loopguard.envelope import EnvelopeTracker
+            tracker = EnvelopeTracker.__new__(EnvelopeTracker)
+            tracker.__dict__.update(result)
+            return tracker
         if operation.startswith("turn.") and obj is not None:
             restore_turn(obj, result["guard"], replace_states=operation == "turn.after_nudge")
             value = result["value"]
@@ -202,6 +235,7 @@ def pytest_configure(config):
                     "effective_tokens", "approx_tokens", "runner_effective_or_approx"),
         "ledger": ("overhead", "effective_exec"),
         "plugin.accounting": ("effective", "overhead_total", "summarize", "fmt_tokens"),
+        "microskills.lifecycle": ("write_json_atomic",),
         "names": ("repo_filename",),
         "config": ("needs_optimizer",),
         "loopguard.rules": ("scaled_thresholds", "gate_for_judge", "is_stuck", "nudge_text", "assess_abort"),
@@ -209,7 +243,7 @@ def pytest_configure(config):
         "loopguard.state": ("canon_tool", "basename", "_failure_sig", "completed_calls", "state_from_trajectory"),
         "loopguard.shell_edits": ("shell_edit_targets", "shell_revert_targets", "fold_shell_edits", "_split_heredocs"),
         "loopguard.turn": ("exit_status_covers", "status_of_tests", "runner_verdict", "_pieces", "state_to_dict", "state_from_dict"),
-        "loopguard.envelope": ("_percentile", "thresholds", "base_thresholds"),
+        "loopguard.envelope": ("_percentile", "thresholds", "base_thresholds", "load_envelope", "save_envelope", "record_turn"),
         "trace.jsonl": ("lines", "records"),
         "trace.hermes": ("hermes_tool", "_json_object", "hermes_result", "_load", "_prompts", "_tool_calls",
                          "_int", "_kept", "_private", "hermes_session_info", "hermes_prompt_count",
@@ -252,6 +286,7 @@ def pytest_configure(config):
             original = getattr(module, name)
             operation = module_name.removeprefix("plugin.") + "." + name
             operation = operation.removeprefix("loopguard.")
+            operation = operation.removeprefix("microskills.")
             replacement = wrap(original, operation)
             replacements[original] = replacement
             setattr(module, name, replacement)
@@ -288,6 +323,12 @@ def pytest_configure(config):
         lambda self: invoke("config.spiral_enabled", vars(self)))
     mechanism_config.EconomizerConfig.from_args = classmethod(config_from_args)
 
+    from tokeneconomizer.plugin.store import Store
+    Store.__init__ = store_constructor
+    for name in ("path", "ensure", "read", "write", "append", "read_lines"):
+        setattr(Store, name, wrap(getattr(Store, name), "store." + name))
+    Store.locked = store_locked
+
     from tokeneconomizer.loopguard.envelope import EnvelopeTracker
     EnvelopeTracker.__init__ = state_constructor(EnvelopeTracker, "envelope.new")
     EnvelopeTracker.update = wrap(EnvelopeTracker.update, "envelope.update")
@@ -308,6 +349,32 @@ def config_constructor(cls):
 
 def spiral_data(state):
     return {name: getattr(state, name) for name in state.__slots__}
+
+
+def storage_result(result):
+    if "raised" in result:
+        import builtins
+        raise getattr(builtins, result["raised"])(result["message"])
+    return result["value"]
+
+
+def store_constructor(self, base):
+    self.__dict__.update(storage_result(invoke("store.new", {"base": os.fspath(base)})))
+
+
+@contextlib.contextmanager
+def store_locked(self, name="state", timeout=10.0):
+    lock = storage_result(invoke("store.acquire", {"self": vars(self), "name": name, "timeout": timeout, "async": True}))
+    # A blocked native lock must leave the transport available to its holder's thread.
+    while True:
+        result = storage_result(invoke("store.acquire_result", {"id": lock["id"]}))
+        if result["ready"]:
+            break
+        threading.Event().wait(0.005)
+    try:
+        yield result["acquired"]
+    finally:
+        storage_result(invoke("store.release", {"id": lock["id"]}))
 
 
 def turn_data(guard):

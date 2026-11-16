@@ -35,8 +35,7 @@ complete while any runtime component delegates production behaviour to Python.
   mechanism configuration, guard decisions and the fact lifecycle's promotion,
   retirement, scoring and firing decisions.
 - Envelope calculations and Claude trace calls, usage, prompts, turns, safe
-  session IDs and deferred tools also execute in Rust. Envelope persistence hooks
-  still need conversion.
+  session IDs and deferred tools also execute in Rust.
 - Codex and Copilot calls, usage and metadata; Pi active branches and usage;
   opencode exports and run replies; Cursor hook traces; Antigravity incremental
   reads; and Grok updates and results now execute in Rust. The shared trajectory
@@ -49,7 +48,10 @@ complete while any runtime component delegates production behaviour to Python.
   status, runner summaries and prompt-turn tracking now execute in Rust. Turn tracking
   includes sampled/background judge scheduling, backoff, costs, nudges and outcomes.
   Judge prompts, verdict decoding, redirect limits and runner-cost fallback are also
-  native. Runner processes and envelope persistence still need conversion.
+  native. Envelope loading, saving and locked turn recording are native too.
+  Runner processes still need conversion.
+- The JSON state store, atomic fact writes, JSONL logs and lock timeouts now execute
+  in Rust, including bounded Windows retry decisions and temporary-file cleanup.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -58,16 +60,16 @@ complete while any runtime component delegates production behaviour to Python.
 
 ## Remaining production work
 
-- Complete fact lifecycle utilities, forgetting and atomic persistence.
+- Complete fact lifecycle utilities, forgetting and their remaining consumers.
 - Audit trace-reader edge cases, including the ISO timestamp formats accepted by
   Python's `datetime.fromisoformat`. Trace consumers still run through the reference
   plugin during migration.
 - Audit Unicode regular-expression compatibility with Python in the production
   parity pass, including word boundaries and whitespace classes.
+- Audit JSON numeric edge cases, including non-finite values accepted by Python.
 - Port command observation, environment facts, proposed facts and prefix stages.
 - Port tool-pruning evidence, Codex capabilities and pruning stages.
-- Port envelope persistence.
-- Port plugin configuration, paths and repository identity, store and locking,
+- Port plugin configuration, paths and repository identity,
   deny lists, host settings, history, context, folding, controller and queues.
 - Port side calls, model probes, tool checks, repository maps, CLI commands and
   hooks. Verify each host integration and its launcher and packaging contracts.
@@ -117,6 +119,18 @@ complete while any runtime component delegates production behaviour to Python.
   1,558 passed, 33 skipped (33.27 seconds). `validation/judge-calls.json` records
   this phase's coverage. Java probes check clamped and malformed confidence,
   runner errors, cost estimation fallback and Unicode redirect truncation.
+- Store-focused run: 317 passed, 1 skipped. Concurrent history, configuration and
+  queue run after the bridge lock fix: 66 passed. The original tests inject read
+  and replace failures; Rust owns retry decisions and atomic-write cleanup.
+- Full suite with native persistence: 1,558 passed, 33 skipped (93.88 seconds).
+  `validation/persistence-calls.json` records 20,224 store reads, 8,167 store writes,
+  475 atomic fact writes and 325 envelope recordings reaching Rust. These include
+  replay entries and exclude nested Rust calls. Worker polling adds transport
+  overhead, so this duration is not a measurement of the finished application.
+- The Java probe checks sorted ASCII JSON output, atomic cleanup after a failed
+  rename, cross-process lock exclusion and concurrent envelope updates. Two native
+  bridge processes each record 32 turns without losing updates; history stays
+  bounded at 500 turns.
 
 ## Dependencies
 
@@ -132,6 +146,10 @@ SQLite connections opened explicitly with `SQLITE_OPEN_READ_ONLY` and a five-sec
 busy timeout. The lockfile pins both libraries and their transitive dependencies.
 `fancy-regex` 0.20.2 preserves the upstream patterns' lookarounds and backreferences.
 `md5` 0.8.1 preserves existing short failure fingerprints.
+The state store uses the standard library's
+[file locks](https://doc.rust-lang.org/std/fs/struct.File.html#method.try_lock),
+available since Rust 1.89. Native Windows filesystem behaviour remains untested
+on this macOS checkout; the original injected-error tests exercise its retries.
 
 ## Validation
 
@@ -164,6 +182,11 @@ assessment requests when a callback is required; those counts are transport
 calls rather than distinct turns. Reference child processes do not yet load
 the substitutions. The call report therefore documents native coverage without
 claiming that the whole suite already exercises a native application.
+
+For injected filesystem operations, the bridge transports the original tests'
+read/replace callbacks and their errors. Lock acquisition runs in a bridge worker
+so a waiting Python thread leaves the request channel available to the holder.
+The timeout and lock decisions stay in Rust.
 
 Two small Java validation tools check the migration infrastructure:
 

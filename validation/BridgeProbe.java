@@ -12,7 +12,10 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import java.util.Comparator;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 /** Checks the new test transport and text reader without translating upstream tests. */
 class BridgeProbe {
@@ -184,14 +187,19 @@ class BridgeProbe {
       if (Files.exists(missingDatabase)) {
         throw new AssertionError("Reading a missing Hermes database created it");
       }
+
+      checkStorage(root, directory, input, output);
     } finally {
       process.getOutputStream().close();
       if (!process.waitFor(10, TimeUnit.SECONDS)) {
         process.destroyForcibly();
         throw new AssertionError("Bridge did not exit after EOF");
       }
-      Files.deleteIfExists(path);
-      Files.delete(directory);
+      try (var entries = Files.walk(directory)) {
+        for (var entry : entries.sorted(Comparator.reverseOrder()).toList()) {
+          Files.deleteIfExists(entry);
+        }
+      }
     }
 
     if (process.exitValue() != 0) {
@@ -205,6 +213,102 @@ class BridgeProbe {
     var actual = request(input, output, request);
     if (!expected.equals(actual)) {
       throw new AssertionError("Expected " + expected + ", received " + actual);
+    }
+  }
+
+  private static void checkStorage(Path root, Path directory, PrintWriter input, BufferedReader output) throws Exception {
+    var base = directory.toString().replace("\\", "\\\\").replace("\"", "\\\"");
+    var store = "{\"base\":\"" + base + "\"}";
+    request(input, output, "{\"op\":\"store.write\",\"args\":{\"self\":" + store
+        + ",\"name\":\"state.json\",\"obj\":{\"z\":\"é😀\",\"a\":{\"q\":1}}}}");
+    var expected = """
+        {
+          "a": {
+            "q": 1
+          },
+          "z": "\\u00e9\\ud83d\\ude00"
+        }""";
+    if (!Files.readString(directory.resolve("state.json")).equals(expected)) {
+      throw new AssertionError("Atomic state output lost sorted keys, indentation or ASCII escaping");
+    }
+    Files.writeString(directory.resolve("records.jsonl"), "{\"n\":1}\r\n[]\r{\"n\":2}\n");
+    expect(input, output, "{\"op\":\"store.read_lines\",\"args\":{\"self\":" + store + ",\"name\":\"records.jsonl\",\"limit\":-1}}",
+        "{\"result\":{\"value\":[{\"n\":2}]}}");
+    request(input, output, "{\"op\":\"store.ensure\",\"args\":{\"self\":" + store + ",\"parts\":[\"directory.json\"]}}");
+    var blocked = request(input, output, "{\"op\":\"store.write\",\"args\":{\"self\":" + store + ",\"name\":\"directory.json\",\"obj\":{}}}");
+    if (!blocked.contains("\"raised\":")) {
+      throw new AssertionError("Replacing a directory did not fail: " + blocked);
+    }
+    try (var entries = Files.list(directory)) {
+      if (entries.anyMatch(p -> p.toString().endsWith(".tmp"))) {
+        throw new AssertionError("An atomic write left a temporary file after failure");
+      }
+    }
+
+    var other = new ProcessBuilder(root.resolve("target/debug/te-bridge").toString())
+        .redirectError(ProcessBuilder.Redirect.INHERIT).start();
+    try (var otherInput = new PrintWriter(new OutputStreamWriter(other.getOutputStream(), StandardCharsets.UTF_8));
+         var otherOutput = new BufferedReader(new InputStreamReader(other.getInputStream(), StandardCharsets.UTF_8))) {
+      var acquire = "{\"op\":\"store.acquire\",\"args\":{\"self\":" + store + ",\"name\":\"probe\",\"timeout\":0.05}}";
+      var first = request(input, output, acquire);
+      var second = request(otherInput, otherOutput, acquire);
+      if (!first.contains("\"acquired\":true") || !second.contains("\"acquired\":false")) {
+        throw new AssertionError("Exclusive locks were not shared across processes: " + first + " / " + second);
+      }
+      var id = Pattern.compile("\"id\":(\\d+)").matcher(first);
+      if (!id.find()) {
+        throw new AssertionError("Lock handle missing: " + first);
+      }
+      expect(input, output, "{\"op\":\"store.release\",\"args\":{\"id\":" + id.group(1) + "}}", "{\"result\":{\"value\":null}}");
+      var third = request(otherInput, otherOutput, acquire);
+      if (!third.contains("\"acquired\":true")) {
+        throw new AssertionError("Lock was not released: " + third);
+      }
+
+      Files.writeString(directory.resolve("envelope.json"), "{\"resolved_turns\":[" + "3,".repeat(499) + "3],\"resolved_snaps\":[]}");
+      var record = "{\"op\":\"envelope.record_turn\",\"args\":{\"store\":" + store + ",\"guard\":{\"cum_turns\":%d}}}";
+      try (var pool = Executors.newVirtualThreadPerTaskExecutor()) {
+        var a = pool.submit(() -> {
+          for (int i = 0; i < 32; i++) {
+            var result = request(input, output, record.formatted(1));
+            if (result.contains("\"raised\":") || result.contains("\"error\":")) {
+              throw new AssertionError("Recording an envelope turn failed: " + result);
+            }
+          }
+          return null;
+        });
+        var b = pool.submit(() -> {
+          for (int i = 0; i < 32; i++) {
+            var result = request(otherInput, otherOutput, record.formatted(2));
+            if (result.contains("\"raised\":") || result.contains("\"error\":")) {
+              throw new AssertionError("Recording a concurrent envelope turn failed: " + result);
+            }
+          }
+          return null;
+        });
+        a.get();
+        b.get();
+      }
+      var envelope = request(input, output, "{\"op\":\"envelope.load_envelope\",\"args\":{\"store\":" + store + "}}");
+      var marker = "\"resolved_turns\":[";
+      var start = envelope.indexOf(marker) + marker.length();
+      var turns = envelope.substring(start, envelope.indexOf(']', start)).split(",");
+      int ones = 0, twos = 0;
+      for (var turn : turns) {
+        if (Double.parseDouble(turn) == 1) ones++;
+        if (Double.parseDouble(turn) == 2) twos++;
+      }
+      if (turns.length != 500 || ones != 32 || twos != 32) {
+        throw new AssertionError("Concurrent envelope history lost turns or exceeded its cap: " + turns.length + ", " + ones + ", " + twos);
+      }
+    } finally {
+      if (!other.waitFor(10, TimeUnit.SECONDS)) {
+        other.destroyForcibly();
+        throw new AssertionError("Second bridge did not exit after EOF");
+      }
+    }
+    if (other.exitValue() != 0) {
+      throw new AssertionError("Second bridge exit code: " + other.exitValue());
     }
   }
 

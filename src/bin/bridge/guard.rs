@@ -11,33 +11,7 @@ use tokeneconomizer::{
     runner::Runner,
 };
 
-struct CallbackTape {
-    replies: Vec<Value>,
-    index: usize,
-    pending: Option<Value>,
-}
-
-impl CallbackTape {
-    fn new(args: &Value) -> Self {
-        Self {
-            replies: args["replies"].as_array().cloned().unwrap_or_default(),
-            index: 0,
-            pending: None,
-        }
-    }
-
-    fn call(&mut self, request: Value) -> Result<Value, String> {
-        if let Some(reply) = self.replies.get(self.index) {
-            self.index += 1;
-            if let Some(error) = reply["error"].as_str() {
-                return Err(error.into());
-            }
-            return Ok(reply.clone());
-        }
-        self.pending = Some(request);
-        Err("callback pending".into())
-    }
-}
+use super::callback::CallbackTape;
 
 struct BackgroundTransport<'a>(&'a RefCell<CallbackTape>);
 
@@ -120,10 +94,9 @@ fn turn_method(op: &str, args: &Value) -> Result<Value, String> {
         }
         _ => return Err(format!("unknown turn method: {op}")),
     };
-    if let Some(pending) = tape.into_inner().pending {
-        return Ok(pending);
-    }
-    Ok(json!({"guard": guard, "value": value}))
+    Ok(tape
+        .into_inner()
+        .finish(json!({"guard": guard, "value": value})))
 }
 
 struct RunnerTransport<'a>(&'a RefCell<CallbackTape>);
@@ -174,7 +147,7 @@ fn judge_call(op: &str, args: &Value) -> Value {
                         .estimate_effective(prompt, raw))
             )),
         };
-    tape.into_inner().pending.unwrap_or(value)
+    tape.into_inner().finish(value)
 }
 
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
