@@ -72,6 +72,11 @@ complete while any runtime component delegates production behaviour to Python.
   completed uses, applies task hints and sparse probes, and persists its original
   state format and SHA-256 contract fingerprint. Domain adapters and model calls
   still cross callback boundaries until their production implementations are ported.
+- Plugin configuration and repository paths now execute in Rust: defaults, aliases,
+  source precedence, validation, warnings, configuration writes and removals, repository
+  discovery, remote and worktree identity, state directories, owner-only permissions
+  and launcher writes. Launchers still target the migration's existing entry points;
+  native CLI packaging and Windows execution remain pending.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -87,8 +92,10 @@ complete while any runtime component delegates production behaviour to Python.
   pass, including word boundaries, whitespace classes and syntax. The current
   library rejects Python's `(?a)` flag; this remains a required compatibility fix.
 - Audit JSON numeric edge cases, including non-finite values accepted by Python.
-- Port plugin configuration, paths and repository identity,
-  deny lists, host settings, history, context, folding, controller and queues.
+  Configuration numeric coercion still needs Unicode decimal digits and integers
+  outside the current i64 range. Audit path-normalisation edge cases too.
+- Port plugin repository-state migration, deny lists, host settings, history,
+  context, folding, controller and queues.
 - Port side calls, model probes, tool checks, repository maps, CLI commands and
   hooks. Verify each host integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
@@ -189,6 +196,18 @@ complete while any runtime component delegates production behaviour to Python.
   saved-state normalization, incompatible version/fingerprint/repository resets,
   and fallback transcript IDs across blank lines. Clippy, prompt verification and
   the 256-file upstream integrity check also pass.
+- Plugin-configuration-focused run: 101 passed. Repository, path and safety-focused
+  run: 330 passed. Full suite with native plugin foundations: 1,558 passed,
+  33 skipped (95.82 seconds). `validation/plugin-foundations-calls.json` records
+  4,929 configuration loads, 865 repository identities, 4,811 root-permission checks
+  and 701 launcher checks reaching Rust. Internal merges and filesystem reads stay
+  inside the native process.
+- The bridge probe checks numeric separators, validation before mixed configuration
+  writes, removal through a legacy threshold name, private state and launcher modes,
+  unchanged-launcher timestamps, literal shell arguments through a path containing
+  an apostrophe, and repository identity through a missing symlink target. Clippy
+  and the 256-file upstream integrity check also pass. The test adapter transports
+  non-finite floating inputs explicitly so native validation rejects them normally.
 
 ## Dependencies
 
@@ -207,6 +226,9 @@ busy timeout. The lockfile pins both libraries and their transitive dependencies
 `sha2` 0.10.9 preserves the Codex pruning controller's SHA-256 contract fingerprint,
 which decides whether saved evidence can be reused. Its API is verified against the
 pinned crate's source documentation and its result against the original controller.
+`sha1` 0.10.7 preserves the existing repository-key digest. `libc` 0.2.191 was already
+transitive; the direct dependency supplies POSIX ownership and executable-access
+checks for private state and launchers.
 `indexmap` 2.14.2 was already present through `serde_json`; it is now declared
 directly with serialization support for typed fact maps. Discovery order determines
 ties in fact selection and rendering.

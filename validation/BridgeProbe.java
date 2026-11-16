@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.Comparator;
@@ -126,6 +127,8 @@ class BridgeProbe {
       checkToolJudge(input, output);
       checkToolingJudge(input, output);
       checkCapabilityRecovery(directory, input, output);
+      checkLiveConfiguration(directory, input, output);
+      checkLauncher(directory, input, output);
 
       input.println("""
           {"op":"rules.nudge_text","args":{"state":{"edit_counts":{"one file":5,"other":1}}}}
@@ -404,6 +407,62 @@ class BridgeProbe {
     Files.writeString(trace, "\n{\"type\":\"item.started\",\"item\":{\"type\":\"web_search\"}}\n\n{\"type\":\"item.completed\",\"item\":{\"type\":\"web_search\",\"id\":\"2\"}}\n");
     var usage = request(input, output, "{\"op\":\"toolprune.codex.inspect_usage\",\"args\":{\"transcript_path\":\"" + trace.toString().replace("\\", "\\\\").replace("\"", "\\\"") + "\"}}");
     if (usage.contains("\"web\":2") || !usage.contains("\"tools\":{\"web_search\":1}")) throw new AssertionError("Blank lines changed fallback item IDs: " + usage);
+  }
+
+  private static void checkLiveConfiguration(Path directory, PrintWriter input, BufferedReader output) throws Exception {
+    var created = request(input, output, "{\"op\":\"live_config.new\",\"args\":{\"fields\":{}}}");
+    var cfg = created.substring("{\"result\":".length(), created.length() - 1);
+    for (var value : new String[]{"_12", "12_", "1__2", "1_e2"}) {
+      var rejected = request(input, output, "{\"op\":\"live_config.set\",\"args\":{\"self\":" + cfg
+          + ",\"key\":\"repomap_tokens\",\"value\":\"" + value + "\",\"source\":\"probe\"}}");
+      if (!rejected.endsWith("\"value\":false}}") || !rejected.contains("\"repomap_tokens\":2048")) throw new AssertionError("Invalid numeric separators changed settings: " + rejected);
+    }
+    var accepted = request(input, output, "{\"op\":\"live_config.set\",\"args\":{\"self\":" + cfg
+        + ",\"key\":\"repomap_tokens\",\"value\":\"1_024\",\"source\":\"probe\"}}");
+    if (!accepted.endsWith("\"value\":true}}") || !accepted.contains("\"repomap_tokens\":1024")) throw new AssertionError(accepted);
+    var threshold = request(input, output, "{\"op\":\"live_config.set\",\"args\":{\"self\":" + cfg
+        + ",\"key\":\"loopguard.stagnation\",\"value\":\"0.1_5\",\"source\":\"probe\"}}");
+    if (!threshold.endsWith("\"value\":true}}") || !threshold.contains("\"loopguard_thresholds\":{\"stagnation\":0.15}")) throw new AssertionError(threshold);
+    var base = directory.toString().replace("\\", "\\\\").replace("\"", "\\\"");
+    var args = "\"path\":\"config-probe/config.json\",\"process_cwd\":\"" + base + "\"";
+    expect(input, output, "{\"op\":\"live_config.write_config\",\"args\":{" + args
+        + ",\"updates\":{\"spiral.min_turns\":8}}}", "{\"result\":{\"loopguard_thresholds\":{\"min_turns\":8}}}");
+    var file = directory.resolve("config-probe/config.json");
+    var before = Files.readString(file);
+    var invalid = request(input, output, "{\"op\":\"live_config.write_config\",\"args\":{" + args
+        + ",\"updates\":{\"repomap_tokens\":4096,\"loopguard.min_turns\":false}}}");
+    if (!invalid.startsWith("{\"error\":") || !Files.readString(file).equals(before)) throw new AssertionError("A rejected mixed update changed the file: " + invalid);
+    expect(input, output, "{\"op\":\"live_config.unset_config\",\"args\":{" + args + ",\"keys\":[\"spiral.min_turns\"]}}", "{\"result\":{}}");
+  }
+
+  private static void checkLauncher(Path directory, PrintWriter input, BufferedReader output) throws Exception {
+    var scripts = directory.resolve("plugin's copy/scripts");
+    Files.createDirectories(scripts);
+    var target = scripts.resolve("te");
+    Files.writeString(target, "#!/bin/sh\nprintf '%s\\n' \"$@\"\n");
+    Files.setPosixFilePermissions(target, PosixFilePermissions.fromString("rwxr-xr-x"));
+    var home = directory.resolve("private-state");
+    Files.createDirectory(home);
+    Files.setPosixFilePermissions(home, PosixFilePermissions.fromString("rwxrwxr-x"));
+    var env = "{\"TOKENECONOMIZER_HOME\":\"" + home + "\",\"TE_PLUGIN_ROOT\":\"" + scripts.getParent() + "\"}";
+    var arguments = "\"env\":" + env;
+    expect(input, output, "{\"op\":\"paths.secure_root\",\"args\":{" + arguments + "}}", "{\"result\":null}");
+    var launcher = home.resolve("bin/te");
+    expect(input, output, "{\"op\":\"paths.ensure_launcher\",\"args\":{" + arguments + "}}", "{\"result\":\"" + launcher + "\"}");
+    if (!Files.getPosixFilePermissions(home).equals(PosixFilePermissions.fromString("rwx------"))
+        || !Files.getPosixFilePermissions(launcher).equals(PosixFilePermissions.fromString("rwx------"))) throw new AssertionError("State or launcher permissions were left loose");
+    var modified = Files.getLastModifiedTime(launcher);
+    request(input, output, "{\"op\":\"paths.ensure_launcher\",\"args\":{" + arguments + "}}");
+    if (!modified.equals(Files.getLastModifiedTime(launcher))) throw new AssertionError("An unchanged launcher was rewritten");
+    var run = new ProcessBuilder("/bin/sh", launcher.toString(), "space word", "a'b", "$HOME", "é😀").redirectErrorStream(true).start();
+    var actual = new String(run.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+    if (run.waitFor() != 0 || !actual.equals("space word\na'b\n$HOME\né😀\n")) throw new AssertionError("Launcher changed literal arguments: " + actual);
+    var missing = directory.resolve("missing/leaf");
+    var link = directory.resolve("alias");
+    Files.createSymbolicLink(link, directory.resolve("missing"));
+    var identity = request(input, output, "{\"op\":\"paths.repo_identity\",\"args\":{\"cwd\":\"" + link.resolve("leaf") + "\",\"env\":{\"GIT_CEILING_DIRECTORIES\":\"" + directory + "\"}}}");
+    var digest = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-1").digest(missing.toString().getBytes(StandardCharsets.UTF_8))).substring(0, 10);
+    if (!identity.contains("\"key\":\"leaf-" + digest + "\"") || !identity.contains("\"how\":\"dir\"")) throw new AssertionError("A missing symlink target changed repository identity: " + identity);
   }
 
   private static void checkStorage(Path root, Path directory, PrintWriter input, BufferedReader output) throws Exception {

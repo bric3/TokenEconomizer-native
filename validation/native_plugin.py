@@ -10,6 +10,7 @@ import functools
 import importlib
 import inspect
 import json
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -21,6 +22,7 @@ CALLS = collections.Counter()
 LOCK = threading.Lock()
 PROCESS = None
 ORIGINAL_REPLACE = os.replace
+LIVE_CONFIG_ENV = []
 
 
 def invoke(operation, arguments):
@@ -69,9 +71,30 @@ def wrap(original, operation):
                 arguments[name] = list(arguments[name])
         if operation == "config.needs_optimizer":
             arguments["config"] = dataclasses.asdict(arguments["config"])
+        if operation == "live_config.load_config":
+            env = os.environ if arguments["env"] is None else arguments["env"]
+            arguments["env"] = {key: env[key] for key in LIVE_CONFIG_ENV if key in env}
+        if operation.startswith(("paths.", "live_config.")):
+            arguments["process_cwd"] = os.getcwd()
+        if operation.startswith("paths."):
+            arguments["home"] = os.path.expanduser("~")
+            if "env" in arguments:
+                env = os.environ if arguments["env"] is None else arguments["env"]
+                arguments["env"] = {key: env[key] for key in ("TOKENECONOMIZER_HOME", "TOKENECONOMIZER_REPO", "HOME", "GIT_CEILING_DIRECTORIES", "TE_PLUGIN_ROOT") if key in env}
+            if operation == "paths.ensure_launcher":
+                arguments["windows_python"] = sys.executable if os.name == "nt" else None
+            if operation == "paths.repo_state_dir":
+                arguments["repo"] = dataclasses.asdict(arguments["repo"])
+        if operation.startswith("live_config."):
+            if "value" in arguments and isinstance(arguments["value"], float) and not math.isfinite(arguments["value"]):
+                arguments["nonfinite"], arguments["value"] = str(arguments["value"]), None
+            if operation == "live_config._old_names_first":
+                arguments["items"] = list(arguments["items"])
         obj = arguments.get("self")
         if obj is not None:
-            if operation == "tooling.new":
+            if operation.startswith("live_config."):
+                arguments["self"] = vars(obj)
+            elif operation == "tooling.new":
                 arguments.pop("self")
                 arguments["cfg"] = dataclasses.asdict(arguments["cfg"])
                 arguments["runner"] = arguments.pop("judge_tool_runner")
@@ -205,6 +228,25 @@ def wrap(original, operation):
             arguments["runner"] = runner is not None
             arguments["external"] = external is not None
         result = invoke(operation, arguments)
+        if operation == "paths.repo_identity":
+            from tokeneconomizer.plugin.paths import RepoId
+            return RepoId(**result)
+        if operation.startswith("live_config."):
+            if obj is not None:
+                obj.__dict__.update(result["self"])
+                return result["value"]
+            if operation == "live_config.load_config":
+                from tokeneconomizer.plugin.config import LiveConfig
+                cfg = LiveConfig.__new__(LiveConfig)
+                cfg.__dict__.update(result)
+                return cfg
+            if operation == "live_config._old_names_first":
+                return [tuple(row) for row in result]
+            if operation == "live_config._drop_old_names":
+                bound.arguments["current"].clear()
+                bound.arguments["current"].update(result)
+                return None
+            return result
         if operation.startswith("toolprune.codex."):
             if obj is not None:
                 restore_codex_profile(obj, result["self"])
@@ -430,6 +472,8 @@ def pytest_configure(config):
                     "effective_tokens", "approx_tokens", "runner_effective_or_approx"),
         "ledger": ("overhead", "effective_exec"),
         "plugin.accounting": ("effective", "overhead_total", "summarize", "fmt_tokens"),
+        "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
+        "plugin.paths": ("state_root", "secure_root", "launcher_path", "ensure_launcher", "home_dir", "_gitdir_of_file", "is_git_entry", "find_repo_root", "_git_common_dir", "origin_url", "normalize_remote", "_slug", "digest", "_main_checkout", "repo_identity", "repo_state_dir"),
         "microskills.lifecycle": ("write_json_atomic", "edited_files", "edited_pyfiles"),
         "microskills.observe": ("unwrap", "segments", "_tokens", "repository_top", "_cd_target", "_shell_path", "_shell_isabs",
                                 "classify_command", "_runner_script", "_probe_kind", "error_class", "_exit_code_hint", "_label_failed",
@@ -490,11 +534,22 @@ def pytest_configure(config):
         for name in functions:
             original = getattr(module, name)
             operation = module_name.removeprefix("plugin.") + "." + name
+            if module_name == "plugin.config":
+                operation = "live_config." + name
             operation = operation.removeprefix("loopguard.")
             operation = operation.removeprefix("microskills.")
             replacement = wrap(original, operation)
             replacements[original] = replacement
             setattr(module, name, replacement)
+
+    from tokeneconomizer.plugin.config import LiveConfig
+    defaults = invoke("live_config.new", {"fields": {}})
+    assert defaults == vars(LiveConfig())
+    global LIVE_CONFIG_ENV
+    LIVE_CONFIG_ENV = invoke("live_config.environment", {})
+    LiveConfig.__init__ = live_config_constructor(LiveConfig.__init__)
+    for name in ("as_dict", "set", "_set_threshold"):
+        setattr(LiveConfig, name, wrap(getattr(LiveConfig, name), "live_config." + name))
 
     from tokeneconomizer.microskills.lifecycle import Lifecycle
     Lifecycle.__init__ = state_constructor(Lifecycle, "lifecycle.new")
@@ -982,6 +1037,18 @@ class NativeVerifyPattern:
 def restore_spiral(state, data):
     for name, value in data.items():
         setattr(state, name, value)
+
+
+def live_config_constructor(original):
+    signature = inspect.signature(original)
+
+    def native(self, *args, **kwargs):
+        bound = signature.bind(self, *args, **kwargs)
+        fields = dict(bound.arguments)
+        fields.pop("self")
+        self.__dict__.update(invoke("live_config.new", {"fields": fields}))
+
+    return native
 
 
 def state_constructor(cls, operation):

@@ -7,6 +7,8 @@ mod callback;
 mod guard_dispatch;
 #[path = "bridge/microskills.rs"]
 mod microskills_dispatch;
+#[path = "bridge/plugin.rs"]
+mod plugin_dispatch;
 #[path = "bridge/prefix.rs"]
 mod prefix_dispatch;
 #[path = "bridge/proposer.rs"]
@@ -32,6 +34,9 @@ use tokeneconomizer::{
 
 fn dispatch(request: &Value) -> Result<Value, String> {
     let args = &request["args"];
+    if let Some(value) = plugin_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
+        return Ok(value);
+    }
     if let Some(value) = tooling_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
         return Ok(value);
     }

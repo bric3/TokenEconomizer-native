@@ -6,6 +6,7 @@ pub mod lifecycle;
 pub mod loopguard;
 pub mod microskills;
 pub mod names;
+pub mod plugin;
 pub mod pricing;
 pub mod rules;
 pub mod runner;

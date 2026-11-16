@@ -112,7 +112,7 @@ pub fn scalar_text(value: &Value) -> String {
     }
 }
 
-fn python_repr(value: &Value) -> String {
+pub(crate) fn python_repr(value: &Value) -> String {
     match value {
         Value::String(text) => {
             let quote = if text.contains('\'') && !text.contains('"') {
