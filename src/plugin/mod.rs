@@ -3,6 +3,7 @@ pub mod applied;
 pub mod config;
 pub mod context;
 pub mod denylist;
+pub mod fold;
 pub mod history;
 pub mod hookqueue;
 pub mod hosts;

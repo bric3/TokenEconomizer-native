@@ -81,8 +81,8 @@ complete while any runtime component delegates production behaviour to Python.
   checkout indexes, migration plans, locked session and whole-directory merges,
   learned-state preservation, ledger deduplication, refold selection, migration
   notices and repository listings. Rust also reads and merges applied-tool ownership
-  records. Starting a process and refolding through the remaining context/fold
-  components still cross the test adapter's callback boundary.
+  records. Refolding uses the native context and fold components; host log access
+  still crosses the test adapter's callback boundary.
 - Deny-list settings now execute in Rust: Claude and Copilot JSON lists, Codex
   marked TOML edits and rollback, applied and restored ownership, trust checks,
   repository-local exclusions and Copilot server proposals. Native subprocesses
@@ -90,8 +90,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Background judge orchestration now executes in Rust: request identity and
   persistence, pending-verdict polling, superseded jobs, paused-host runner
   selection, the local confidence floor, redirect selection, immediate cost
-  recording and verdict publication. Runner selection and process spawning still
-  cross callbacks until side calls and the native context are ported.
+  recording and verdict publication. Runner selection and side calls still cross
+  callbacks until their production implementations are ported.
 - The live domain adapter now executes in Rust: repository vocabulary selection,
   saved and observed catalogs, deferred Claude tools, Copilot checkpoint catalogs,
   usage including Claude subagents, loop snapshots and interactive tool protection.
@@ -108,8 +108,8 @@ complete while any runtime component delegates production behaviour to Python.
   heartbeats, restart and stop decisions, notices and status summaries. Imported
   prompt turns seed the envelope through native guards with no judge or envelope
   intervention. The shared Claude shell success-code helper is also native.
-  Host log access, folding and process spawning remain callbacks until those
-  production components are ported.
+  Host log access remains a callback until host integration is ported. Folding and
+  process spawning use the native components through the test transport.
 - Live context construction now executes in Rust: deferred settlement, session
   pins, configuration reload after migration, headless-mode overrides and mechanism
   directories. Native processes preserve arguments, environment, append-only logs
@@ -117,6 +117,13 @@ complete while any runtime component delegates production behaviour to Python.
   command quoting, private spec files and worker cleanup are native too. Host
   detection still crosses a callback. Detached commands and WMI workers retain
   migration entry points until native CLI packaging replaces them.
+- Session folding now executes in Rust: fold locks, import ordering, pending
+  sessions, transcript workspaces, mechanism learning, cached injection and fact
+  forgetting, tool evidence, protected-tool restoration, delayed deny-list writes
+  and ledger records. Codex capability evidence and Copilot server summaries are
+  native. Imported sessions learn without proposing through a model or changing
+  deny lists. Host transcript operations and runner selection remain callbacks;
+  test-patched deny-list operations also cross the transport.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -134,8 +141,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit JSON numeric edge cases, including non-finite values accepted by Python.
   Configuration numeric coercion still needs Unicode decimal digits and integers
   outside the current i64 range. Audit path-normalisation edge cases too.
-- Include history counters beyond i64 in the numeric parity audit.
-- Port host settings and integration, folding and controller.
+- Include history and folding counters beyond i64 in the numeric parity audit.
+- Port host settings and integration, and controller.
 - Port side calls, model probes, tool checks, repository maps, CLI commands and
   hooks. Verify each host integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
@@ -319,6 +326,17 @@ complete while any runtime component delegates production behaviour to Python.
   permissions and removing the spec before running its command. The established
   bridge and queue probes, Clippy, formatting and all 256 reference files pass.
   Actual Windows execution and native CLI packaging remain pending.
+- Folding, hooks, history, Hermes, forgetting, repository and status focused run:
+  283 passed, 8 skipped. Full suite with native folding: 1,558 passed, 33 skipped
+  (44.70 seconds).
+  `validation/fold-calls.json` records native entries. Mechanism stages, trace
+  analysis, accounting and normal persistence execute inside Rust.
+- `FoldProbe.java` checks two native processes contending for one fold lock,
+  learning each session once, deferred active sessions, releasing locks and deleting
+  workspaces after a failure, imported-session boundaries, saved numeric strings,
+  malformed-counter rejection and chronological pending sessions. The established
+  bridge, context and queue probes, Clippy, formatting and the 256-file upstream
+  integrity check pass. Complete native host and runner integration remains pending.
 
 ## Dependencies
 
@@ -409,6 +427,7 @@ jbang validation/VerifyReference.java
 jbang validation/BridgeProbe.java
 jbang validation/QueueProbe.java
 jbang validation/ContextProbe.java
+jbang validation/FoldProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 

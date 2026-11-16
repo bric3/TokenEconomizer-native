@@ -11,6 +11,8 @@ mod adapter_dispatch;
 mod context_dispatch;
 #[path = "denylist.rs"]
 mod denylist_dispatch;
+#[path = "fold.rs"]
+mod fold_dispatch;
 #[path = "history.rs"]
 mod history_dispatch;
 #[path = "live_judge.rs"]
@@ -86,6 +88,9 @@ fn paths_dispatch(op: &str, args: &Value) -> Result<Value, String> {
 }
 
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
+    if op.starts_with("fold.") {
+        return fold_dispatch::dispatch(op, args);
+    }
     if op.starts_with("context.") || op.starts_with("winspawn.") {
         return context_dispatch::dispatch(op, args);
     }

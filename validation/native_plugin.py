@@ -32,6 +32,8 @@ NATIVE_JUDGE_STORE = {}
 NATIVE_QUEUE_ENQUEUE = None
 NATIVE_HISTORY_FUNCTIONS = {}
 NATIVE_SPAWN_FUNCTIONS = {}
+NATIVE_FOLD_FUNCTIONS = {}
+NATIVE_FOLD_DENY = {}
 
 
 def invoke(operation, arguments):
@@ -66,6 +68,8 @@ def wrap(original, operation):
             return hookqueue_call(operation, arguments)
         if operation.startswith("history."):
             return history_call(operation, arguments)
+        if operation.startswith("fold."):
+            return fold_call(operation, arguments)
         if operation.startswith(("context.", "winspawn.")):
             return context_call(operation, arguments)
         if operation == "trace.copilot.copilot_mcp_servers":
@@ -609,6 +613,7 @@ def pytest_configure(config):
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
         "plugin.history": ("_record_error", "read_state", "_num", "_stale", "_ledger_size", "_session_records", "_nothing_folded", "_live_folds", "_folded_by_import", "_refusal", "_identity", "is_this_repository", "_headless", "plan", "_still_eligible", "replay_envelope", "_update", "_save", "_say", "run", "_run_locked", "_import_one", "maybe_start", "notice", "summary", "describe"),
+        "plugin.fold": ("_run_dir", "_microskills_config", "_fold_microskills", "forget_microskills", "enough_evidence", "_fold_toolprune", "_server_summary", "_fold_toolprune_codex", "unprotected", "_hold", "last_activity", "apply_pending", "schedule_pending", "import_blocks", "fold_session", "fold_locked", "pending_sessions", "spawn_fold"),
         "plugin.hosts": ("claude_success_code",),
         "plugin.winspawn": ("_windowless_python", "spawn", "_spawn_wmi", "_run"),
         "plugin.paths": ("state_root", "secure_root", "launcher_path", "ensure_launcher", "home_dir", "_gitdir_of_file", "is_git_entry", "find_repo_root", "_git_common_dir", "origin_url", "normalize_remote", "_slug", "digest", "_main_checkout", "repo_identity", "repo_state_dir"),
@@ -867,6 +872,16 @@ def pytest_configure(config):
     global NATIVE_HISTORY_FUNCTIONS
     NATIVE_HISTORY_FUNCTIONS = {"plan": history.plan, "clock": history._clock}
 
+    from tokeneconomizer.plugin import fold, denylist
+    constants = invoke("fold.constants", {})
+    for name, value in constants.items():
+        original = getattr(fold, name)
+        assert value == original if not isinstance(original, (tuple, frozenset)) else type(original)(value) == original
+        setattr(fold, name, type(original)(value))
+    global NATIVE_FOLD_FUNCTIONS, NATIVE_FOLD_DENY
+    NATIVE_FOLD_FUNCTIONS = {name: getattr(fold, name) for name in ("fold_locked", "import_blocks")}
+    NATIVE_FOLD_DENY = {name: getattr(denylist, name) for name in (*NATIVE_DENY_FUNCTIONS, "apply", "restore")}
+
     from tokeneconomizer.plugin import context, winspawn
     constants = invoke("winspawn.constants", {})
     assert constants["_FLAGS"] == winspawn._FLAGS and constants["_BREAKAWAY"] == winspawn._BREAKAWAY
@@ -948,6 +963,87 @@ def hookqueue_call(operation, arguments):
             reply = {"error": str(error), "error_kind": type(error).__name__}
         result = invoke("hookqueue.resume", {"job": result["job"], "reply": reply})
     return storage_result(result)
+
+
+def fold_call(operation, arguments):
+    from tokeneconomizer.plugin import fold, denylist, hosts, sidecall
+    arguments = dict(arguments)
+    ctx = arguments.pop("ctx", None)
+    doc = arguments.get("doc")
+    arguments["ctx"] = context_data(ctx)
+    arguments["lock_wait"] = fold.FOLD_LOCK_WAIT_S
+    arguments["transport"] = {name: getattr(fold, name) is not original for name, original in NATIVE_FOLD_FUNCTIONS.items()}
+    arguments["transport"]["deny"] = any(getattr(denylist, name) is not original for name, original in NATIVE_FOLD_DENY.items())
+    for name, value in list(arguments.items()):
+        if isinstance(value, os.PathLike):
+            arguments[name] = os.fspath(value)
+    for name in ("ids", "items", "proposal", "session_ids", "exclude", "servers"):
+        if name in arguments:
+            arguments[name] = list(arguments[name])
+    if "cfg" in arguments:
+        arguments["cfg"] = dataclasses.asdict(arguments["cfg"])
+    if "adapter" in arguments:
+        arguments["adapter"] = live_adapter_data(arguments["adapter"])
+    if "stage" in arguments:
+        arguments["stage"] = tooling_data(arguments["stage"])
+    runner, cancelled = None, None
+    result = invoke(operation, arguments)
+    while isinstance(result, dict) and result.get("callback") == "fold":
+        method, args = result["method"], result["args"]
+        if method == "pending":
+            result = invoke("fold.resume", {"job": result["job"]})
+            continue
+        try:
+            if method == "host":
+                name, params = args
+                value = getattr(ctx.host, name)(*params)
+            elif method == "proposer":
+                runner = sidecall.local_runner("proposer", ctx.config) if sidecall.paused(ctx.host.name, ctx.root) else sidecall.runner_for(ctx.host.name, ctx.config, role="proposer")
+                value = runner is not None
+            elif method == "run":
+                value = runner(*args)
+            elif method == "estimate":
+                value = runner.estimate_effective(*args)
+            elif method == "spawn":
+                value = ctx.spawn(*args)
+            elif method == "fold_locked":
+                value = fold.fold_locked(ctx, *args)
+            elif method == "import_blocks":
+                value = fold.import_blocks(ctx)
+            elif method == "apply":
+                value = denylist.apply(args[0], args[1], ctx.store, host=ctx.host.name)
+            elif method == "restore":
+                value = denylist.restore(ctx.repo.root, ctx.store, args[0], host=ctx.host.name)
+            elif method == "git_tracked":
+                value = denylist._git_tracked(*args)
+            else:
+                raise AssertionError("Unknown fold callback: " + method)
+            reply = {"value": value}
+        except BaseException as error:
+            fatal = not isinstance(error, Exception)
+            if fatal:
+                cancelled = error
+            reply = {"error": str(error), "error_kind": type(error).__name__, "fatal": fatal}
+        result = invoke("fold.resume", {"job": result["job"], "reply": reply})
+    if result.get("cancelled"):
+        if cancelled is None:
+            raise AssertionError("A fold cancelled without a source exception")
+        raise cancelled
+    if result.get("raised") == "Busy":
+        raise fold.Busy(result["message"])
+    if result.get("raised") == "FoldLater":
+        raise hosts.FoldLater(result["message"])
+    value = storage_result(result)
+    if operation == "fold._hold":
+        doc.clear()
+        doc.update(value["doc"])
+        return value["value"]
+    if operation == "fold._microskills_config":
+        from tokeneconomizer.config import InjectionConfig
+        return InjectionConfig(**value)
+    if operation == "fold.forget_microskills":
+        return [tuple(row) for row in value]
+    return value
 
 
 def history_call(operation, arguments):
