@@ -69,7 +69,23 @@ def wrap(original, operation):
             arguments["config"] = dataclasses.asdict(arguments["config"])
         obj = arguments.get("self")
         if obj is not None:
-            arguments["self"] = vars(obj) if operation.startswith("envelope.") else obj.to_dict()
+            if operation.startswith("turn."):
+                arguments["self"] = turn_data(obj)
+            elif operation.startswith("state."):
+                arguments["self"] = spiral_data(obj)
+            else:
+                arguments["self"] = vars(obj) if operation.startswith("envelope.") else obj.to_dict()
+        if operation == "state.state_from_trajectory":
+            loader = arguments.pop("load_trajectory")
+            if loader is not None:
+                arguments["trajectory"] = list(loader(arguments["path"]))
+        if operation == "state.completed_calls":
+            arguments["pend"] = {json.dumps(key, ensure_ascii=False, separators=(",", ":")): value
+                                 for key, value in arguments["pend"].items()}
+        if operation == "shell_edits.fold_shell_edits":
+            arguments["st"] = spiral_data(arguments["st"])
+        if operation == "turn.state_to_dict":
+            arguments["st"] = spiral_data(arguments["st"])
         if "tracker" in arguments:
             arguments["tracker"] = vars(arguments["tracker"])
         state = arguments.get("state")
@@ -78,11 +94,52 @@ def wrap(original, operation):
                 "turns", "edit_churn", "distinct_edit_files", "error_outputs", "stagnation",
                 "repeated_fail_sigs", "test_runs", "edit_counts")}
         judge = arguments.get("judge")
+        writer = arguments.get("writer")
+        if operation == "turn.fold":
+            arguments["judge"] = ("background" if hasattr(judge, "poll") else "sampled") if judge is not None else None
+        if operation == "turn.nudge_body":
+            arguments["writer"] = writer is not None
         if operation == "rules.assess_abort":
             arguments["judge"] = judge is not None
         if "files" in arguments:
             arguments["files"] = sorted(arguments["files"])
         result = invoke(operation, arguments)
+        if operation.startswith("turn.") and obj is not None:
+            replies = []
+            while "callback" in result:
+                if result["guard"] is not None:
+                    restore_turn(obj, result["guard"])
+                try:
+                    if result["callback"] == "poll":
+                        value = judge.poll(obj)
+                    elif result["callback"] == "start":
+                        value = judge.start(obj, result["digest"])
+                    else:
+                        value = (writer if result["callback"] == "writer" else judge)(result["digest"])
+                    replies.append({"value": value, "guard": turn_data(obj)})
+                except Exception as error:
+                    replies.append({"error": str(error)})
+                result = invoke(operation, dict(arguments, replies=replies))
+            restore_turn(obj, result["guard"], replace_states=operation == "turn.after_nudge")
+            value = result["value"]
+            return tuple(value) if operation == "turn.fold" and value is not None else value
+        if operation == "shell_edits.fold_shell_edits":
+            restore_spiral(bound.arguments["st"], result)
+            return None
+        if operation in ("shell_edits._split_heredocs", "turn._pieces"):
+            return tuple(result)
+        if operation == "state.update":
+            restore_spiral(obj, result)
+            return None
+        if operation in ("state.state_from_trajectory", "turn.state_from_dict"):
+            from tokeneconomizer.loopguard.state import SpiralState
+            state = SpiralState.__new__(SpiralState)
+            restore_spiral(state, result)
+            return state
+        if operation == "state.completed_calls":
+            bound.arguments["pend"].clear()
+            bound.arguments["pend"].update({json.loads(key): value for key, value in result["pend"].items()})
+            return [tuple(call) for call in result["calls"]]
         if operation == "rules.assess_abort" and isinstance(result, dict):
             try:
                 verdict = judge(state.recent_digest(envelope=arguments["envelope"]))
@@ -140,6 +197,9 @@ def pytest_configure(config):
         "names": ("repo_filename",),
         "config": ("needs_optimizer",),
         "loopguard.rules": ("scaled_thresholds", "gate_for_judge", "is_stuck", "nudge_text", "assess_abort"),
+        "loopguard.state": ("canon_tool", "basename", "_failure_sig", "completed_calls", "state_from_trajectory"),
+        "loopguard.shell_edits": ("shell_edit_targets", "shell_revert_targets", "fold_shell_edits", "_split_heredocs"),
+        "loopguard.turn": ("exit_status_covers", "status_of_tests", "runner_verdict", "_pieces", "state_to_dict", "state_from_dict"),
         "loopguard.envelope": ("_percentile", "thresholds", "base_thresholds"),
         "trace.jsonl": ("lines", "records"),
         "trace.hermes": ("hermes_tool", "_json_object", "hermes_result", "_load", "_prompts", "_tool_calls",
@@ -191,6 +251,22 @@ def pytest_configure(config):
     for name in ("_drifted_confirms", "score", "firing_rate", "injectable", "update"):
         setattr(Lifecycle, name, wrap(getattr(Lifecycle, name), "lifecycle." + name))
 
+    from tokeneconomizer.loopguard.state import SpiralState
+    SpiralState.__init__ = lambda self: restore_spiral(self, invoke("state.new", {}))
+    for name in ("update", "recent_digest", "snapshot"):
+        setattr(SpiralState, name, wrap(getattr(SpiralState, name), "state." + name))
+    SpiralState.edit_churn = property(lambda self: invoke("state.edit_churn", {"self": spiral_data(self)}))
+    SpiralState.distinct_edit_files = property(lambda self: invoke("state.distinct_edit_files", {"self": spiral_data(self)}))
+    SpiralState.stagnation = property(lambda self: invoke("state.stagnation", {"self": spiral_data(self)}))
+
+    from tokeneconomizer.loopguard.turn import TurnGuard
+    TurnGuard.__init__ = turn_constructor
+    for name in ("to_dict", "resolved_proxy", "verification_state", "live_digest", "summary", "after_nudge", "nudge_body", "fold"):
+        setattr(TurnGuard, name, wrap(getattr(TurnGuard, name), "turn." + name))
+    pattern = NativeVerifyPattern()
+    importlib.import_module("tokeneconomizer.loopguard").VERIFY_RE = pattern
+    importlib.import_module("tokeneconomizer.loopguard.turn").VERIFY_RE = pattern
+
     from tokeneconomizer import config as mechanism_config
     for cls in (mechanism_config.InjectionConfig, mechanism_config.ToolingConfig,
                 mechanism_config.SpiralConfig):
@@ -219,6 +295,40 @@ def pytest_configure(config):
 
 def config_constructor(cls):
     return state_constructor(cls, "config." + cls.__name__)
+
+
+def spiral_data(state):
+    return {name: getattr(state, name) for name in state.__slots__}
+
+
+def turn_data(guard):
+    return dict(vars(guard), st=spiral_data(guard.st), whole=spiral_data(guard.whole))
+
+
+def restore_turn(guard, data, replace_states=False):
+    from tokeneconomizer.loopguard.state import SpiralState
+    for key, value in data.items():
+        if key in ("st", "whole"):
+            state = getattr(guard, key, None)
+            if state is None or replace_states:
+                state = SpiralState.__new__(SpiralState)
+            restore_spiral(state, value)
+            value = state
+        setattr(guard, key, value)
+
+
+def turn_constructor(self, turn_key="", data=None):
+    restore_turn(self, invoke("turn.new", {"turn_key": turn_key, "data": data}))
+
+
+class NativeVerifyPattern:
+    def search(self, text):
+        return invoke("turn.verify_search", {"text": text})
+
+
+def restore_spiral(state, data):
+    for name, value in data.items():
+        setattr(state, name, value)
 
 
 def state_constructor(cls, operation):

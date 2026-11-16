@@ -45,6 +45,10 @@ complete while any runtime component delegates production behaviour to Python.
   bounded metadata; and Hermes parsing, compression lineage and read-only SQLite
   exports are now native. Further timestamp-format compatibility checks remain
   part of the production-parity audit.
+- Loop state, streamed call pairing, shell edit and revert detection, verification
+  status, runner summaries and prompt-turn tracking now execute in Rust. Turn tracking
+  includes sampled/background judge scheduling, backoff, costs, nudges and outcomes.
+  Paid judge calls and envelope persistence still need conversion.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -57,9 +61,11 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit trace-reader edge cases, including the ISO timestamp formats accepted by
   Python's `datetime.fromisoformat`. Trace consumers still run through the reference
   plugin during migration.
+- Audit Unicode regular-expression compatibility with Python in the production
+  parity pass, including word boundaries and whitespace classes.
 - Port command observation, environment facts, proposed facts and prefix stages.
 - Port tool-pruning evidence, Codex capabilities and pruning stages.
-- Port loop state, shell edits, turn tracking, judges and envelope persistence.
+- Port paid judge calls and envelope persistence.
 - Port plugin configuration, paths and repository identity, store and locking,
   deny lists, host settings, history, context, folding, controller and queues.
 - Port side calls, model probes, tool checks, repository maps, CLI commands and
@@ -97,6 +103,15 @@ complete while any runtime component delegates production behaviour to Python.
   invalid UTF-8 replacement, the 200-line metadata cap and read-only access to a
   missing Hermes database. The original Hermes tests check export redaction,
   compression lineage, duplicate calls and auxiliary/subagent cost accounting.
+- Loop state and shell-focused run: 339 passed. Turn-focused run: 313 passed.
+- Full suite with native turn tracking: 1,558 passed, 33 skipped (31.78 seconds).
+  `validation/loopguard-calls.json` records bridge calls, including 4,863 turn folds.
+  Callback requests and replays count as separate bridge entries; nested Rust state
+  updates, shell parsing and rule calls stay inside the process.
+- Java probes also check failure fingerprints, distinct null/string call IDs,
+  malformed shell-line recovery, sampled judge costs and backoff, live verification
+  text and the redirect writer's failure fallback. Background judge tests cover
+  job reuse, stale jobs, productive verdicts and one-use redirects.
 
 ## Dependencies
 
@@ -110,6 +125,8 @@ three requested simplification passes.
 timezone handling. [Rusqlite](https://docs.rs/rusqlite/0.43.0/rusqlite/) supplies
 SQLite connections opened explicitly with `SQLITE_OPEN_READ_ONLY` and a five-second
 busy timeout. The lockfile pins both libraries and their transitive dependencies.
+`fancy-regex` 0.20.2 preserves the upstream patterns' lookarounds and backreferences.
+`md5` 0.8.1 preserves existing short failure fingerprints.
 
 ## Validation
 

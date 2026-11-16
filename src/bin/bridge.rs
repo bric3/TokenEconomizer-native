@@ -1,6 +1,8 @@
 use std::io::{self, BufRead, Write};
 use std::path::Path;
 
+#[path = "bridge/guard.rs"]
+mod guard_dispatch;
 #[path = "bridge/trace.rs"]
 mod trace_dispatch;
 
@@ -18,6 +20,9 @@ use tokeneconomizer::{
 
 fn dispatch(request: &Value) -> Result<Value, String> {
     let args = &request["args"];
+    if let Some(value) = guard_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
+        return Ok(value);
+    }
     if let Some(value) = trace_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
         return Ok(value);
     }

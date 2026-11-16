@@ -10,6 +10,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.concurrent.TimeUnit;
 
 /** Checks the new test transport and text reader without translating upstream tests. */
@@ -44,6 +46,54 @@ class BridgeProbe {
       expect(input, output, """
           {"op":"trace.cursor._response_text","args":{"response":{"content":{"a":"é","b":[true,null]}}}}
           """, "{\"result\":\"{'a': 'é', 'b': [True, None]}\"}");
+
+      expect(input, output, """
+          {"op":"state.basename","args":{"p":null}}
+          """, "{\"result\":\"\"}");
+      var fingerprint = HexFormat.of().formatHex(MessageDigest.getInstance("MD5")
+          .digest("AssertionError:  pointer".getBytes(StandardCharsets.UTF_8))).substring(0, 10);
+      expect(input, output, """
+          {"op":"state._failure_sig","args":{"text":"context\\nAssertionError: /tmp/x42.py pointer 0xabc 123\\n"}}
+          """, "{\"result\":\"" + fingerprint + "\"}");
+      expect(input, output, """
+          {"op":"state.completed_calls","args":{"pend":{"null":{"name":"Read","args":{}},"\\\"null\\\"":{"name":"Edit","args":{}}},"line":"{\\\"type\\\":\\\"user\\\",\\\"message\\\":{\\\"content\\\":[{\\\"type\\\":\\\"tool_result\\\",\\\"tool_use_id\\\":\\\"null\\\",\\\"content\\\":\\\"ok\\\"}]}}"}}
+          """, "{\"result\":{\"calls\":[[\"edit\",{},\"ok\"]],\"pend\":{\"null\":{\"name\":\"Read\",\"args\":{}}}}}");
+      expect(input, output, """
+          {"op":"shell_edits.shell_edit_targets","args":{"cmd":"echo 'broken\\nsed -i s/a/b/ pkg/a.py"}}
+          """, "{\"result\":[\"a.py\"]}");
+
+      var foldArgs = """
+          "self":{"st":{"turns":18,"edit_counts":{"one.py":4},"error_outputs":6,"fail_sigs":{"s":3},"repeated_fail_sigs":2},"cum_turns":18},
+          "envelope":100,"judge":"sampled","name":"Bash","args":{"command":"pytest -q"},"result":"FAILED"
+          """.replace("\n", "");
+      var sampled = request(input, output, "{\"op\":\"turn.fold\",\"args\":{" + foldArgs + "}}");
+      if (!sampled.contains("\"callback\":\"judge\"") || !sampled.contains("The last verification run failed.")
+          || sampled.contains("Tests are still NOT green.")) {
+        throw new AssertionError("Judge callback did not receive the live verification state: " + sampled);
+      }
+      var productive = request(input, output, "{\"op\":\"turn.fold\",\"args\":{" + foldArgs
+          + ",\"replies\":[{\"value\":{\"stuck\":false,\"confidence\":0.8,\"_tokens\":7}}]}}");
+      if (!productive.contains("\"judge_gap\":10") || !productive.contains("\"judge_calls\":1")
+          || !productive.contains("\"judge_tokens\":7.0") || !productive.endsWith("\"value\":null}}")) {
+        throw new AssertionError("Sampled judge accounting/backoff: " + productive);
+      }
+      var stuck = request(input, output, "{\"op\":\"turn.fold\",\"args\":{" + foldArgs
+          + ",\"replies\":[{\"value\":{\"stuck\":true,\"confidence\":0.9,\"reason\":\"loop\"}}]}}");
+      if (!stuck.endsWith("\"value\":[\"nudge\",\"judge-stuck@0.90:loop\"]}}")) {
+        throw new AssertionError("Sampled judge decision: " + stuck);
+      }
+      var written = request(input, output, """
+          {"op":"turn.nudge_body","args":{"self":{},"writer":true,"replies":[{"value":{"text":"  Try another file.  ","_tokens":3}}]}}
+          """);
+      if (!written.contains("\"writer_tokens\":3.0") || !written.endsWith("\"value\":\"Try another file.\"}}")) {
+        throw new AssertionError("Nudge writer accounting: " + written);
+      }
+      var failedWriter = request(input, output, """
+          {"op":"turn.nudge_body","args":{"self":{},"writer":true,"replies":[{"error":"offline"}]}}
+          """);
+      if (!failedWriter.contains("\"writer_tokens\":0.0") || !failedWriter.contains("Process check (automated):")) {
+        throw new AssertionError("Nudge writer failure did not use the count template: " + failedWriter);
+      }
 
       input.println("""
           {"op":"rules.nudge_text","args":{"state":{"edit_counts":{"one file":5,"other":1}}}}
@@ -125,16 +175,20 @@ class BridgeProbe {
     if (process.exitValue() != 0) {
       throw new AssertionError("Bridge exit code: " + process.exitValue());
     }
-    System.out.println("Bridge, pricing, trace offsets, rounding, bounded metadata and read-only database checks passed");
+    System.out.println("Bridge, pricing, traces, loop state, judge callbacks, metadata and database checks passed");
   }
 
   private static void expect(PrintWriter input, BufferedReader output, String request, String expected)
       throws Exception {
-    input.println(request.strip());
-    input.flush();
-    var actual = output.readLine();
+    var actual = request(input, output, request);
     if (!expected.equals(actual)) {
       throw new AssertionError("Expected " + expected + ", received " + actual);
     }
+  }
+
+  private static String request(PrintWriter input, BufferedReader output, String request) throws Exception {
+    input.println(request.strip());
+    input.flush();
+    return output.readLine();
   }
 }
