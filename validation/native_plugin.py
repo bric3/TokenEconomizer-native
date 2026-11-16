@@ -16,6 +16,7 @@ from pathlib import Path
 import subprocess
 import sys
 import threading
+import traceback
 
 ROOT = Path(__file__).resolve().parents[1]
 CALLS = collections.Counter()
@@ -23,6 +24,7 @@ LOCK = threading.Lock()
 PROCESS = None
 ORIGINAL_REPLACE = os.replace
 LIVE_CONFIG_ENV = []
+NATIVE_STORE_WRITE = None
 
 
 def invoke(operation, arguments):
@@ -74,8 +76,35 @@ def wrap(original, operation):
         if operation == "live_config.load_config":
             env = os.environ if arguments["env"] is None else arguments["env"]
             arguments["env"] = {key: env[key] for key in LIVE_CONFIG_ENV if key in env}
-        if operation.startswith(("paths.", "live_config.")):
+        if operation.startswith(("paths.", "live_config.", "repos.", "applied.")):
             arguments["process_cwd"] = os.getcwd()
+        if operation.startswith("repos."):
+            arguments["home"] = os.path.expanduser("~")
+            if "ctx" in arguments:
+                ctx = arguments.pop("ctx")
+                arguments["root"], arguments["env"] = os.fspath(ctx.root), ctx.env
+            if "env" in arguments:
+                env = os.environ if arguments["env"] is None else arguments["env"]
+                arguments["env"] = {key: env[key] for key in ("TOKENECONOMIZER_HOME", "TOKENECONOMIZER_REPO", "HOME", "GIT_CEILING_DIRECTORIES", "TE_FOLD_SYNC") if key in env}
+            for name in ("repo", "current", "dst_repo"):
+                if name in arguments and dataclasses.is_dataclass(arguments[name]):
+                    arguments[name] = dataclasses.asdict(arguments[name])
+            for name in ("st", "src", "dst"):
+                if name in arguments:
+                    arguments[name] = {"base": os.fspath(arguments[name].base)}
+            if "cache" in arguments:
+                arguments["cache"] = {key: dataclasses.asdict(value) for key, value in (arguments["cache"] or {}).items()}
+            for name in ("sids", "records", "done"):
+                if arguments.get(name) is not None:
+                    arguments[name] = list(arguments[name])
+            if operation == "repos._record_error":
+                arguments["error"] = traceback.format_exc()
+        if operation == "applied.write_applied":
+            method = arguments["store"].write
+            arguments["write_transport"] = getattr(method, "__func__", method) is not NATIVE_STORE_WRITE
+            for name in ("by_path", "kept"):
+                if arguments[name] is not None:
+                    arguments[name] = {os.fspath(path): list(tools) for path, tools in arguments[name].items()}
         if operation.startswith("paths."):
             arguments["home"] = os.path.expanduser("~")
             if "env" in arguments:
@@ -228,6 +257,44 @@ def wrap(original, operation):
             arguments["runner"] = runner is not None
             arguments["external"] = external is not None
         result = invoke(operation, arguments)
+        if operation.startswith("repos."):
+            from tokeneconomizer.plugin.paths import RepoId
+            if operation in ("repos._resolve", "repos.plan_dir", "repos._live", "repos.migrate_dir"):
+                if bound.arguments["cache"] is not None:
+                    bound.arguments["cache"].clear()
+                    bound.arguments["cache"].update({key: RepoId(**value) for key, value in result["cache"].items()})
+                result = result["value"]
+            if operation in ("repos.pinned", "repos._repo_from", "repos._resolve"):
+                return RepoId(**result) if result is not None else None
+            if operation == "repos._pin_store":
+                from tokeneconomizer.plugin.store import Store
+                store = Store.__new__(Store)
+                store.base = result["base"]
+                return store
+            if operation == "repos.plan_dir":
+                for group in result[0].values():
+                    group["repo"] = RepoId(**group["repo"])
+                return tuple(result)
+            if operation == "repos.listing":
+                return tuple(result)
+            if operation in ("repos._record_moves", "repos._prune_index"):
+                bound.arguments["idx"].clear()
+                bound.arguments["idx"].update(result)
+                return bound.arguments["idx"]
+            if operation == "repos.refold_moved":
+                refold_targets(result, bound.arguments["env"])
+                return None
+            if operation == "repos.run_migration":
+                refold_targets(result["targets"], bound.arguments["env"])
+                return result["done"]
+            if operation == "repos.start_migration":
+                if result["action"] == "inline":
+                    refold_targets(result["targets"], ctx.env)
+                    return True
+                if result["action"] == "spawn":
+                    return ctx.spawn(result["command"], result["log"])
+                return False
+            return result
         if operation == "paths.repo_identity":
             from tokeneconomizer.plugin.paths import RepoId
             return RepoId(**result)
@@ -298,7 +365,7 @@ def wrap(original, operation):
             return tuple(result) if result is not None else None
         if operation in ("lifecycle.edited_files", "lifecycle.edited_pyfiles"):
             return set(result)
-        if operation.startswith(("turn.", "judge.", "store.", "distiller.", "prefix.", "layers.", "tooling.", "toolprune.tools.")) or operation in ("pricing.runner_effective_or_approx", "lifecycle.write_json_atomic", "envelope.load_envelope"):
+        if operation.startswith(("turn.", "judge.", "store.", "distiller.", "prefix.", "layers.", "tooling.", "toolprune.tools.", "applied.")) or operation in ("pricing.runner_effective_or_approx", "lifecycle.write_json_atomic", "envelope.load_envelope"):
             replies = []
             while isinstance(result, dict) and "callback" in result:
                 if result.get("guard") is not None:
@@ -320,6 +387,8 @@ def wrap(original, operation):
                             value = source.read()
                     elif result["callback"] == "store_read":
                         value = state_store.read(result["name"])
+                    elif result["callback"] == "store_write":
+                        value = state_store.write(result["name"], result["obj"])
                     elif result["callback"] == "external":
                         value = list(external())
                     elif result["callback"] == "adapter":
@@ -387,7 +456,7 @@ def wrap(original, operation):
                 restore_proposed_fact(bound.arguments["fact"], value["fact"])
                 return tuple(value["value"])
             return value
-        if operation.startswith("store.") or operation == "lifecycle.write_json_atomic":
+        if operation.startswith("store.") or operation in ("lifecycle.write_json_atomic", "applied.write_applied"):
             return storage_result(result)
         if operation in ("envelope.load_envelope", "envelope.save_envelope", "envelope.record_turn"):
             result = storage_result(result)
@@ -474,6 +543,8 @@ def pytest_configure(config):
         "plugin.accounting": ("effective", "overhead_total", "summarize", "fmt_tokens"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.paths": ("state_root", "secure_root", "launcher_path", "ensure_launcher", "home_dir", "_gitdir_of_file", "is_git_entry", "find_repo_root", "_git_common_dir", "origin_url", "normalize_remote", "_slug", "digest", "_main_checkout", "repo_identity", "repo_state_dir"),
+        "plugin.repos": ("repos_dir", "_repo_dir", "_record_error", "_pin_store", "_pin_name", "_repo_from", "pinned", "pin", "prune_pins", "_legacy_root", "legacy_key", "_host_dirs", "_sessions", "_transcript_cwd", "session_cwd", "_imported", "_transcript_of", "_has_learned", "dir_label", "note_repo", "_write_lines", "_rename_label", "_take_learned", "_merge_applied", "_merge_envelope", "_merge_host", "merge_whole", "_resolve", "plan_dir", "_live", "migrate_dir", "_record_moves", "_candidates", "_prune_index", "adopt", "migrate_all", "merge", "needs_migration", "start_migration", "run_migration", "migration_notice", "refold_moved", "settle", "how_words", "describe", "ignored_git_entries", "listing", "home_git_note"),
+        "plugin.denylist": ("_canon", "applied_by_path", "kept_by_path", "write_applied"),
         "microskills.lifecycle": ("write_json_atomic", "edited_files", "edited_pyfiles"),
         "microskills.observe": ("unwrap", "segments", "_tokens", "repository_top", "_cd_target", "_shell_path", "_shell_isabs",
                                 "classify_command", "_runner_script", "_probe_kind", "error_class", "_exit_code_hint", "_label_failed",
@@ -536,6 +607,8 @@ def pytest_configure(config):
             operation = module_name.removeprefix("plugin.") + "." + name
             if module_name == "plugin.config":
                 operation = "live_config." + name
+            if module_name == "plugin.denylist":
+                operation = "applied." + name
             operation = operation.removeprefix("loopguard.")
             operation = operation.removeprefix("microskills.")
             replacement = wrap(original, operation)
@@ -547,6 +620,11 @@ def pytest_configure(config):
     assert defaults == vars(LiveConfig())
     global LIVE_CONFIG_ENV
     LIVE_CONFIG_ENV = invoke("live_config.environment", {})
+    from tokeneconomizer.plugin import repos, hosts
+    constants = invoke("repos.constants", {})
+    assert set(constants["HOSTS"]) == set(hosts.HOSTS)
+    assert tuple(constants["LEARNED"]) == repos.LEARNED
+    assert constants["LAYOUT"] == repos.LAYOUT
     LiveConfig.__init__ = live_config_constructor(LiveConfig.__init__)
     for name in ("as_dict", "set", "_set_threshold"):
         setattr(LiveConfig, name, wrap(getattr(LiveConfig, name), "live_config." + name))
@@ -656,6 +734,8 @@ def pytest_configure(config):
     for name in ("path", "ensure", "read", "write", "append", "read_lines"):
         setattr(Store, name, wrap(getattr(Store, name), "store." + name))
     Store.locked = store_locked
+    global NATIVE_STORE_WRITE
+    NATIVE_STORE_WRITE = Store.write
 
     from tokeneconomizer.loopguard.envelope import EnvelopeTracker
     EnvelopeTracker.__init__ = state_constructor(EnvelopeTracker, "envelope.new")
@@ -811,6 +891,22 @@ def restore_envfact(fact, data):
 
 def envfact_constructor(self, fid, family, high, params=None):
     restore_envfact(self, invoke("envfact.new", {"fid": fid, "family": family, "high": high, "params": params}))
+
+
+def refold_targets(targets, env):
+    from tokeneconomizer.plugin.context import LiveContext
+    from tokeneconomizer.plugin import fold, hosts
+    replies = []
+    for host, cwd in targets:
+        try:
+            ctx = LiveContext.build(hosts.HOSTS[host](), cwd, env)
+            fold.spawn_fold(ctx, fold.pending_sessions(ctx))
+            replies.append({"value": None})
+        except Exception:
+            replies.append({"error": traceback.format_exc()})
+    environment = os.environ if env is None else env
+    invoke("repos.finish_refolds", {"replies": replies, "home": os.path.expanduser("~"),
+                                    "env": {key: environment[key] for key in ("TOKENECONOMIZER_HOME",) if key in environment}})
 
 
 def codex_profile_data(profile):

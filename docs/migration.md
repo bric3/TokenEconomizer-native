@@ -77,6 +77,12 @@ complete while any runtime component delegates production behaviour to Python.
   discovery, remote and worktree identity, state directories, owner-only permissions
   and launcher writes. Launchers still target the migration's existing entry points;
   native CLI packaging and Windows execution remain pending.
+- Repository-state migration is native: session pins and redirects, legacy keys,
+  checkout indexes, migration plans, locked session and whole-directory merges,
+  learned-state preservation, ledger deduplication, refold selection, migration
+  notices and repository listings. Rust also reads and merges applied-tool ownership
+  records. Starting a process and refolding through the remaining context/fold
+  components still cross the test adapter's callback boundary.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -94,8 +100,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit JSON numeric edge cases, including non-finite values accepted by Python.
   Configuration numeric coercion still needs Unicode decimal digits and integers
   outside the current i64 range. Audit path-normalisation edge cases too.
-- Port plugin repository-state migration, deny lists, host settings, history,
-  context, folding, controller and queues.
+- Port deny-list settings, host settings and integration, history, context, folding,
+  controller and queues.
 - Port side calls, model probes, tool checks, repository maps, CLI commands and
   hooks. Verify each host integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
@@ -208,6 +214,20 @@ complete while any runtime component delegates production behaviour to Python.
   an apostrophe, and repository identity through a missing symlink target. Clippy
   and the 256-file upstream integrity check also pass. The test adapter transports
   non-finite floating inputs explicitly so native validation rejects them normally.
+- Repository and history-focused run: 75 passed. Recovery run including the original
+  injected-write-failure test: 74 passed. Full suite with native repository migration:
+  1,558 passed, 33 skipped (91.34 seconds). `validation/repos-calls.json` records
+  native bridge calls; nested migration, lock, filesystem and index operations stay
+  in Rust. The original tests cover renamed remotes, session fragments, imported
+  history, pin redirects and keeping the appropriate learned state.
+- The bridge probe checks merge lock exclusion and release, ledger deduplication,
+  timestamp ordering, newest session records, bounded envelope merges, applied and
+  restored tool ownership, and discovery with an empty environment. Copy-fallback
+  checks verify that a failed copy retains every source file and that a successful
+  copy preserves data, symlinks and modification times. Clippy and the 256-file
+  upstream integrity check pass. Native Windows execution remains unverified.
+- The adapter forwards a test-patched `Store.write` to preserve the original
+  apply/restore failure injection; record construction and normal I/O remain native.
 
 ## Dependencies
 

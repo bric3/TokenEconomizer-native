@@ -25,7 +25,7 @@ static NEXT_LOCK: AtomicU64 = AtomicU64::new(1);
 static LOCK_JOBS: LazyLock<Mutex<HashMap<u64, JoinHandle<io::Result<StoreLock>>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-fn response(result: io::Result<Value>) -> Value {
+pub(super) fn response(result: io::Result<Value>) -> Value {
     match result {
         Ok(value) => json!({"value": value}),
         Err(error) => {

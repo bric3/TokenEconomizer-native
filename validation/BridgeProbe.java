@@ -129,6 +129,8 @@ class BridgeProbe {
       checkCapabilityRecovery(directory, input, output);
       checkLiveConfiguration(directory, input, output);
       checkLauncher(directory, input, output);
+      checkRepositoryMerge(directory, input, output);
+      checkCopyMove(directory, input, output);
 
       input.println("""
           {"op":"rules.nudge_text","args":{"state":{"edit_counts":{"one file":5,"other":1}}}}
@@ -463,6 +465,66 @@ class BridgeProbe {
     var identity = request(input, output, "{\"op\":\"paths.repo_identity\",\"args\":{\"cwd\":\"" + link.resolve("leaf") + "\",\"env\":{\"GIT_CEILING_DIRECTORIES\":\"" + directory + "\"}}}");
     var digest = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-1").digest(missing.toString().getBytes(StandardCharsets.UTF_8))).substring(0, 10);
     if (!identity.contains("\"key\":\"leaf-" + digest + "\"") || !identity.contains("\"how\":\"dir\"")) throw new AssertionError("A missing symlink target changed repository identity: " + identity);
+  }
+
+  private static void checkRepositoryMerge(Path directory, PrintWriter input, BufferedReader output) throws Exception {
+    var source = directory.resolve("merge-source");
+    var destination = directory.resolve("merge-destination");
+    Files.createDirectories(source.resolve("sessions"));
+    Files.createDirectories(destination.resolve("sessions"));
+    Files.writeString(source.resolve("folded.json"), "{\"s\":true}");
+    Files.writeString(destination.resolve("folded.json"), "{}");
+    Files.writeString(source.resolve("sessions/s.json"), "{\"updated\":1}");
+    Files.writeString(destination.resolve("sessions/s.json"), "{\"updated\":2,\"keep\":true}");
+    Files.writeString(source.resolve("ledger.jsonl"), "{\"kind\":\"session\",\"session_id\":\"s\",\"folded_at\":8,\"cost\":8}\n{\"kind\":\"judge\",\"session_id\":\"s\",\"at\":3}\n");
+    Files.writeString(destination.resolve("ledger.jsonl"), "{\"kind\":\"session\",\"session_id\":\"s\",\"folded_at\":9,\"cost\":9}\n{\"kind\":\"judge\",\"session_id\":\"s\",\"at\":3}\n");
+    var args = "\"src\":{\"base\":\"" + source + "\"},\"dst\":{\"base\":\"" + destination + "\"},\"sids\":[\"s\"],\"whole\":false,\"timeout\":0";
+    var lock = request(input, output, "{\"op\":\"store.acquire\",\"args\":{\"self\":{\"base\":\"" + destination + "\"},\"name\":\"envelope\",\"timeout\":0}}");
+    var id = Pattern.compile("\"id\":(\\d+)").matcher(lock);
+    if (!id.find() || !lock.contains("\"acquired\":true")) throw new AssertionError("Missing merge lock: " + lock);
+    expect(input, output, "{\"op\":\"repos._merge_host\",\"args\":{" + args + "}}", "{\"result\":null}");
+    if (!Files.exists(source.resolve("sessions/s.json")) || !Files.readString(source.resolve("folded.json")).equals("{\"s\":true}")) throw new AssertionError("A busy merge changed its source");
+    request(input, output, "{\"op\":\"store.release\",\"args\":{\"id\":" + id.group(1) + "}}");
+    expect(input, output, "{\"op\":\"repos._merge_host\",\"args\":{" + args + "}}", "{\"result\":{\"moved\":1,\"refold\":0}}");
+    var ledger = Files.readAllLines(destination.resolve("ledger.jsonl"));
+    if (ledger.size() != 2 || !ledger.get(0).contains("\"kind\": \"judge\"") || !ledger.get(1).contains("\"cost\": 9")) throw new AssertionError("Merge duplicated cost records or chose an older fold: " + ledger);
+    if (!Files.readString(destination.resolve("sessions/s.json")).contains("\"keep\": true") || Files.exists(source.resolve("sessions/s.json"))) throw new AssertionError("Merge lost the newest session record");
+    Files.writeString(source.resolve("envelope.json"), "{\"resolved_turns\":[" + "1,".repeat(499) + "1]}");
+    Files.writeString(destination.resolve("envelope.json"), "{\"resolved_turns\":[" + "2,".repeat(499) + "2],\"preserved\":true}");
+    request(input, output, "{\"op\":\"repos._merge_envelope\",\"args\":{" + args + "}}");
+    var envelope = Files.readString(destination.resolve("envelope.json"));
+    if (!envelope.contains("\"preserved\": true") || Pattern.compile("\\b2\\b").matcher(envelope).results().count() != 500 || Pattern.compile("\\b1\\b").matcher(envelope).find()) throw new AssertionError("Merged envelopes exceeded the history cap or lost destination metadata");
+    var settings = directory.resolve("checkout/settings.json");
+    Files.writeString(source.resolve("untool_applied.json"), "{\"path\":\"" + settings + "\",\"tools\":[\"old\"]}");
+    Files.writeString(destination.resolve("untool_applied.json"), "{\"by_path\":{\"" + settings + "\":[\"mine\"]},\"kept\":{\"" + settings + "\":[\"returned\"]}}");
+    request(input, output, "{\"op\":\"repos._merge_applied\",\"args\":{" + args + "}}");
+    var applied = Files.readString(destination.resolve("untool_applied.json"));
+    if (!applied.contains("\"mine\",") || !applied.contains("\"old\"") || !applied.contains("\"returned\"")) throw new AssertionError("Merge lost applied or restored tool ownership: " + applied);
+    var noEnvironment = request(input, output, "{\"op\":\"repos._legacy_root\",\"args\":{\"start\":\"" + directory + "\",\"env\":{}}}");
+    if (noEnvironment == null || noEnvironment.startsWith("{\"error\":")) throw new AssertionError("An empty environment broke repository discovery: " + noEnvironment);
+    expect(input, output, "{\"op\":\"repos._pin_name\",\"args\":{\"session_id\":\"a/b:é😀\"}}", "{\"result\":\"a_b___.json\"}");
+  }
+
+  private static void checkCopyMove(Path directory, PrintWriter input, BufferedReader output) throws Exception {
+    var source = directory.resolve("copy-source");
+    var target = directory.resolve("copy-target");
+    Files.createDirectory(source);
+    Files.writeString(source.resolve("a.txt"), "keep me");
+    Files.writeString(source.resolve("blocked.txt"), "private");
+    Files.setPosixFilePermissions(source.resolve("blocked.txt"), PosixFilePermissions.fromString("---------"));
+    var failed = request(input, output, "{\"op\":\"repos.copy_move\",\"args\":{\"source\":\"" + source + "\",\"destination\":\"" + target + "\"}}");
+    Files.setPosixFilePermissions(source.resolve("blocked.txt"), PosixFilePermissions.fromString("rw-------"));
+    if (!failed.startsWith("{\"error\":") || !Files.readString(source.resolve("a.txt")).equals("keep me")
+        || !Files.readString(source.resolve("blocked.txt")).equals("private")) throw new AssertionError("A failed copy removed source data: " + failed);
+    try (var entries = Files.walk(target)) {
+      for (var entry : entries.sorted(Comparator.reverseOrder()).toList()) Files.delete(entry);
+    }
+    var modified = java.nio.file.attribute.FileTime.fromMillis(1_700_000_000_000L);
+    Files.setLastModifiedTime(source.resolve("a.txt"), modified);
+    Files.createSymbolicLink(source.resolve("alias"), Path.of("a.txt"));
+    expect(input, output, "{\"op\":\"repos.copy_move\",\"args\":{\"source\":\"" + source + "\",\"destination\":\"" + target + "\"}}", "{\"result\":null}");
+    if (Files.exists(source) || !Files.readString(target.resolve("alias")).equals("keep me")
+        || !Files.isSymbolicLink(target.resolve("alias")) || !Files.getLastModifiedTime(target.resolve("a.txt")).equals(modified)) throw new AssertionError("Copy fallback lost data, symlinks or timestamps");
   }
 
   private static void checkStorage(Path root, Path directory, PrintWriter input, BufferedReader output) throws Exception {
