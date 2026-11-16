@@ -174,7 +174,7 @@ impl Lifecycle {
 }
 
 pub trait FactRecord: Serialize + Sized {
-    fn claim(&self) -> String;
+    fn claim(&self) -> Value;
     fn from_record(record: &Value) -> Result<Self, String>;
 }
 

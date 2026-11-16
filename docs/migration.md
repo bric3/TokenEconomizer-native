@@ -57,8 +57,11 @@ complete while any runtime component delegates production behaviour to Python.
   VCS outcomes, missing-tool attribution and edited-file selection.
 - Environment facts learn, select, merge, render, forget and reload in Rust. This
   includes all six upstream families, contradiction streaks, firing gates, rendering
-  caps, lifecycle defaults and the shared forgetting helpers. Proposed-fact consumers
-  still need conversion.
+  caps, lifecycle defaults and the shared forgetting helpers.
+- Proposed facts now execute in Rust: transcript digests, authored extractors and
+  detectors, proposer prompts and payload validation, evidence grounding, admission,
+  contradiction-only revisions, lifecycle updates, forgetting and persistence.
+  Model calls remain callbacks until runner conversion.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -70,11 +73,11 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit trace-reader edge cases, including the ISO timestamp formats accepted by
   Python's `datetime.fromisoformat`. Trace consumers still run through the reference
   plugin during migration.
-- Audit Unicode regular-expression compatibility with Python in the production
-  parity pass, including word boundaries and whitespace classes.
+- Audit regular-expression compatibility with Python in the production parity
+  pass, including word boundaries, whitespace classes and syntax. The current
+  library rejects Python's `(?a)` flag; this remains a required compatibility fix.
 - Audit JSON numeric edge cases, including non-finite values accepted by Python.
-- Port proposed facts and prefix stages, including their remaining lifecycle and
-  forgetting consumers.
+- Port prefix stages, composition and saved-layer forgetting consumers.
 - Port tool-pruning evidence, Codex capabilities and pruning stages.
 - Port plugin configuration, paths and repository identity,
   deny lists, host settings, history, context, folding, controller and queues.
@@ -148,6 +151,13 @@ complete while any runtime component delegates production behaviour to Python.
 - The Java probe also checks lifecycle defaults from a minimal record, unknown
   forgotten IDs, an unforget with no saved record, and insertion order when fact
   selection ties at the rendering cap.
+- Proposer-focused run: 105 passed. Full suite with native proposed facts:
+  1,558 passed, 33 skipped (107.80 seconds). `validation/proposer-calls.json`
+  records native calls, including 214 updates, 74 saves and 63 loads. Counts
+  include callback replay; nested digest, detector and lifecycle calls stay in Rust.
+- `ExtractProposerPrompts.java` verifies both native prompt assets against the
+  pinned source constants, including the paper prompt's SHA-256. Clippy, the
+  bridge probe and the 256-file upstream integrity check also pass.
 
 ## Dependencies
 
@@ -208,11 +218,12 @@ read/replace callbacks and their errors. Lock acquisition runs in a bridge worke
 so a waiting Python thread leaves the request channel available to the holder.
 The timeout and lock decisions stay in Rust.
 
-Two small Java validation tools check the migration infrastructure:
+Small Java validation tools check the migration infrastructure:
 
 ```sh
 jbang validation/VerifyReference.java
 jbang validation/BridgeProbe.java
+jbang validation/ExtractProposerPrompts.java
 ```
 
 The bridge probe covers malformed-request recovery, pricing validation, Unicode

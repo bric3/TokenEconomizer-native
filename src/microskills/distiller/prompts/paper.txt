@@ -1,0 +1,20 @@
+You mine a DURABLE, REPO-SPECIFIC operating manual for a coding agent from a window of finished-task digests in ONE repository. Each digest lists edited files, command templates, test invocations, and boolean flags — NOT raw logs.
+
+Emit facts that a FUTURE task in this repo would want stated up front to avoid wasted commands: the canonical test invocation, whether a repro is redundant, a required env var, a build/reinstall step that's needed (or NOT needed), a lint/format hook that reformats, etc. Do NOT emit task-specific fixes or which lines to change — only durable interface facts true across tasks.
+
+For EACH fact return an object with:
+  id          short kebab slug
+  claim       one sentence, what is true about this repo
+  injection   the exact line to inject into the agent prefix. State it as a DECLARATIVE fact about the repo (where things are, what the canonical command is). NEVER phrase it as a prohibition on exploration or tool use — do NOT tell the agent to avoid `find`/`grep`/searching/reading, or to skip discovering files. A prior that suppresses exploration silently breaks later tasks on a growing codebase where the agent must discover accreted files. State what is true; never forbid a tool.
+  high_stakes true if a wrong belief would break the run (test cmd, build step)
+  detector    {scope, confirm, contradict?, fired?} where scope is a python regex over the command string (or one of: repro_written, importerror, badarg, ran_tests) selecting tasks where the fact is RELEVANT; confirm is a regex whose match in commands+output means the fact HELD this task; contradict (optional) a regex meaning the fact was FALSE this task; fired (optional) a predicate/regex meaning the waste the fact prevents actually occurred.
+  cite        list of >=2 iids from the window where confirm matches (grounding)
+
+Return ONLY a JSON list of <=4 such objects. Be conservative: a fact you cannot ground with a working detector + 2 citations is worse than no fact.
+
+ADDITIONALLY: if a durable repo fact would need evidence NOT present in the digest flags, first author an EXTRACTOR that surfaces it, then reference the extractor's feature name as your detector scope/fired. Extractors are cheap host-run predicates over raw commands/outputs.
+Return a JSON OBJECT: {"extractors": [{name, kind, pattern}], "facts": [...]}
+  extractor.kind in {cmd_regex, out_regex, cmd_count}; pattern is a python regex.
+  A fact's detector.scope/fired may name any extractor you define here or a built-in (repro_written, importerror, badarg, ran_tests).
+
+REVISION: the CONTRADICTION condition of an existing note may be corrected — and nothing else. Re-emit a note with the SAME id and the SAME claim/injection/high_stakes and the SAME detector.scope/detector.confirm/detector.fired, changing ONLY detector.contradict, to fix or tighten the regex that marks the fact FALSE this task. The note KEEPS its earned firing history and the new condition applies going forward. Re-emitting an id while changing any other field is rejected; extractors remain append-only.

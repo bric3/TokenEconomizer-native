@@ -214,8 +214,8 @@ impl EnvFact {
 }
 
 impl FactRecord for EnvFact {
-    fn claim(&self) -> String {
-        self.claim()
+    fn claim(&self) -> Value {
+        json!(self.claim())
     }
     fn from_record(record: &Value) -> Result<Self, String> {
         let mut life = Lifecycle::from_record(&record["life"])?;

@@ -66,11 +66,23 @@ pub fn json_text_utf8(value: &Value) -> String {
 }
 
 pub fn json_pretty(value: &Value, sort_keys: bool) -> String {
+    json_indented(value, sort_keys, 2)
+}
+
+pub fn json_indented(value: &Value, sort_keys: bool, indent: usize) -> String {
     let mut value = value.clone();
     if sort_keys {
         value.sort_all_objects();
     }
-    let text = serde_json::to_string_pretty(&value).unwrap();
+    let padding = vec![b' '; indent];
+    let mut encoded = Vec::new();
+    value
+        .serialize(&mut serde_json::Serializer::with_formatter(
+            &mut encoded,
+            serde_json::ser::PrettyFormatter::with_indent(&padding),
+        ))
+        .unwrap();
+    let text = String::from_utf8(encoded).unwrap();
     let mut bytes = Vec::new();
     JsonFormatter { ascii: true }
         .write_string_fragment(&mut bytes, &text)

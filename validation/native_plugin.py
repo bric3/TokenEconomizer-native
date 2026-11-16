@@ -71,7 +71,19 @@ def wrap(original, operation):
             arguments["config"] = dataclasses.asdict(arguments["config"])
         obj = arguments.get("self")
         if obj is not None:
-            if operation.startswith("envfacts."):
+            if operation.startswith("distiller."):
+                arguments["self"] = distiller_data(obj)
+                arguments["runner"] = obj.runner
+                arguments["external"] = obj.external_facts
+                module = importlib.import_module("tokeneconomizer.microskills.distiller")
+                arguments["propose_every"] = module.PROPOSE_EVERY
+            elif operation.startswith("proposed_fact."):
+                arguments["self"] = proposed_fact_data(obj)
+            elif operation.startswith("extractor."):
+                arguments["self"] = {"spec": obj.spec}
+            elif operation.startswith("detector."):
+                arguments["self"] = detector_data(obj)
+            elif operation.startswith("envfacts."):
                 arguments["self"] = envfacts_data(obj)
             elif operation.startswith("envfact."):
                 arguments["self"] = envfact_data(obj)
@@ -145,7 +157,34 @@ def wrap(original, operation):
             arguments["ids"] = list(arguments["ids"])
         if operation == "envfacts._join":
             arguments["items"] = list(arguments["items"])
+        if operation.startswith("distiller."):
+            arguments["home"] = os.path.expanduser("~")
+            for name in ("cmds", "calls", "roots", "existing_feats", "raw_excerpts", "external"):
+                if name in arguments and arguments[name] is not None and not callable(arguments[name]):
+                    arguments[name] = list(arguments[name])
+            if "existing" in arguments and not isinstance(arguments["existing"], dict):
+                arguments["existing"] = list(arguments["existing"])
+            if "fact" in arguments:
+                arguments["fact"] = proposed_fact_data(arguments["fact"])
+        external = arguments.get("external")
+        if operation.startswith("distiller.") and obj is not None:
+            runner = arguments["runner"]
+            arguments["runner"] = runner is not None
+            arguments["external"] = external is not None
         result = invoke(operation, arguments)
+        if operation == "distiller._rx":
+            return NativeRegex(result) if result is not None else None
+        if operation in ("distiller.parse_payload",):
+            return tuple(result)
+        if operation in ("distiller.load_calls", "distiller.bash_cmds", "distiller._reparse_cmds"):
+            return [tuple(row) for row in result]
+        if operation.startswith("detector."):
+            return tuple(result) if operation == "detector.verdict" else result
+        if operation.startswith("extractor."):
+            return result
+        if operation.startswith("proposed_fact.") and obj is not None:
+            restore_proposed_fact(obj, result["self"])
+            return tuple(result["value"]) if operation == "proposed_fact.observe" else result["value"]
         if operation.startswith("envfact.") and obj is not None:
             restore_envfact(obj, result["self"])
             return result["value"]
@@ -173,7 +212,7 @@ def wrap(original, operation):
             return tuple(result) if result is not None else None
         if operation in ("lifecycle.edited_files", "lifecycle.edited_pyfiles"):
             return set(result)
-        if operation.startswith(("turn.", "judge.", "store.")) or operation in ("pricing.runner_effective_or_approx", "lifecycle.write_json_atomic", "envelope.load_envelope"):
+        if operation.startswith(("turn.", "judge.", "store.", "distiller.")) or operation in ("pricing.runner_effective_or_approx", "lifecycle.write_json_atomic", "envelope.load_envelope"):
             replies = []
             while isinstance(result, dict) and "callback" in result:
                 if result.get("guard") is not None:
@@ -195,12 +234,38 @@ def wrap(original, operation):
                             value = source.read()
                     elif result["callback"] == "store_read":
                         value = state_store.read(result["name"])
+                    elif result["callback"] == "external":
+                        value = list(external())
                     else:
                         value = (writer if result["callback"] == "writer" else judge)(result["digest"])
                     replies.append({"value": value, "guard": turn_data(obj) if operation.startswith("turn.") and obj is not None else None})
                 except Exception as error:
                     replies.append({"error": str(error), "error_kind": type(error).__name__})
                 result = invoke(operation, dict(arguments, replies=replies))
+        if operation.startswith("distiller.") and obj is not None:
+            restore_distiller(obj, result["self"])
+            value = result["value"]
+            if isinstance(value, dict) and "raised" in value:
+                raise KeyError(value["message"])
+            if operation == "distiller._admit":
+                bound.arguments["spec"].clear()
+                bound.arguments["spec"].update(result["spec"])
+                return tuple(value)
+            if operation == "distiller._featurize":
+                bound.arguments["dg"].clear()
+                bound.arguments["dg"].update(value)
+                return bound.arguments["dg"]
+            if operation in ("distiller._confirms", "distiller.known_ids"):
+                return set(value)
+            if operation == "distiller._build_fact":
+                from tokeneconomizer.microskills.distiller import Fact
+                fact = Fact.__new__(Fact)
+                restore_proposed_fact(fact, value)
+                return fact
+            if operation == "distiller._observe_fact":
+                restore_proposed_fact(bound.arguments["fact"], value["fact"])
+                return tuple(value["value"])
+            return value
         if operation.startswith("store.") or operation == "lifecycle.write_json_atomic":
             return storage_result(result)
         if operation in ("envelope.load_envelope", "envelope.save_envelope", "envelope.record_turn"):
@@ -292,6 +357,8 @@ def pytest_configure(config):
                                 "_test_labels", "label_rule", "_env_calls", "form_failed", "form_worked", "observe_task", "_error_line",
                                 "_base", "_not_found_name", "is_bare"),
         "microskills.envfacts": ("fold", "typed_ok", "_repairs", "_tool_of", "_moves_shell", "_usage", "_root", "_join", "lint_ok"),
+        "microskills.distiller": ("load_calls", "bash_cmds", "build_digest", "build_generic_digest", "_command_failed", "_relative", "error_signature",
+                                  "_templates", "proposer_view", "_rx", "build_proposer_prompt", "parse_payload", "_detector_fields_ok", "_reparse_cmds", "_forgotten_evidence"),
         "names": ("repo_filename",),
         "config": ("needs_optimizer",),
         "loopguard.rules": ("scaled_thresholds", "gate_for_judge", "is_stuck", "nudge_text", "assess_abort"),
@@ -366,6 +433,32 @@ def pytest_configure(config):
         setattr(EnvFactsDistiller, name, wrap(getattr(EnvFactsDistiller, name), "envfacts." + name))
     EnvFactsDistiller.header = property(lambda self: invoke("envfacts.header", {"self": envfacts_data(self)})["value"])
 
+    from tokeneconomizer.microskills import distiller as proposed
+    proposed.Detector.__init__ = detector_constructor
+    proposed.DetectorV3Scope.__init__ = detector_v3_constructor
+    for cls, names in ((proposed.Detector, ("_exercised", "_fired", "verdict")),
+                       (proposed.DetectorV3Scope, ("_lookup", "_exercised", "_fired"))):
+        for name in names:
+            setattr(cls, name, wrap(getattr(cls, name), "detector." + name))
+    proposed.Extractor.__init__ = extractor_constructor
+    for name in ("compute", "to_dict"):
+        setattr(proposed.Extractor, name, wrap(getattr(proposed.Extractor, name), "extractor." + name))
+    proposed.Fact.__init__ = proposed_fact_constructor
+    proposed.Fact.from_dict = classmethod(proposed_fact_from_record)
+    for name in ("observe", "injectable", "firing_rate", "to_dict"):
+        setattr(proposed.Fact, name, wrap(getattr(proposed.Fact, name), "proposed_fact." + name))
+    proposed.Fact.state = property(lambda self: invoke("proposed_fact.state", {"self": proposed_fact_data(self)})["value"])
+    proposed.Distiller.__init__ = distiller_constructor
+    proposed.Distiller.load = classmethod(distiller_load)
+    proposed.Distiller._path = staticmethod(wrap(proposed.Distiller._path, "distiller._path"))
+    for name in ("_observe_fact", "_featurize", "_sensed", "_coverage", "_abstaining_excerpts", "_maybe_propose", "_admit_extractor",
+                 "_confirms", "_evidence", "_restates_forgotten", "_ground", "_build_fact", "_frozen_view", "_admit", "render", "update",
+                 "save", "debug_row", "known_ids", "forget", "unforget", "drop_forgotten"):
+        setattr(proposed.Distiller, name, wrap(getattr(proposed.Distiller, name), "distiller." + name))
+    prompts = invoke("distiller.prompts", {})
+    proposed.PROPOSER_SYSTEM = prompts["paper"]
+    proposed.PROPOSER_SYSTEM_GENERIC = prompts["generic"]
+
     from tokeneconomizer.loopguard.state import SpiralState
     SpiralState.__init__ = lambda self: restore_spiral(self, invoke("state.new", {}))
     for name in ("update", "recent_digest", "snapshot"):
@@ -425,6 +518,111 @@ def spiral_data(state):
 def vocabulary_data(vocabulary):
     return {field.name: list(value) if isinstance(value, (tuple, set, frozenset)) else value
             for field in dataclasses.fields(vocabulary) for value in (getattr(vocabulary, field.name),)}
+
+
+class NativeRegex:
+    def __init__(self, pattern):
+        self.pattern = pattern
+
+    def search(self, text):
+        return invoke("distiller.regex_search", {"pattern": self.pattern, "text": text})
+
+
+def detector_data(detector):
+    return dict(vars(detector), confirm=detector.confirm.pattern if detector.confirm is not None else None,
+                contra=detector.contra.pattern if detector.contra is not None else None)
+
+
+def restore_detector(detector, data):
+    detector.__dict__.update(data)
+    detector.confirm = NativeRegex(data["confirm"]) if data["confirm"] is not None else None
+    detector.contra = NativeRegex(data["contra"]) if data["contra"] is not None else None
+
+
+def detector_constructor(self, spec):
+    restore_detector(self, invoke("detector.new", {"spec": spec}))
+
+
+def detector_v3_constructor(self, spec, features):
+    restore_detector(self, invoke("detector.new", {"spec": spec, "features": features}))
+
+
+def extractor_constructor(self, spec):
+    restore_extractor(self, invoke("extractor.new", {"spec": spec}))
+
+
+def restore_extractor(extractor, data):
+    extractor.__dict__.update(data)
+    extractor.rx = NativeRegex(data["rx"]) if data["rx"] is not None else None
+
+
+def proposed_fact_data(fact):
+    return {"spec": fact.spec, "life": vars(fact.life)}
+
+
+def restore_proposed_fact(fact, data):
+    from tokeneconomizer.microskills.lifecycle import Lifecycle
+    from tokeneconomizer.microskills.distiller import Detector
+    life = getattr(fact, "life", None)
+    if life is None:
+        life = Lifecycle.__new__(Lifecycle)
+    life.__dict__.update(data["life"])
+    detector = Detector.__new__(Detector)
+    restore_detector(detector, data["detector"])
+    fact.__dict__.update(data)
+    fact.life = life
+    fact.detector = detector
+
+
+def proposed_fact_constructor(self, spec):
+    restore_proposed_fact(self, invoke("proposed_fact.new", {"spec": spec}))
+
+
+def proposed_fact_from_record(cls, d):
+    fact = cls.__new__(cls)
+    restore_proposed_fact(fact, invoke("proposed_fact.from_dict", {"d": d}))
+    return fact
+
+
+def distiller_data(distiller):
+    data = {key: value for key, value in vars(distiller).items() if key not in ("runner", "external_facts", "facts", "extractors")}
+    data["facts"] = {fid: proposed_fact_data(fact) for fid, fact in distiller.facts.items()}
+    data["extractors"] = {name: extractor.spec for name, extractor in distiller.extractors.items()}
+    return data
+
+
+def restore_distiller(distiller, data):
+    from tokeneconomizer.microskills.distiller import Fact, Extractor
+    facts = getattr(distiller, "facts", {})
+    restored = {}
+    for fid, record in data["facts"].items():
+        fact = facts.get(fid)
+        if fact is None:
+            fact = Fact.__new__(Fact)
+        restore_proposed_fact(fact, record)
+        restored[fid] = fact
+    facts.clear()
+    facts.update(restored)
+    extractors = {}
+    for name, record in data["extractors"].items():
+        extractor = Extractor.__new__(Extractor)
+        restore_extractor(extractor, record)
+        extractors[name] = extractor
+    distiller.__dict__.update(data)
+    distiller.facts = facts
+    distiller.extractors = extractors
+
+
+def distiller_constructor(self, repo, runner=None, model="agent", external_facts=None, vocab=None):
+    self.runner, self.external_facts = runner, external_facts
+    restore_distiller(self, invoke("distiller.new", {"repo": repo, "model": model, "generic": getattr(vocab, "generic", False)}))
+
+
+def distiller_load(cls, repo, root, runner=None, model="agent", external_facts=None, vocab=None):
+    distiller = cls.__new__(cls)
+    distiller.runner, distiller.external_facts = runner, external_facts
+    restore_distiller(distiller, invoke("distiller.load", {"repo": repo, "root": os.fspath(root), "model": model, "generic": getattr(vocab, "generic", False)}))
+    return distiller
 
 
 def lifecycle_from_record(cls, d):

@@ -1,6 +1,7 @@
-use std::io;
+use std::{cell::RefCell, io};
 
-use serde_json::Value;
+use serde_json::{Value, json};
+use tokeneconomizer::runner::Runner;
 
 pub(super) struct CallbackTape {
     replies: Vec<Value>,
@@ -46,5 +47,32 @@ impl CallbackTape {
 
     pub(super) fn finish(self, value: Value) -> Value {
         self.pending.unwrap_or(value)
+    }
+
+    pub(super) fn finish_result(self, value: Result<Value, String>) -> Result<Value, String> {
+        self.pending.map(Ok).unwrap_or(value)
+    }
+}
+
+pub(super) struct RunnerTransport<'a>(pub(super) &'a RefCell<CallbackTape>);
+impl Runner for RunnerTransport<'_> {
+    fn run(&mut self, prompt: &str, model: &str) -> Result<(String, Option<f64>), String> {
+        let reply = self
+            .0
+            .borrow_mut()
+            .call(json!({"callback":"runner","prompt":prompt,"model":model}))?;
+        Ok((
+            reply["value"][0].as_str().unwrap_or("").into(),
+            reply["value"][1].as_f64(),
+        ))
+    }
+    fn estimate_effective(&mut self, prompt: &str, raw: &str) -> Result<f64, String> {
+        let reply = self
+            .0
+            .borrow_mut()
+            .call(json!({"callback":"estimate","prompt":prompt,"raw":raw}))?;
+        reply["value"]
+            .as_f64()
+            .ok_or_else(|| "expected numeric runner estimate".into())
     }
 }
