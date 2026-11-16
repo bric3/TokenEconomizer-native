@@ -48,7 +48,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Loop state, streamed call pairing, shell edit and revert detection, verification
   status, runner summaries and prompt-turn tracking now execute in Rust. Turn tracking
   includes sampled/background judge scheduling, backoff, costs, nudges and outcomes.
-  Paid judge calls and envelope persistence still need conversion.
+  Judge prompts, verdict decoding, redirect limits and runner-cost fallback are also
+  native. Runner processes and envelope persistence still need conversion.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -65,7 +66,7 @@ complete while any runtime component delegates production behaviour to Python.
   parity pass, including word boundaries and whitespace classes.
 - Port command observation, environment facts, proposed facts and prefix stages.
 - Port tool-pruning evidence, Codex capabilities and pruning stages.
-- Port paid judge calls and envelope persistence.
+- Port envelope persistence.
 - Port plugin configuration, paths and repository identity, store and locking,
   deny lists, host settings, history, context, folding, controller and queues.
 - Port side calls, model probes, tool checks, repository maps, CLI commands and
@@ -112,6 +113,10 @@ complete while any runtime component delegates production behaviour to Python.
   malformed shell-line recovery, sampled judge costs and backoff, live verification
   text and the redirect writer's failure fallback. Background judge tests cover
   job reuse, stale jobs, productive verdicts and one-use redirects.
+- Judge-focused run: 417 passed, 2 skipped. Full suite with native judge functions:
+  1,558 passed, 33 skipped (33.27 seconds). `validation/judge-calls.json` records
+  this phase's coverage. Java probes check clamped and malformed confidence,
+  runner errors, cost estimation fallback and Unicode redirect truncation.
 
 ## Dependencies
 

@@ -95,6 +95,9 @@ def wrap(original, operation):
                 "repeated_fail_sigs", "test_runs", "edit_counts")}
         judge = arguments.get("judge")
         writer = arguments.get("writer")
+        runner = arguments.get("runner")
+        if operation.startswith("judge.") or operation == "pricing.runner_effective_or_approx":
+            arguments["runner"] = runner is not None
         if operation == "turn.fold":
             arguments["judge"] = ("background" if hasattr(judge, "poll") else "sampled") if judge is not None else None
         if operation == "turn.nudge_body":
@@ -104,22 +107,27 @@ def wrap(original, operation):
         if "files" in arguments:
             arguments["files"] = sorted(arguments["files"])
         result = invoke(operation, arguments)
-        if operation.startswith("turn.") and obj is not None:
+        if operation.startswith(("turn.", "judge.")) or operation == "pricing.runner_effective_or_approx":
             replies = []
-            while "callback" in result:
-                if result["guard"] is not None:
+            while isinstance(result, dict) and "callback" in result:
+                if result.get("guard") is not None:
                     restore_turn(obj, result["guard"])
                 try:
                     if result["callback"] == "poll":
                         value = judge.poll(obj)
                     elif result["callback"] == "start":
                         value = judge.start(obj, result["digest"])
+                    elif result["callback"] == "runner":
+                        value = runner(result["prompt"], result["model"])
+                    elif result["callback"] == "estimate":
+                        value = runner.estimate_effective(result["prompt"], result["raw"])
                     else:
                         value = (writer if result["callback"] == "writer" else judge)(result["digest"])
-                    replies.append({"value": value, "guard": turn_data(obj)})
+                    replies.append({"value": value, "guard": turn_data(obj) if obj is not None else None})
                 except Exception as error:
                     replies.append({"error": str(error)})
                 result = invoke(operation, dict(arguments, replies=replies))
+        if operation.startswith("turn.") and obj is not None:
             restore_turn(obj, result["guard"], replace_states=operation == "turn.after_nudge")
             value = result["value"]
             return tuple(value) if operation == "turn.fold" and value is not None else value
@@ -191,12 +199,13 @@ def pytest_configure(config):
     sys.path.insert(0, str(ROOT / "reference/upstream"))
     groups = {
         "pricing": ("resolve_model", "weights_for", "has_breakdown", "cache_write_1h_tokens",
-                    "effective_tokens", "approx_tokens"),
+                    "effective_tokens", "approx_tokens", "runner_effective_or_approx"),
         "ledger": ("overhead", "effective_exec"),
         "plugin.accounting": ("effective", "overhead_total", "summarize", "fmt_tokens"),
         "names": ("repo_filename",),
         "config": ("needs_optimizer",),
         "loopguard.rules": ("scaled_thresholds", "gate_for_judge", "is_stuck", "nudge_text", "assess_abort"),
+        "loopguard.judge": ("llm_stuck_judge", "llm_nudge_writer"),
         "loopguard.state": ("canon_tool", "basename", "_failure_sig", "completed_calls", "state_from_trajectory"),
         "loopguard.shell_edits": ("shell_edit_targets", "shell_revert_targets", "fold_shell_edits", "_split_heredocs"),
         "loopguard.turn": ("exit_status_covers", "status_of_tests", "runner_verdict", "_pieces", "state_to_dict", "state_from_dict"),

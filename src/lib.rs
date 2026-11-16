@@ -7,6 +7,7 @@ pub mod loopguard;
 pub mod names;
 pub mod pricing;
 pub mod rules;
+pub mod runner;
 pub mod trace;
 
 mod value;

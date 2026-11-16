@@ -95,6 +95,28 @@ class BridgeProbe {
         throw new AssertionError("Nudge writer failure did not use the count template: " + failedWriter);
       }
 
+      expect(input, output, """
+          {"op":"judge.llm_stuck_judge","args":{"digest":"","runner":true}}
+          """, "{\"result\":{\"stuck\":null,\"confidence\":0.0,\"reason\":\"no-runner\",\"_tokens\":0}}");
+      expect(input, output, """
+          {"op":"judge.llm_stuck_judge","args":{"digest":"turns=20","runner":true,"replies":[{"value":["prefix {\\\"stuck\\\":true,\\\"confidence\\\":2,\\\"reason\\\":\\\"repeat\\\"} suffix",0]}]}}
+          """, "{\"result\":{\"stuck\":true,\"confidence\":1.0,\"reason\":\"repeat\",\"_tokens\":0.0}}");
+      expect(input, output, """
+          {"op":"judge.llm_stuck_judge","args":{"digest":"turns=20","runner":true,"replies":[{"value":["{\\\"stuck\\\":true,\\\"confidence\\\":\\\"bad\\\",\\\"reason\\\":\\\"repeat\\\"}",7]}]}}
+          """, "{\"result\":{\"stuck\":true,\"confidence\":0.0,\"reason\":\"\",\"_tokens\":7.0}}");
+      expect(input, output, """
+          {"op":"judge.llm_stuck_judge","args":{"digest":"turns=20","runner":true,"replies":[{"error":"offline"}]}}
+          """, "{\"result\":{\"stuck\":null,\"confidence\":0.0,\"reason\":\"runner-error:offline\",\"_tokens\":0}}");
+      expect(input, output, """
+          {"op":"pricing.runner_effective_or_approx","args":{"runner":true,"prompt":"😀😀😀😀😀😀😀😀","raw":"reply","replies":[{"error":"cannot estimate"}]}}
+          """, "{\"result\":7.0}");
+      expect(input, output, """
+          {"op":"pricing.runner_effective_or_approx","args":{"runner":true,"prompt":"prompt","raw":"reply","replies":[{"value":42}]}}
+          """, "{\"result\":42.0}");
+      var longRedirect = "😀".repeat(1_205);
+      expect(input, output, "{\"op\":\"judge.llm_nudge_writer\",\"args\":{\"digest\":\"actions\",\"runner\":true,\"replies\":[{\"value\":[\"  " + longRedirect + "  \",7]}]}}",
+          "{\"result\":{\"text\":\"" + "😀".repeat(1_200) + "\",\"_tokens\":7.0}}");
+
       input.println("""
           {"op":"rules.nudge_text","args":{"state":{"edit_counts":{"one file":5,"other":1}}}}
           """.strip());

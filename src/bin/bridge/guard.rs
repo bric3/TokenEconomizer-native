@@ -1,10 +1,14 @@
 use std::{cell::RefCell, path::Path};
 
 use serde_json::{Map, Value, json};
-use tokeneconomizer::loopguard::{
-    shell_edits,
-    state::{self, SpiralState},
-    turn::{self, BackgroundJudge, FoldOptions, Judge, TurnGuard},
+use tokeneconomizer::{
+    loopguard::{
+        judge, shell_edits,
+        state::{self, SpiralState},
+        turn::{self, BackgroundJudge, FoldOptions, Judge, TurnGuard},
+    },
+    pricing,
+    runner::Runner,
 };
 
 struct CallbackTape {
@@ -14,12 +18,15 @@ struct CallbackTape {
 }
 
 impl CallbackTape {
-    fn call(
-        &mut self,
-        kind: &str,
-        guard: Option<&TurnGuard>,
-        digest: Option<&str>,
-    ) -> Result<Value, String> {
+    fn new(args: &Value) -> Self {
+        Self {
+            replies: args["replies"].as_array().cloned().unwrap_or_default(),
+            index: 0,
+            pending: None,
+        }
+    }
+
+    fn call(&mut self, request: Value) -> Result<Value, String> {
         if let Some(reply) = self.replies.get(self.index) {
             self.index += 1;
             if let Some(error) = reply["error"].as_str() {
@@ -27,7 +34,7 @@ impl CallbackTape {
             }
             return Ok(reply.clone());
         }
-        self.pending = Some(json!({"callback": kind, "guard": guard, "digest": digest}));
+        self.pending = Some(request);
         Err("callback pending".into())
     }
 }
@@ -36,7 +43,10 @@ struct BackgroundTransport<'a>(&'a RefCell<CallbackTape>);
 
 impl BackgroundJudge for BackgroundTransport<'_> {
     fn poll(&mut self, guard: &mut TurnGuard) -> Result<(bool, Value), String> {
-        let reply = self.0.borrow_mut().call("poll", Some(guard), None)?;
+        let reply = self
+            .0
+            .borrow_mut()
+            .call(json!({"callback": "poll", "guard": guard}))?;
         *guard = serde_json::from_value(reply["guard"].clone()).map_err(|e| e.to_string())?;
         Ok((
             reply["value"][0].as_bool().unwrap_or(false),
@@ -48,7 +58,7 @@ impl BackgroundJudge for BackgroundTransport<'_> {
         let reply = self
             .0
             .borrow_mut()
-            .call("start", Some(guard), Some(digest))?;
+            .call(json!({"callback": "start", "guard": guard, "digest": digest}))?;
         *guard = serde_json::from_value(reply["guard"].clone()).map_err(|e| e.to_string())?;
         Ok(reply["value"].clone())
     }
@@ -57,19 +67,15 @@ impl BackgroundJudge for BackgroundTransport<'_> {
 fn turn_method(op: &str, args: &Value) -> Result<Value, String> {
     let mut guard: TurnGuard =
         serde_json::from_value(args["self"].clone()).map_err(|e| e.to_string())?;
-    let tape = RefCell::new(CallbackTape {
-        replies: args["replies"].as_array().cloned().unwrap_or_default(),
-        index: 0,
-        pending: None,
-    });
+    let tape = RefCell::new(CallbackTape::new(args));
     let mut sampled = |digest: &str| {
         tape.borrow_mut()
-            .call("judge", None, Some(digest))
+            .call(json!({"callback": "judge", "digest": digest}))
             .map(|reply| reply["value"].clone())
     };
     let mut writer = |digest: &str| {
         tape.borrow_mut()
-            .call("writer", None, Some(digest))
+            .call(json!({"callback": "writer", "digest": digest}))
             .map(|reply| reply["value"].clone())
     };
     let mut background = BackgroundTransport(&tape);
@@ -120,8 +126,62 @@ fn turn_method(op: &str, args: &Value) -> Result<Value, String> {
     Ok(json!({"guard": guard, "value": value}))
 }
 
+struct RunnerTransport<'a>(&'a RefCell<CallbackTape>);
+
+impl Runner for RunnerTransport<'_> {
+    fn run(&mut self, prompt: &str, model: &str) -> Result<(String, Option<f64>), String> {
+        let reply = self
+            .0
+            .borrow_mut()
+            .call(json!({"callback": "runner", "prompt": prompt, "model": model}))?;
+        Ok((
+            reply["value"][0].as_str().unwrap_or("").into(),
+            reply["value"][1].as_f64(),
+        ))
+    }
+
+    fn estimate_effective(&mut self, prompt: &str, raw: &str) -> Result<f64, String> {
+        let reply = self
+            .0
+            .borrow_mut()
+            .call(json!({"callback": "estimate", "prompt": prompt, "raw": raw}))?;
+        reply["value"]
+            .as_f64()
+            .ok_or_else(|| "expected numeric runner estimate".into())
+    }
+}
+
+fn judge_call(op: &str, args: &Value) -> Value {
+    let tape = RefCell::new(CallbackTape::new(args));
+    let mut runner = RunnerTransport(&tape);
+    let digest = args["digest"].as_str().unwrap_or("");
+    let model = args["model"].as_str().unwrap_or("agent");
+    let runner: Option<&mut dyn Runner> = if args["runner"] == true {
+        Some(&mut runner)
+    } else {
+        None
+    };
+    let value =
+        match op {
+            "judge.llm_stuck_judge" => judge::llm_stuck_judge(digest, runner, model),
+            "judge.llm_nudge_writer" => judge::llm_nudge_writer(digest, runner, model),
+            _ => json!(pricing::runner_effective_or_approx(
+                args["prompt"].as_str().unwrap_or(""),
+                args["raw"].as_str().unwrap_or(""),
+                args["real"].as_f64(),
+                runner
+                    .map(|runner| move |prompt: &str, raw: &str| runner
+                        .estimate_effective(prompt, raw))
+            )),
+        };
+    tape.into_inner().pending.unwrap_or(value)
+}
+
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
     let value = match op {
+        "judge.llm_stuck_judge"
+        | "judge.llm_nudge_writer"
+        | "pricing.runner_effective_or_approx" => judge_call(op, args),
         "turn.new" => json!(TurnGuard::new(
             args["turn_key"].as_str().unwrap_or(""),
             &args["data"]
