@@ -121,6 +121,8 @@ class BridgeProbe {
           "{\"result\":{\"text\":\"" + "😀".repeat(1_200) + "\",\"_tokens\":7.0}}");
 
       checkEnvironmentFacts(input, output);
+      checkComposition(input, output);
+      checkSavedLayers(directory, input, output);
 
       input.println("""
           {"op":"rules.nudge_text","args":{"state":{"edit_counts":{"one file":5,"other":1}}}}
@@ -243,6 +245,59 @@ class BridgeProbe {
     if (!selected.endsWith("\"value\":[\"z\"]}}")) {
       throw new AssertionError("Selection lost insertion order when facts tied: " + selected);
     }
+  }
+
+  private static void checkComposition(PrintWriter input, BufferedReader output) throws Exception {
+    var life = """
+        {"key":"fact","high":false,"drift":false,"state":"ACTIVE","confirms":[],"contradicts":[],"fire_num":4,"fire_den":4,"promoted_at":null,"retired_at":null}
+        """.strip();
+    var layers = "{\"env\":{\"repo\":\"acme/widget\",\"now\":9,\"opt_tokens\":88,\"facts\":{\"env\":{\"id\":\"env\",\"family\":\"empty_probe\",\"params\":{},\"life\":" + life
+        + "}}},\"dist\":{\"repo\":\"acme/widget\",\"now\":3,\"opt_tokens\":7,\"facts\":{\"manual\":{\"spec\":{\"id\":\"manual\",\"injection\":\"manual instruction\"},\"life\":" + life + "}}}}";
+    var cost = request(input, output, "{\"op\":\"layers.opt_tokens\",\"args\":{\"self\":" + layers + "}}");
+    var now = request(input, output, "{\"op\":\"layers.now\",\"args\":{\"self\":" + layers + "}}");
+    if (!cost.endsWith("\"value\":7.0}}") || !now.endsWith("\"value\":3}}")) {
+      throw new AssertionError("Composition did not use the paid layer's accounting: " + cost + " / " + now);
+    }
+    var rendered = request(input, output, "{\"op\":\"layers.render\",\"args\":{\"self\":" + layers + "}}");
+    if (!rendered.contains("\"last_injected\":[\"env\"]")
+        || !rendered.contains("its history ends at the checked-out commit.\\n\\n# repo operating manual (widget)")
+        || !rendered.endsWith("- manual instruction\\n\"}}")) {
+      throw new AssertionError("Composition changed the environment selection or rendering order: " + rendered);
+    }
+  }
+
+  private static void checkSavedLayers(Path directory, PrintWriter input, BufferedReader output) throws Exception {
+    var envPath = directory.resolve("envfacts_state/acme__widget.json");
+    var manualPath = directory.resolve("manual_state/acme__widget.json");
+    Files.createDirectories(envPath.getParent());
+    Files.createDirectories(manualPath.getParent());
+    var envState = """
+        {"facts":{"shared":{"id":"shared","family":"empty_probe","params":{},"life":{"key":"shared","high":false}}},"forgotten":{"missing-record":{"claim":"old claim"}}}
+        """;
+    var manualState = """
+        {"facts":{"shared":{"spec":{"id":"shared","claim":"paid shared","detector":{}},"life":{"key":"shared","high":false}},"paid":{"spec":{"id":"paid","claim":"paid claim","detector":{}},"life":{"key":"paid","high":false}}}}
+        """;
+    Files.writeString(envPath, envState);
+    Files.writeString(manualPath, manualState);
+    var envClaim = "This checkout has no git remote and no branches, tags or unreachable objects beyond HEAD; its history ends at the checked-out commit.";
+    var base = "\"repo\":\"acme/widget\",\"root\":\"" + directory.toString().replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    expect(input, output, "{\"op\":\"stage.forget_facts\",\"args\":{" + base + ",\"ids\":[\"shared\",\"unknown\",\"unknown\"]}}",
+        "{\"result\":{\"raised\":\"KeyError\",\"message\":[\"unknown\",\"unknown\"]}}");
+    if (!envState.equals(Files.readString(envPath)) || !manualState.equals(Files.readString(manualPath))) {
+      throw new AssertionError("Unknown-id validation changed saved facts");
+    }
+    expect(input, output, "{\"op\":\"stage.forget_facts\",\"args\":{" + base + ",\"ids\":[\"paid\",\"shared\",\"paid\"]}}",
+        "{\"result\":[[\"paid\",true,\"paid claim\"],[\"shared\",true,\"" + envClaim + "\"]]}");
+    expect(input, output, "{\"op\":\"stage.forgotten_facts\",\"args\":{" + base + "}}",
+        "{\"result\":{\"missing-record\":\"old claim\",\"shared\":\"" + envClaim + "\",\"paid\":\"paid claim\"}}");
+    var manualAfter = Files.readString(manualPath);
+    expect(input, output, "{\"op\":\"stage.forget_facts\",\"args\":{" + base + ",\"ids\":[\"shared\"],\"undo\":true}}",
+        "{\"result\":[[\"shared\",true,\"" + envClaim + "\"]]}");
+    if (!manualAfter.equals(Files.readString(manualPath))) {
+      throw new AssertionError("Restoring an environment fact rewrote the paid layer");
+    }
+    expect(input, output, "{\"op\":\"stage.forget_facts\",\"args\":{" + base + ",\"ids\":[\"missing-record\"],\"undo\":true}}",
+        "{\"result\":[[\"missing-record\",\"no record\",\"\"]]}");
   }
 
   private static void checkStorage(Path root, Path directory, PrintWriter input, BufferedReader output) throws Exception {

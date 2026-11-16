@@ -62,6 +62,10 @@ complete while any runtime component delegates production behaviour to Python.
   detectors, proposer prompts and payload validation, evidence grounding, admission,
   contradiction-only revisions, lifecycle updates, forgetting and persistence.
   Model calls remain callbacks until runner conversion.
+- Prefix stages select, render, update and save the configured fact layers in Rust.
+  Composition passes the environment layer's current claims to the paid proposer
+  and reports its per-task token delta. Saved-layer discovery, forgetting and
+  restoration also execute in Rust.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -77,7 +81,6 @@ complete while any runtime component delegates production behaviour to Python.
   pass, including word boundaries, whitespace classes and syntax. The current
   library rejects Python's `(?a)` flag; this remains a required compatibility fix.
 - Audit JSON numeric edge cases, including non-finite values accepted by Python.
-- Port prefix stages, composition and saved-layer forgetting consumers.
 - Port tool-pruning evidence, Codex capabilities and pruning stages.
 - Port plugin configuration, paths and repository identity,
   deny lists, host settings, history, context, folding, controller and queues.
@@ -158,6 +161,17 @@ complete while any runtime component delegates production behaviour to Python.
 - `ExtractProposerPrompts.java` verifies both native prompt assets against the
   pinned source constants, including the paper prompt's SHA-256. Clippy, the
   bridge probe and the 256-file upstream integrity check also pass.
+- Prefix-stage, composition and forgetting-focused run: 45 passed. Full suite
+  with native prefix stages: 1,558 passed, 33 skipped (104.51 seconds).
+  `validation/prefix-calls.json` records 386 stage constructions, 404 task folds
+  and 398 renders reaching Rust, including callback replay. The original composed
+  profile test checks that the proposer receives newly injectable environment
+  claims and that its effective tokens reach the per-task ledger.
+- The bridge probe checks rendering two non-empty layers in order, selecting
+  environment IDs and using the paid layer's token count and task index. Saved-layer
+  checks cover duplicate IDs, environment ownership of shared IDs, unknown-ID
+  validation before any write, restoration without a record and saving only the
+  changed layer. Clippy and the 256-file upstream integrity check also pass.
 
 ## Dependencies
 

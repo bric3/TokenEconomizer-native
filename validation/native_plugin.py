@@ -71,7 +71,13 @@ def wrap(original, operation):
             arguments["config"] = dataclasses.asdict(arguments["config"])
         obj = arguments.get("self")
         if obj is not None:
-            if operation.startswith("distiller."):
+            if operation.startswith(("prefix.", "layers.")):
+                layers = obj.distiller if operation.startswith("prefix.") else obj
+                arguments["self"] = prefix_data(obj) if operation.startswith("prefix.") else layers_data(obj)
+                arguments["runner"], arguments["external"] = layers_callbacks(layers)
+                arguments["environment_claims"] = getattr(arguments["external"], "__self__", None) is getattr(layers, "env", False)
+                arguments["propose_every"] = importlib.import_module("tokeneconomizer.microskills.distiller").PROPOSE_EVERY
+            elif operation.startswith("distiller."):
                 arguments["self"] = distiller_data(obj)
                 arguments["runner"] = obj.runner
                 arguments["external"] = obj.external_facts
@@ -157,6 +163,14 @@ def wrap(original, operation):
             arguments["ids"] = list(arguments["ids"])
         if operation == "envfacts._join":
             arguments["items"] = list(arguments["items"])
+        if operation.startswith("stage.") and "ids" in arguments:
+            arguments["ids"] = list(arguments["ids"])
+        if operation == "layers.update" and arguments["edited"] is not None:
+            arguments["edited"] = sorted(arguments["edited"])
+        if operation == "layers.seed_injected":
+            arguments["ids"] = list(arguments["ids"] or [])
+        if operation.startswith(("prefix.", "layers.")):
+            arguments["home"] = os.path.expanduser("~")
         if operation.startswith("distiller."):
             arguments["home"] = os.path.expanduser("~")
             for name in ("cmds", "calls", "roots", "existing_feats", "raw_excerpts", "external"):
@@ -167,11 +181,17 @@ def wrap(original, operation):
             if "fact" in arguments:
                 arguments["fact"] = proposed_fact_data(arguments["fact"])
         external = arguments.get("external")
-        if operation.startswith("distiller.") and obj is not None:
+        if operation.startswith(("distiller.", "prefix.", "layers.")) and obj is not None:
             runner = arguments["runner"]
             arguments["runner"] = runner is not None
             arguments["external"] = external is not None
         result = invoke(operation, arguments)
+        if operation.startswith("stage."):
+            if isinstance(result, dict) and "raised" in result:
+                raise KeyError(result["message"])
+            if operation == "stage._saved_layers":
+                return [restore_layers(None, layer) for layer in result]
+            return [tuple(row) for row in result] if operation == "stage.forget_facts" else result
         if operation == "distiller._rx":
             return NativeRegex(result) if result is not None else None
         if operation in ("distiller.parse_payload",):
@@ -212,7 +232,7 @@ def wrap(original, operation):
             return tuple(result) if result is not None else None
         if operation in ("lifecycle.edited_files", "lifecycle.edited_pyfiles"):
             return set(result)
-        if operation.startswith(("turn.", "judge.", "store.", "distiller.")) or operation in ("pricing.runner_effective_or_approx", "lifecycle.write_json_atomic", "envelope.load_envelope"):
+        if operation.startswith(("turn.", "judge.", "store.", "distiller.", "prefix.", "layers.")) or operation in ("pricing.runner_effective_or_approx", "lifecycle.write_json_atomic", "envelope.load_envelope"):
             replies = []
             while isinstance(result, dict) and "callback" in result:
                 if result.get("guard") is not None:
@@ -242,6 +262,20 @@ def wrap(original, operation):
                 except Exception as error:
                     replies.append({"error": str(error), "error_kind": type(error).__name__})
                 result = invoke(operation, dict(arguments, replies=replies))
+        if operation.startswith(("prefix.", "layers.")):
+            if operation.startswith("prefix."):
+                restore_prefix(obj, result["self"])
+                if operation == "prefix.after_task":
+                    srow = bound.arguments["srow"]
+                    srow.clear()
+                    srow.update(result["srow"])
+                    restore_manual_verdicts(srow["manual_facts"])
+                    return tuple(result["value"])
+            else:
+                restore_layers(obj, result["self"])
+                if operation == "layers.debug_row":
+                    restore_manual_verdicts(result["value"])
+            return result["value"]
         if operation.startswith("distiller.") and obj is not None:
             restore_distiller(obj, result["self"])
             value = result["value"]
@@ -359,6 +393,7 @@ def pytest_configure(config):
         "microskills.envfacts": ("fold", "typed_ok", "_repairs", "_tool_of", "_moves_shell", "_usage", "_root", "_join", "lint_ok"),
         "microskills.distiller": ("load_calls", "bash_cmds", "build_digest", "build_generic_digest", "_command_failed", "_relative", "error_signature",
                                   "_templates", "proposer_view", "_rx", "build_proposer_prompt", "parse_payload", "_detector_fields_ok", "_reparse_cmds", "_forgotten_evidence"),
+        "microskills.stage": ("_saved_layers", "forget_facts", "forgotten_facts"),
         "names": ("repo_filename",),
         "config": ("needs_optimizer",),
         "loopguard.rules": ("scaled_thresholds", "gate_for_judge", "is_stuck", "nudge_text", "assess_abort"),
@@ -458,6 +493,15 @@ def pytest_configure(config):
     prompts = invoke("distiller.prompts", {})
     proposed.PROPOSER_SYSTEM = prompts["paper"]
     proposed.PROPOSER_SYSTEM_GENERIC = prompts["generic"]
+
+    from tokeneconomizer.microskills.stage import PrefixStage, ComposedDistiller
+    PrefixStage.__init__ = prefix_constructor
+    for name in ("render", "injected_ids", "after_task"):
+        setattr(PrefixStage, name, wrap(getattr(PrefixStage, name), "prefix." + name))
+    for name in ("render", "injected_ids", "seed_injected", "update", "save", "debug_row"):
+        setattr(ComposedDistiller, name, wrap(getattr(ComposedDistiller, name), "layers." + name))
+    ComposedDistiller.opt_tokens = property(lambda self: invoke("layers.opt_tokens", {"self": layers_data(self)})["value"])
+    ComposedDistiller.now = property(lambda self: invoke("layers.now", {"self": layers_data(self)})["value"])
 
     from tokeneconomizer.loopguard.state import SpiralState
     SpiralState.__init__ = lambda self: restore_spiral(self, invoke("state.new", {}))
@@ -647,6 +691,70 @@ def restore_envfact(fact, data):
 
 def envfact_constructor(self, fid, family, high, params=None):
     restore_envfact(self, invoke("envfact.new", {"fid": fid, "family": family, "high": high, "params": params}))
+
+
+def layers_data(layers):
+    from tokeneconomizer.microskills.stage import ComposedDistiller
+    from tokeneconomizer.microskills.envfacts import EnvFactsDistiller
+    if isinstance(layers, ComposedDistiller):
+        return {"env": envfacts_data(layers.env), "dist": distiller_data(layers.dist)}
+    if isinstance(layers, EnvFactsDistiller):
+        return {"env": envfacts_data(layers), "dist": None}
+    return {"env": None, "dist": distiller_data(layers) if layers is not None else None}
+
+
+def layers_callbacks(layers):
+    from tokeneconomizer.microskills.stage import ComposedDistiller
+    dist = layers.dist if isinstance(layers, ComposedDistiller) else layers
+    return getattr(dist, "runner", None), getattr(dist, "external_facts", None)
+
+
+def restore_layers(layers, data, runner=None):
+    from tokeneconomizer.microskills.stage import ComposedDistiller
+    from tokeneconomizer.microskills.envfacts import EnvFactsDistiller
+    from tokeneconomizer.microskills.distiller import Distiller
+    env = layers.env if isinstance(layers, ComposedDistiller) else layers if isinstance(layers, EnvFactsDistiller) else None
+    dist = layers.dist if isinstance(layers, ComposedDistiller) else layers if isinstance(layers, Distiller) else None
+    if data["env"] is not None:
+        env = env if env is not None else EnvFactsDistiller.__new__(EnvFactsDistiller)
+        restore_envfacts(env, data["env"])
+    if data["dist"] is not None:
+        dist = dist if dist is not None else Distiller.__new__(Distiller)
+        dist.runner = getattr(dist, "runner", runner)
+        dist.external_facts = getattr(dist, "external_facts", None)
+        restore_distiller(dist, data["dist"])
+    if data["env"] is not None and data["dist"] is not None:
+        composed = layers if isinstance(layers, ComposedDistiller) else ComposedDistiller.__new__(ComposedDistiller)
+        composed.env, composed.dist = env, dist
+        dist.external_facts = env.injectable_claims
+        return composed
+    return env if data["env"] is not None else dist
+
+
+def prefix_data(prefix):
+    return {"results_root": os.fspath(prefix.results_root), "reason": prefix.reason, "distiller": layers_data(prefix.distiller)}
+
+
+def restore_prefix(prefix, data, runner=None):
+    prefix.results_root, prefix.reason = data["results_root"], data["reason"]
+    prefix.distiller = restore_layers(getattr(prefix, "distiller", None), data["distiller"], runner)
+
+
+def prefix_constructor(self, cfg, repo, results_root, fresh, runner=None, optimizer_model="agent", adapter=None, agent=None):
+    module = importlib.import_module("tokeneconomizer.microskills.distiller")
+    vocab = adapter.env_vocabulary() if hasattr(adapter, "env_vocabulary") else None
+    result = invoke("prefix.new", {"cfg": dataclasses.asdict(cfg), "repo": repo, "results_root": os.fspath(results_root),
+                                  "fresh": fresh, "optimizer_model": optimizer_model,
+                                  "vocab": vocabulary_data(vocab) if vocab is not None else None,
+                                  "propose_every": module.PROPOSE_EVERY})
+    module.PROPOSE_EVERY = result["propose_every"]
+    self.adapter, self.agent = adapter, agent
+    restore_prefix(self, result["self"], runner)
+
+
+def restore_manual_verdicts(row):
+    if "_task" in row:
+        restore_verdicts(row["_task"])
 
 
 def envfact_from_record(cls, d):

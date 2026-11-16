@@ -16,7 +16,7 @@ fn strings(args: &Value, key: &str) -> Result<Vec<String>, String> {
 fn commands(args: &Value, key: &str) -> Result<Vec<distiller::Command>, String> {
     serde_json::from_value(args[key].clone()).map_err(|e| e.to_string())
 }
-fn data(distiller: &Distiller) -> Value {
+pub(super) fn data(distiller: &Distiller) -> Value {
     let mut data = serde_json::to_value(distiller).unwrap();
     for (id, fact) in &distiller.facts {
         data["facts"][id] = fact.data();
