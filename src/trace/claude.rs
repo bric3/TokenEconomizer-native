@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     path::{Path, PathBuf},
     sync::LazyLock,
 };
@@ -8,9 +8,17 @@ use regex::Regex;
 use serde_json::{Map, Value, json};
 
 use super::jsonl::{lines, records};
+use super::{
+    calls as trajectories,
+    jsonl::TextReader,
+    time::{epoch, system_seconds},
+};
 use crate::value::{integer, truthy};
 
 pub const SYNTHETIC_MODEL: &str = "<synthetic>";
+pub const HEAD_BYTES: usize = 8 << 20;
+pub const LINE_BYTES: usize = 1 << 20;
+pub const HEAD_LINES: usize = 200;
 pub const USAGE_KEYS: [&str; 5] = [
     "input_tokens",
     "cache_read_input_tokens",
@@ -20,6 +28,133 @@ pub const USAGE_KEYS: [&str; 5] = [
 ];
 
 pub type Call = (Value, Value, String, bool, Option<String>);
+
+pub fn projects_dir(env: &Value, home: &Path) -> PathBuf {
+    let base = env["CLAUDE_CONFIG_DIR"]
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            let key = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+            env[key]
+                .as_str()
+                .filter(|s| !s.is_empty())
+                .map(PathBuf::from)
+                .unwrap_or_else(|| home.to_path_buf())
+                .join(".claude")
+        });
+    base.join("projects")
+}
+
+pub fn history_logs(projects_dir: &Path) -> Vec<(String, PathBuf, f64, u64)> {
+    let Ok(folders) = projects_dir.read_dir() else {
+        return Vec::new();
+    };
+    let mut folders = folders.filter_map(Result::ok).collect::<Vec<_>>();
+    folders.sort_by_key(|entry| entry.file_name());
+    let mut out = Vec::new();
+    for folder in folders {
+        let Ok(entries) = folder.path().read_dir() else {
+            continue;
+        };
+        let mut entries = entries.filter_map(Result::ok).collect::<Vec<_>>();
+        entries.sort_by_key(|entry| entry.file_name());
+        for entry in entries {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if !name.ends_with(".jsonl") || name.starts_with("agent-") {
+                continue;
+            }
+            let path = entry.path();
+            let Ok(metadata) = std::fs::metadata(&path) else {
+                continue;
+            };
+            let Ok(modified) = metadata.modified() else {
+                continue;
+            };
+            if metadata.is_file() {
+                out.push((
+                    folder.file_name().to_string_lossy().into_owned(),
+                    path,
+                    system_seconds(modified),
+                    metadata.len(),
+                ));
+            }
+        }
+    }
+    out
+}
+
+pub fn log_head(path: &Path) -> Value {
+    let mut out = json!({"session_id": null, "cwd": null, "started": null, "entrypoint": ""});
+    let Ok(mut reader) = TextReader::open(path) else {
+        return out;
+    };
+    let mut left = HEAD_BYTES;
+    for _ in 0..HEAD_LINES {
+        let Ok(line) = reader.readline(left.min(LINE_BYTES)) else {
+            break;
+        };
+        if line.is_empty() {
+            break;
+        }
+        let n = line.chars().count();
+        left -= n;
+        if !line.ends_with('\n') && n >= LINE_BYTES {
+            while left > 0 {
+                let Ok(rest) = reader.readline(left.min(LINE_BYTES)) else {
+                    break;
+                };
+                left -= rest.chars().count();
+                if rest.is_empty() || rest.ends_with('\n') {
+                    break;
+                }
+            }
+            continue;
+        }
+        let Ok(event) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
+        if !event.is_object() {
+            continue;
+        }
+        if out["session_id"].is_null() && event["sessionId"].is_string() {
+            out["session_id"] = event["sessionId"].clone();
+        }
+        if out["cwd"].is_null() && event["cwd"].as_str().is_some_and(|s| !s.is_empty()) {
+            out["cwd"] = event["cwd"].clone();
+        }
+        if out["started"].is_null() {
+            out["started"] = json!(epoch(&event["timestamp"]));
+        }
+        if !truthy(&out["entrypoint"])
+            && let Some(entrypoint) = event["entrypoint"].as_str()
+        {
+            out["entrypoint"] = entrypoint.trim().into();
+        }
+        if ["session_id", "cwd", "started", "entrypoint"]
+            .iter()
+            .all(|key| truthy(&out[*key]))
+        {
+            break;
+        }
+    }
+    out
+}
+
+pub fn tool_usage(transcript: &Path, include_subagents: bool) -> BTreeMap<String, usize> {
+    let mut files = vec![transcript.to_path_buf()];
+    if include_subagents {
+        files.extend(subagent_files(transcript));
+    }
+    let mut counts = BTreeMap::new();
+    for file in files {
+        for (tool, n) in trajectories::tool_usage(&file) {
+            *counts.entry(tool).or_default() += n;
+        }
+    }
+    counts
+}
 
 pub fn calls(lines: &[String]) -> Vec<Call> {
     let mut order = Vec::new();
@@ -142,10 +277,10 @@ pub fn prompt_turns(path: &Path) -> impl Iterator<Item = Vec<String>> {
                 if let Some(previous) = current.replace(vec![line]) {
                     return Some(previous);
                 }
-            } else if !truthy(&event["isSidechain"]) {
-                if let Some(current) = current.as_mut() {
-                    current.push(line);
-                }
+            } else if !truthy(&event["isSidechain"])
+                && let Some(current) = current.as_mut()
+            {
+                current.push(line);
             }
         }
         current.take()

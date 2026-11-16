@@ -125,10 +125,10 @@ pub fn thresholds(tracker: &EnvelopeTracker, overrides: &Value) -> Value {
                 thr[key] = value.clone();
             }
         }
-        if overrides.contains_key("backstop_mult") {
-            if let Some(envelope) = tracker.envelope() {
-                thr["backstop_turns"] = (envelope * threshold(&thr, "backstop_mult")).into();
-            }
+        if overrides.contains_key("backstop_mult")
+            && let Some(envelope) = tracker.envelope()
+        {
+            thr["backstop_turns"] = (envelope * threshold(&thr, "backstop_mult")).into();
         }
     }
     thr

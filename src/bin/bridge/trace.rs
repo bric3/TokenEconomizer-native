@@ -2,7 +2,8 @@ use std::path::Path;
 
 use serde_json::{Value, json};
 use tokeneconomizer::trace::{
-    antigravity, calls, catalog, codex, copilot, cursor, grok, opencode, pi,
+    antigravity, calls, catalog, claude, codex, copilot, cursor, droid, grok, hermes, jsonl,
+    opencode, pi, time,
 };
 
 fn path<'a>(args: &'a Value, key: &str) -> &'a Path {
@@ -15,6 +16,98 @@ fn strings(args: &Value, key: &str) -> Result<Vec<String>, String> {
 
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
     let value = match op {
+        "trace.hermes.hermes_tool" => json!(hermes::tool(&args["name"], &args["args"])),
+        "trace.hermes._json_object" => json!(hermes::json_object(&args["text"])),
+        "trace.hermes.hermes_result" => json!(hermes::result(&args["text"])),
+        "trace.hermes._load" => json!(hermes::load(path(args, "path"))),
+        "trace.hermes._prompts" => {
+            let messages = args["messages"].as_array().ok_or("expected messages")?;
+            json!(
+                hermes::prompts(messages)
+                    .into_iter()
+                    .map(|i| messages[i].clone())
+                    .collect::<Vec<_>>()
+            )
+        }
+        "trace.hermes._tool_calls" => json!(hermes::tool_calls(&args["msg"])),
+        "trace.hermes._int" => json!(hermes::int_field(
+            &args["row"],
+            args["key"].as_str().ok_or("expected field")?
+        )),
+        "trace.hermes._kept" => hermes::kept(&args["row"], &strings(args, "fields")?),
+        "trace.hermes._private" => hermes::private_message(&args["message"]),
+        "trace.hermes.hermes_session_info" => hermes::session_info(path(args, "path")),
+        "trace.hermes.hermes_prompt_count" => json!(hermes::prompt_count(path(args, "path"))),
+        "trace.hermes.hermes_session_to_claude" => json!(hermes::session_to_claude(
+            path(args, "path"),
+            path(args, "out_path")
+        )?),
+        "trace.hermes.hermes_row_usage" => hermes::row_usage(&args["row"]),
+        "trace.hermes.hermes_session_usage" => hermes::session_usage(path(args, "path"))?,
+        "trace.hermes.hermes_export" => json!(hermes::export(
+            path(args, "db_path"),
+            args["session_id"].as_str().ok_or("expected session id")?,
+            path(args, "path")
+        )),
+        "trace.hermes.hermes_session_row" => json!(hermes::session_row(
+            path(args, "db_path"),
+            args["session_id"].as_str().ok_or("expected session id")?
+        )),
+        "trace.hermes.hermes_find_session" => json!(hermes::find_session(
+            path(args, "db_path"),
+            args["source"].as_str().ok_or("expected source")?,
+            args["prompt"].as_str().ok_or("expected prompt")?,
+            args["since"].as_f64().ok_or("expected timestamp")?
+        )),
+        "trace.claude._epoch" | "trace.droid._epoch" => json!(time::epoch(&args["ts"])),
+        "trace.claude.claude_projects_dir" => {
+            json!(claude::projects_dir(&args["env"], path(args, "home")))
+        }
+        "trace.claude.claude_history_logs" => {
+            json!(claude::history_logs(path(args, "projects_dir")))
+        }
+        "trace.claude.claude_log_head" => claude::log_head(path(args, "path")),
+        "trace.claude.claude_tool_usage" => json!(claude::tool_usage(
+            path(args, "transcript_path"),
+            args["include_subagents"].as_bool().unwrap_or(true)
+        )),
+        "trace.droid.claude_tool_name" => droid::claude_tool_name(&args["name"]),
+        "trace.droid.droid_records" => {
+            json!(jsonl::records(path(args, "path")).collect::<Vec<_>>())
+        }
+        "trace.droid.droid_session_header" => droid::session_header(path(args, "path")),
+        "trace.droid.droid_session_cwd" => json!(droid::session_cwd(path(args, "path"))),
+        "trace.droid.droid_log_head" => droid::log_head(path(args, "path")),
+        "trace.droid.droid_safe_session_id" => json!(droid::safe_session_id(&args["sid"])),
+        "trace.droid._droid_is_prompt" => json!(droid::is_prompt(&args["msg"])),
+        "trace.droid._droid_content" => json!(droid::content(&args["content"])),
+        "trace.droid._claude_line" => json!(droid::claude_line(&args["ev"], &args["cwd"])),
+        "trace.droid.droid_prompt_count" => json!(droid::prompt_count(path(args, "path"))),
+        "trace.droid.droid_prompt_turns" => {
+            json!(droid::prompt_turns(path(args, "path")).collect::<Vec<_>>())
+        }
+        "trace.droid.droid_settings_path" => json!(droid::settings_path(
+            args["transcript_path"].as_str().unwrap_or("")
+        )),
+        "trace.droid.droid_session_to_claude" => json!(droid::session_to_claude(
+            path(args, "path"),
+            path(args, "out_path")
+        )?),
+        "trace.droid.droid_session_usage" => droid::session_usage(path(args, "transcript_path")),
+        "trace.droid.droid_sessions" => {
+            let root = args["sessions_root"]
+                .as_str()
+                .filter(|s| !s.is_empty())
+                .or_else(|| {
+                    args["env"]["DROID_SESSIONS_DIR"]
+                        .as_str()
+                        .filter(|s| !s.is_empty())
+                })
+                .map(Path::new)
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| path(args, "home").join(".factory/sessions"));
+            json!(droid::sessions(&root))
+        }
         "trace.grok.grok_tool" => json!(grok::tool(&args["name"], &args["args"])),
         "trace.grok._bytes_text" => json!(grok::bytes_text(&args["value"])),
         "trace.grok.grok_result" => json!(grok::result(&args["resp"])),

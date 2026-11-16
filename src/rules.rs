@@ -68,16 +68,17 @@ pub fn assess_abort(
 ) -> Result<(bool, String), String> {
     let backstop = number(&thr["backstop_turns"])
         .or_else(|| envelope.map(|n| n * threshold(thr, "backstop_mult")));
-    if let Some(backstop) = backstop {
-        if state.turns as f64 >= backstop && is_stuck(state, thr) {
-            return Ok((
-                true,
-                format!(
-                    "backstop:{}>={backstop:.0}turns stagnation={:.2}",
-                    state.turns, state.stagnation
-                ),
-            ));
-        }
+    if let Some(backstop) = backstop
+        && state.turns as f64 >= backstop
+        && is_stuck(state, thr)
+    {
+        return Ok((
+            true,
+            format!(
+                "backstop:{}>={backstop:.0}turns stagnation={:.2}",
+                state.turns, state.stagnation
+            ),
+        ));
     }
     if let Some(judge) = judge {
         let over = envelope.is_some_and(|n| state.turns as f64 >= n)
@@ -110,10 +111,10 @@ pub fn assess_abort(
     if !is_stuck(state, thr) {
         return Ok((false, "not-stuck".into()));
     }
-    if let Some(envelope) = envelope {
-        if state.turns as f64 >= envelope {
-            return Ok((true, format!("envelope:{}>={envelope:.0}", state.turns)));
-        }
+    if let Some(envelope) = envelope
+        && state.turns as f64 >= envelope
+    {
+        return Ok((true, format!("envelope:{}>={envelope:.0}", state.turns)));
     }
     Ok((false, "stuck-but-within-envelope".into()))
 }

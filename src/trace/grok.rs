@@ -191,12 +191,12 @@ fn scan(path: &Path) -> Scan {
                 "args": update["rawInput"].as_object().cloned().map(Value::Object).unwrap_or(json!({}))}));
             events.push(("call".into(), update["toolCallId"].clone()));
         } else if kind == "tool_call_update" {
-            if let Some(call) = calls.get_mut(&key) {
-                if let Some(input) = update["rawInput"].as_object() {
-                    for (key, value) in input {
-                        if key != "variant" {
-                            call["args"][key] = value.clone();
-                        }
+            if let Some(call) = calls.get_mut(&key)
+                && let Some(input) = update["rawInput"].as_object()
+            {
+                for (key, value) in input {
+                    if key != "variant" {
+                        call["args"][key] = value.clone();
                     }
                 }
             }

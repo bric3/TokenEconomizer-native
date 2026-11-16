@@ -205,12 +205,11 @@ pub fn mcp_servers(env: &Value, home: &Path) -> BTreeSet<String> {
         .map(Path::to_path_buf)
         .unwrap_or_else(|| home.join(".copilot"));
     let mut names = BTreeSet::from(["github-mcp-server".into()]);
-    if let Ok(bytes) = std::fs::read(root.join("mcp-config.json")) {
-        if let Ok(config) = serde_json::from_slice::<Value>(&bytes) {
-            if let Some(servers) = config["mcpServers"].as_object() {
-                names.extend(servers.keys().cloned());
-            }
-        }
+    if let Ok(bytes) = std::fs::read(root.join("mcp-config.json"))
+        && let Ok(config) = serde_json::from_slice::<Value>(&bytes)
+        && let Some(servers) = config["mcpServers"].as_object()
+    {
+        names.extend(servers.keys().cloned());
     }
     names
 }

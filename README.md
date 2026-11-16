@@ -8,3 +8,5 @@ The port is in progress. The original implementation and tests are preserved in
 validation commands and the required order of work.
 
 The Apache-2.0 licence and upstream attribution are preserved.
+
+Build with Rust 1.89 or newer and a C compiler for bundled SQLite.

@@ -1,6 +1,7 @@
 use std::{
     fs::File,
-    io::{BufRead, BufReader},
+    io::{self, BufRead, BufReader, Bytes, Read},
+    iter::Peekable,
     path::Path,
 };
 
@@ -67,4 +68,89 @@ pub fn records(path: &Path) -> impl Iterator<Item = Value> {
     lines(path)
         .filter_map(|line| serde_json::from_str::<Value>(&line).ok())
         .filter(Value::is_object)
+}
+
+pub struct TextReader {
+    bytes: Peekable<Bytes<BufReader<File>>>,
+    skip_lf: bool,
+}
+
+impl TextReader {
+    pub fn open(path: &Path) -> io::Result<Self> {
+        Ok(Self {
+            bytes: BufReader::new(File::open(path)?).bytes().peekable(),
+            skip_lf: false,
+        })
+    }
+
+    fn read_char(&mut self) -> io::Result<Option<char>> {
+        let Some(first) = self.bytes.next().transpose()? else {
+            return Ok(None);
+        };
+        if first < 0x80 {
+            return Ok(Some(first as char));
+        }
+        let width = match first {
+            0xc2..=0xdf => 2,
+            0xe0..=0xef => 3,
+            0xf0..=0xf4 => 4,
+            _ => return Ok(Some('\u{fffd}')),
+        };
+        let mut bytes = [0; 4];
+        bytes[0] = first;
+        for (index, slot) in bytes.iter_mut().enumerate().take(width).skip(1) {
+            let Some(next) = self.bytes.peek() else {
+                return Ok(Some('\u{fffd}'));
+            };
+            let next = match next {
+                Ok(next) => *next,
+                Err(_) => {
+                    return self.bytes.next().unwrap().map(|_| None);
+                }
+            };
+            let valid = (0x80..=0xbf).contains(&next)
+                && (index != 1
+                    || match first {
+                        0xe0 => next >= 0xa0,
+                        0xed => next <= 0x9f,
+                        0xf0 => next >= 0x90,
+                        0xf4 => next <= 0x8f,
+                        _ => true,
+                    });
+            if !valid {
+                return Ok(Some('\u{fffd}'));
+            }
+            *slot = self.bytes.next().unwrap()?;
+        }
+        Ok(std::str::from_utf8(&bytes[..width])
+            .ok()
+            .and_then(|s| s.chars().next()))
+    }
+
+    pub fn readline(&mut self, limit: usize) -> io::Result<String> {
+        let mut out = String::new();
+        let mut n = 0;
+        while n < limit {
+            let Some(c) = self.read_char()? else {
+                break;
+            };
+            if self.skip_lf && c == '\n' {
+                self.skip_lf = false;
+                continue;
+            }
+            self.skip_lf = false;
+            let c = if c == '\r' {
+                self.skip_lf = true;
+                '\n'
+            } else {
+                c
+            };
+            out.push(c);
+            n += 1;
+            if c == '\n' {
+                break;
+            }
+        }
+        Ok(out)
+    }
 }

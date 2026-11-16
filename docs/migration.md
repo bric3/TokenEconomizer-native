@@ -35,12 +35,16 @@ complete while any runtime component delegates production behaviour to Python.
   mechanism configuration, guard decisions and the fact lifecycle's promotion,
   retirement, scoring and firing decisions.
 - Envelope calculations and Claude trace calls, usage, prompts, turns, safe
-  session IDs and deferred tools also execute in Rust. Persistence hooks and
-  Claude history metadata still need conversion.
+  session IDs and deferred tools also execute in Rust. Envelope persistence hooks
+  still need conversion.
 - Codex and Copilot calls, usage and metadata; Pi active branches and usage;
   opencode exports and run replies; Cursor hook traces; Antigravity incremental
   reads; and Grok updates and results now execute in Rust. The shared trajectory
   loader, working-directory alignment, tool usage and catalog selection are native.
+- Droid records, usage, prompt turns and discovery; Claude history discovery and
+  bounded metadata; and Hermes parsing, compression lineage and read-only SQLite
+  exports are now native. Further timestamp-format compatibility checks remain
+  part of the production-parity audit.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -50,8 +54,9 @@ complete while any runtime component delegates production behaviour to Python.
 ## Remaining production work
 
 - Complete fact lifecycle utilities, forgetting and atomic persistence.
-- Complete Claude history discovery and metadata, and the Droid and Hermes trace
-  readers. Their consumers still run through the reference plugin during migration.
+- Audit trace-reader edge cases, including the ISO timestamp formats accepted by
+  Python's `datetime.fromisoformat`. Trace consumers still run through the reference
+  plugin during migration.
 - Port command observation, environment facts, proposed facts and prefix stages.
 - Port tool-pruning evidence, Codex capabilities and pruning stages.
 - Port loop state, shell edits, turn tracking, judges and envelope persistence.
@@ -85,6 +90,26 @@ complete while any runtime component delegates production behaviour to Python.
   Counters record bridge entries; nested Rust calls stay inside the Rust process.
 - Java probes cover UTF-8 byte offsets across partial Antigravity records and
   vendor-cost rounding against `BigDecimal`'s exact value of the stored double.
+- Droid/history-focused run: 76 passed. Hermes-focused run: 67 passed, 6 skipped.
+- Full suite with native history and Hermes database access: 1,558 passed,
+  33 skipped. `validation/history-calls.json` records bridge calls for this phase.
+- The bridge probe checks oversized metadata records, character limits on emoji,
+  invalid UTF-8 replacement, the 200-line metadata cap and read-only access to a
+  missing Hermes database. The original Hermes tests check export redaction,
+  compression lineage, duplicate calls and auxiliary/subagent cost accounting.
+
+## Dependencies
+
+Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
+Rust 1.99.1. The SQLite wrapper requires the minimum Rust version change; its
+unused cache and WebAssembly default features are disabled. Clippy's conditional
+syntax fixes after that version change are part of the port, not one of the
+three requested simplification passes.
+
+[Chrono](https://docs.rs/chrono/0.4.45/chrono/) supplies calendar parsing and local
+timezone handling. [Rusqlite](https://docs.rs/rusqlite/0.43.0/rusqlite/) supplies
+SQLite connections opened explicitly with `SQLITE_OPEN_READ_ONLY` and a five-second
+busy timeout. The lockfile pins both libraries and their transitive dependencies.
 
 ## Validation
 
@@ -129,7 +154,8 @@ The bridge probe covers malformed-request recovery, pricing validation, Unicode
 character counts, JSON object filtering, all three text line endings and a
 redirect regression where a file is literally named `one file`. It also checks
 structured Cursor result text, partial-record offsets and decimal cost rounding. These
-are infrastructure checks; the upstream test suite is still the main driver.
+probes also cover metadata limits and read-only database access. The upstream
+test suite is still the main driver.
 
 IntelliJ has no open project for this checkout. Use Cargo's compiler, formatter
 and Clippy until IDE access becomes available.

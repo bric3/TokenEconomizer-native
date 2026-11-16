@@ -85,6 +85,33 @@ class BridgeProbe {
           throw new AssertionError("Cost rounding: " + value + " expected " + expected + ", received " + actual);
         }
       }
+
+      var metadata = "{\"sessionId\":\"right\",\"cwd\":\"/repo\",\"timestamp\":\"2026-01-01T00:00:00Z\",\"entrypoint\":\"cli\"}\n";
+      var headRequest = "{\"op\":\"trace.claude.claude_log_head\",\"args\":{\"path\":\"" + jsonPath + "\"}}";
+      var expectedHead = "{\"result\":{\"session_id\":\"right\",\"cwd\":\"/repo\",\"started\":1767225600.0,\"entrypoint\":\"cli\"}}";
+      Files.writeString(path, "{\"sessionId\":\"wrong\",\"padding\":\"" + "x".repeat((1 << 20) + 50) + "\"}\n" + metadata);
+      expect(input, output, headRequest, expectedHead);
+
+      // The reference reader's readline limit counts decoded characters, including emoji once.
+      Files.writeString(path, metadata.stripTrailing().replace("\"cwd\"", "\"padding\":\"" + "😀".repeat(300_000) + "\",\"cwd\"") + "\n");
+      expect(input, output, headRequest, expectedHead);
+
+      Files.writeString(path, "\n".repeat(200) + metadata);
+      expect(input, output, headRequest,
+          "{\"result\":{\"session_id\":null,\"cwd\":null,\"started\":null,\"entrypoint\":\"\"}}");
+
+      var invalid = metadata.replace("/repo", "/r@po").getBytes(StandardCharsets.UTF_8);
+      invalid[metadata.replace("/repo", "/r@po").indexOf('@')] = (byte) 0xff;
+      Files.write(path, invalid);
+      expect(input, output, headRequest, expectedHead.replace("/repo", "/r�po"));
+
+      var missingDatabase = directory.resolve("missing.db");
+      var databasePath = missingDatabase.toString().replace("\\", "\\\\").replace("\"", "\\\"");
+      expect(input, output, "{\"op\":\"trace.hermes.hermes_export\",\"args\":{\"db_path\":\"" + databasePath + "\",\"session_id\":\"s\",\"path\":\"" + jsonPath + "\"}}",
+          "{\"result\":false}");
+      if (Files.exists(missingDatabase)) {
+        throw new AssertionError("Reading a missing Hermes database created it");
+      }
     } finally {
       process.getOutputStream().close();
       if (!process.waitFor(10, TimeUnit.SECONDS)) {
@@ -98,7 +125,7 @@ class BridgeProbe {
     if (process.exitValue() != 0) {
       throw new AssertionError("Bridge exit code: " + process.exitValue());
     }
-    System.out.println("Bridge, pricing, Unicode, newline, incremental offset and cost rounding checks passed");
+    System.out.println("Bridge, pricing, trace offsets, rounding, bounded metadata and read-only database checks passed");
   }
 
   private static void expect(PrintWriter input, BufferedReader output, String request, String expected)

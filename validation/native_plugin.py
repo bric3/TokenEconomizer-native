@@ -53,6 +53,11 @@ def wrap(original, operation):
             arguments["home"] = os.path.expanduser("~")
             if arguments["env"] is None:
                 arguments["env"] = {"COPILOT_HOME": os.environ.get("COPILOT_HOME", "")}
+        if operation in ("trace.claude.claude_projects_dir", "trace.droid.droid_sessions"):
+            arguments["home"] = os.path.expanduser("~")
+            if arguments["env"] is None:
+                arguments["env"] = {key: os.environ.get(key, "") for key in (
+                    "CLAUDE_CONFIG_DIR", "HOME", "USERPROFILE", "DROID_SESSIONS_DIR")}
         if "servers" in arguments:
             arguments["servers"] = list(arguments["servers"])
         arguments = {name: os.fspath(value) if isinstance(value, os.PathLike) else value
@@ -98,6 +103,9 @@ def wrap(original, operation):
             return tuple(result)
         if operation in ("trace.pi.pi_json_reply", "trace.opencode.opencode_run_reply", "trace.opencode._load"):
             return tuple(result)
+        if operation in ("trace.hermes.hermes_tool", "trace.hermes.hermes_result", "trace.hermes._load",
+                         "trace.hermes.hermes_session_row"):
+            return tuple(result)
         if operation in ("trace.antigravity.antigravity_tool", "trace.antigravity.antigravity_result",
                          "trace.antigravity.antigravity_read"):
             return tuple(result)
@@ -107,6 +115,8 @@ def wrap(original, operation):
             return tuple(result) if result is not None else None
         if operation == "trace.catalog.catalog_sources":
             return [tuple(source) for source in result]
+        if operation == "trace.claude.claude_history_logs":
+            return [tuple(row) for row in result]
         if operation == "trace.codex._shell_patch_paths":
             return tuple(result)
         if operation == "trace.copilot.copilot_mcp_servers":
@@ -132,6 +142,14 @@ def pytest_configure(config):
         "loopguard.rules": ("scaled_thresholds", "gate_for_judge", "is_stuck", "nudge_text", "assess_abort"),
         "loopguard.envelope": ("_percentile", "thresholds", "base_thresholds"),
         "trace.jsonl": ("lines", "records"),
+        "trace.hermes": ("hermes_tool", "_json_object", "hermes_result", "_load", "_prompts", "_tool_calls",
+                         "_int", "_kept", "_private", "hermes_session_info", "hermes_prompt_count",
+                         "hermes_session_to_claude", "hermes_row_usage", "hermes_session_usage", "hermes_export",
+                         "hermes_session_row", "hermes_find_session"),
+        "trace.droid": ("claude_tool_name", "droid_records", "_epoch", "droid_session_header", "droid_session_cwd",
+                        "droid_log_head", "droid_safe_session_id", "_droid_is_prompt", "_droid_content", "_claude_line",
+                        "droid_prompt_count", "droid_prompt_turns", "droid_settings_path", "droid_session_to_claude",
+                        "droid_session_usage", "droid_sessions"),
         "trace.grok": ("grok_tool", "_bytes_text", "grok_result", "_content_text", "grok_session_to_claude",
                        "grok_prompt_count", "grok_session_usage", "grok_json_reply"),
         "trace.cursor": ("_response_text", "_exit_code", "cursor_events_to_claude", "cursor_prompt_count"),
@@ -153,6 +171,7 @@ def pytest_configure(config):
                           "copilot_session_usage", "copilot_turns", "copilot_prompt_count",
                           "copilot_mcp_servers", "mcp_server_of"),
         "trace.claude": ("claude_calls", "_is_prompt", "_is_notification",
+                         "_epoch", "claude_projects_dir", "claude_history_logs", "claude_log_head", "claude_tool_usage",
                          "claude_safe_session_id", "claude_project_folder", "claude_prompt_count",
                          "claude_prompt_turns", "claude_turn_interrupted", "claude_turn_answered",
                          "claude_subagent_files", "claude_session_usage", "claude_deferred_tools"),

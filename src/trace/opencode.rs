@@ -286,13 +286,12 @@ pub fn run_reply(stdout: &str) -> Result<(String, Option<Value>, String), String
             if let Some(response) = part["text"].as_str() {
                 text.push_str(response);
             }
-        } else if event["type"] == "step_finish" {
-            if let Some(usage) = usage(part)? {
-                let total = totals.get_or_insert_with(|| json!({}));
-                for (key, value) in usage.as_object().unwrap() {
-                    total[key] =
-                        (total[key].as_f64().unwrap_or(0.0) + value.as_f64().unwrap()).into();
-                }
+        } else if event["type"] == "step_finish"
+            && let Some(usage) = usage(part)?
+        {
+            let total = totals.get_or_insert_with(|| json!({}));
+            for (key, value) in usage.as_object().unwrap() {
+                total[key] = (total[key].as_f64().unwrap_or(0.0) + value.as_f64().unwrap()).into();
             }
         }
     }
