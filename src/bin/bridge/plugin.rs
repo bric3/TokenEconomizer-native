@@ -15,6 +15,8 @@ mod denylist_dispatch;
 mod fold_dispatch;
 #[path = "history.rs"]
 mod history_dispatch;
+#[path = "hosts.rs"]
+mod hosts_dispatch;
 #[path = "live_judge.rs"]
 mod judge_dispatch;
 #[path = "hookqueue.rs"]
@@ -94,14 +96,8 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
     if op.starts_with("context.") || op.starts_with("winspawn.") {
         return context_dispatch::dispatch(op, args);
     }
-    if op == "host_helpers.claude_success_code" {
-        return Ok(Some(json!(
-            tokeneconomizer::plugin::hosts::claude_success_code(
-                text(args, "name"),
-                &args["args"],
-                args.get("resp")
-            )?
-        )));
+    if op.starts_with("host_helpers.") {
+        return hosts_dispatch::dispatch(op, args).map(Some);
     }
     if op.starts_with("history.") {
         return history_dispatch::dispatch(op, args);

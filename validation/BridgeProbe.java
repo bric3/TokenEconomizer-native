@@ -45,6 +45,25 @@ class BridgeProbe {
           """, "{\"result\":2}");
 
       expect(input, output, """
+          {"op":"host_helpers.response_text","args":{"resp":[{"text":"é😀"},true,null],"cap":-5}}
+          """, "{\"result\":\"é😀\\nTrue\"}");
+      expect(input, output, """
+          {"op":"host_helpers.response_text","args":{"resp":{"stdout":"hidden","structuredPatch":null},"cap":20000}}
+          """, "{\"result\":\"\"}");
+      expect(input, output, """
+          {"op":"host_helpers._failure_response","args":{"p":{"error":"Exit code -7\\nfailed","tool_response":null}}}
+          """, "{\"result\":{\"error\":\"Exit code -7\\nfailed\",\"result_type\":\"failure\",\"exit_code\":-7}}");
+      expect(input, output, """
+          {"op":"host_helpers._exit_code","args":{"resp":{"exit_code":true,"metadata":{"exit_code":false}}}}
+          """, "{\"result\":false}");
+      expect(input, output, """
+          {"op":"host_helpers.merge_outputs","args":{"outputs":[{"hookSpecificOutput":{"additionalContext":"a","first":1},"_progress":["one"]},{"hookSpecificOutput":{"additionalContext":"b","last":2},"_progress":["two"]}]}}
+          """, "{\"result\":{\"hookSpecificOutput\":{\"additionalContext\":\"a\\n\\nb\",\"first\":1,\"last\":2},\"_progress\":[\"one\",\"two\"]}}");
+      expect(input, output, """
+          {"op":"host_helpers.merge_outputs","args":{"outputs":[{"_progress":"é😀"},{"_progress":{"key":1}}]}}
+          """, "{\"result\":{\"_progress\":[\"é\",\"😀\",\"key\"]}}");
+
+      expect(input, output, """
           {"op":"accounting.effective","args":{"usage":{"input_tokens":"garbage"}}}
           """, "{\"error\":\"pricing: input_tokens must be numeric\"}");
       expect(input, output, """

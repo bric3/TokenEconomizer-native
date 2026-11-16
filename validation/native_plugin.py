@@ -70,6 +70,8 @@ def wrap(original, operation):
             return history_call(operation, arguments)
         if operation.startswith("fold."):
             return fold_call(operation, arguments)
+        if operation.startswith("host_helpers."):
+            return host_call(operation, arguments)
         if operation.startswith(("context.", "winspawn.")):
             return context_call(operation, arguments)
         if operation == "trace.copilot.copilot_mcp_servers":
@@ -614,7 +616,7 @@ def pytest_configure(config):
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
         "plugin.history": ("_record_error", "read_state", "_num", "_stale", "_ledger_size", "_session_records", "_nothing_folded", "_live_folds", "_folded_by_import", "_refusal", "_identity", "is_this_repository", "_headless", "plan", "_still_eligible", "replay_envelope", "_update", "_save", "_say", "run", "_run_locked", "_import_one", "maybe_start", "notice", "summary", "describe"),
         "plugin.fold": ("_run_dir", "_microskills_config", "_fold_microskills", "forget_microskills", "enough_evidence", "_fold_toolprune", "_server_summary", "_fold_toolprune_codex", "unprotected", "_hold", "last_activity", "apply_pending", "schedule_pending", "import_blocks", "fold_session", "fold_locked", "pending_sessions", "spawn_fold"),
-        "plugin.hosts": ("claude_success_code",),
+        "plugin.hosts": ("claude_success_code", "response_text", "merge_outputs", "_failure_response", "_exit_code", "default_host", "detect"),
         "plugin.winspawn": ("_windowless_python", "spawn", "_spawn_wmi", "_run"),
         "plugin.paths": ("state_root", "secure_root", "launcher_path", "ensure_launcher", "home_dir", "_gitdir_of_file", "is_git_entry", "find_repo_root", "_git_common_dir", "origin_url", "normalize_remote", "_slug", "digest", "_main_checkout", "repo_identity", "repo_state_dir"),
         "plugin.repos": ("repos_dir", "_repo_dir", "_record_error", "_pin_store", "_pin_name", "_repo_from", "pinned", "pin", "prune_pins", "_legacy_root", "legacy_key", "_host_dirs", "_sessions", "_transcript_cwd", "session_cwd", "_imported", "_transcript_of", "_has_learned", "dir_label", "note_repo", "_write_lines", "_rename_label", "_take_learned", "_merge_applied", "_merge_envelope", "_merge_host", "merge_whole", "_resolve", "plan_dir", "_live", "migrate_dir", "_record_moves", "_candidates", "_prune_index", "adopt", "migrate_all", "merge", "needs_migration", "start_migration", "run_migration", "migration_notice", "refold_moved", "settle", "how_words", "describe", "ignored_git_entries", "listing", "home_git_note"),
@@ -893,6 +895,15 @@ def pytest_configure(config):
         setattr(context.LiveContext, name, wrap(getattr(context.LiveContext, name), "context." + name))
     context.LiveContext.mech_dir = property(wrap(context.LiveContext.mech_dir.fget, "context.mech_dir"))
 
+    from tokeneconomizer.plugin import hosts
+    constants = invoke("host_helpers.constants", {})
+    assert constants["RESULT_CAP"] == hosts.RESULT_CAP and constants["PROGRESS"] == hosts.PROGRESS
+    assert set(constants["HOSTS"]) == set(hosts.HOSTS)
+    for cls in (hosts.Host, *hosts.HOSTS.values()):
+        for name in ("tool_call", "session_id", "turn_key", "env_session_id", "is_subagent", "context", "notice", "relay", "stop_hint", "stopped_normally", "completed_at_end"):
+            if name in cls.__dict__:
+                setattr(cls, name, wrap(getattr(cls, name), "host_helpers." + name))
+
     from tokeneconomizer.loopguard.envelope import EnvelopeTracker
     EnvelopeTracker.__init__ = state_constructor(EnvelopeTracker, "envelope.new")
     EnvelopeTracker.update = wrap(EnvelopeTracker.update, "envelope.update")
@@ -963,6 +974,28 @@ def hookqueue_call(operation, arguments):
             reply = {"error": str(error), "error_kind": type(error).__name__}
         result = invoke("hookqueue.resume", {"job": result["job"], "reply": reply})
     return storage_result(result)
+
+
+def host_call(operation, arguments):
+    from tokeneconomizer.plugin import hosts
+    arguments = dict(arguments)
+    host = arguments.pop("self", None)
+    if operation in ("host_helpers.default_host", "host_helpers.detect"):
+        arguments["registered"] = list(hosts.HOSTS)
+    if host is not None:
+        arguments.update(host=host.name, interrupt=host.interrupt, end_run=host.end_run)
+    if "env" in arguments:
+        environment = arguments["env"]
+        if environment is None:
+            environment = os.environ if operation == "host_helpers.default_host" else {}
+        arguments["env"] = dict(environment)
+    for name, value in list(arguments.items()):
+        if isinstance(value, os.PathLike):
+            arguments[name] = os.fspath(value)
+    value = invoke(operation, arguments)
+    if operation == "host_helpers.detect":
+        return hosts.HOSTS[value]()
+    return tuple(value) if operation == "host_helpers.tool_call" else value
 
 
 def fold_call(operation, arguments):

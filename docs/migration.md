@@ -124,6 +124,12 @@ complete while any runtime component delegates production behaviour to Python.
   native. Imported sessions learn without proposing through a model or changing
   deny lists. Host transcript operations and runner selection remain callbacks;
   test-patched deny-list operations also cross the transport.
+- Host hook protocols now execute in Rust: host selection, session and turn IDs,
+  tool names and arguments, failure and exit-code parsing, response limits,
+  contexts, notices and output merging for all ten agents. Codex shell arguments
+  reuse the native command formatter; Grok and Hermes results reuse their trace
+  readers. Stateful host preparation, transcript access and runtime detection
+  remain pending.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -337,6 +343,17 @@ complete while any runtime component delegates production behaviour to Python.
   malformed-counter rejection and chronological pending sessions. The established
   bridge, context and queue probes, Clippy, formatting and the 256-file upstream
   integrity check pass. Complete native host and runner integration remains pending.
+- Host-protocol focused run: 513 passed, 14 skipped. Full suite with native host
+  protocols: 1,558 passed, 33 skipped (44.75 seconds).
+  `validation/host-protocol-calls.json` records
+  15,290 session IDs, 3,484 tool calls, 4,788 host selections and 499 output merges
+  reaching Rust. Nested response, trace and shell conversions stay native.
+- The original tests verify all ten agents' payloads, interrupted and failed tools,
+  patch paths, notice channels, host precedence and a temporarily registered adapter.
+  The bridge probe checks negative Unicode response limits, suppressing structured
+  patches, failure-code precedence, metadata booleans and merged contexts and progress.
+  Clippy, formatting and the 256-file upstream integrity check pass. Stateful host
+  behaviour, transcript orchestration and headless detection remain pending.
 
 ## Dependencies
 
