@@ -1,0 +1,1 @@
+Automated process checkpoint: a verification passed after the latest edit, but the session has returned to repository research. Preserve the validated patch and do not restart localization. Inspect `git diff`, run only the narrowest remaining final check needed for confidence, and finish if it stays green. Reopen the implementation only if that check exposes a concrete failure.

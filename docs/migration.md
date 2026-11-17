@@ -353,6 +353,13 @@ complete while any runtime component delegates production behaviour to Python.
   catalog, loop-state and tool-policy implementations. They implement the native
   tooling interface. The original Python classes serve as test bindings during
   migration; experiment orchestration remains in Python.
+- The experiment spiral stage and Codex controller now execute in Rust. The stage
+  freezes each task's guard parameters, records telemetry, advances generic and
+  Codex envelopes, and routes optional judge/writer calls through the native model
+  contract. The Codex controller parses shell patches before command results,
+  tracks failed verification scopes, selects deterministic nudges, and continues
+  only on a captured thread. Its iterator retains the source's lazy first-thread
+  behaviour. The original classes serve as data and callback bindings in tests.
 
 ## Remaining production work
 
@@ -374,8 +381,8 @@ complete while any runtime component delegates production behaviour to Python.
   in the path parity audit.
 - Include native OS arguments, environment values and paths outside UTF-8 in
   that audit. The CLI currently rejects them with a diagnostic.
-- Include history, folding, controller and host replay counters beyond i64 in the numeric
-  parity audit.
+- Include history, folding, controller, host replay and experiment counters beyond
+  i64 in the numeric parity audit.
 - Include CLI and ledger counts beyond i64 in the numeric parity audit.
 - Include `probe --sessions` integers outside i64 in that audit.
 - Include displayed tool counters in that audit, and audit CLI errors for malformed
@@ -390,7 +397,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Verify each host integration in its own runtime, including Windows launchers.
 - Include SDK JSON nesting, environment snapshots and exit-control packet bounds
   in the production-parity audit.
-- Port experiment production consumers, runner orchestration and
+- Port the experiment facade, generic nudge controller, task runners and
   supporting tools, preserving their original test contracts.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
@@ -995,6 +1002,21 @@ complete while any runtime component delegates production behaviour to Python.
   Original tests remain unchanged; no improvement pass is counted.
   Dataset IDs currently follow their documented string schemas; other JSON key
   types and exact parser diagnostics remain in the parity audit.
+- Codex spiral and shared-stage comparisons pass in 485 cases. They cover all
+  deterministic nudge rules, scope clearing, missing thread IDs, per-reason budgets,
+  continuation requests, lazy first-thread iteration, shell patch ordering, Unicode
+  filtered-test boundaries and case folding, failure signatures, envelope learning,
+  model-cost fallbacks, snapshot errors and combined telemetry. Eight nudge resources
+  match the pinned source exactly. The original spiral, facade and optimizer-contract
+  tests pass: 40 passed. The full original suite with installed-opencode tests enabled
+  passes with 1,561 passed and 30 skipped (70.69 seconds).
+  `validation/experiment-spiral-calls.json` records the native entries, including
+  182 iterator calls, 94 live monitor calls and 17 stage post-task calls. All nine
+  Rust library checks, debug/release builds, Clippy, formatting, the adapter's
+  127-case regression and the 256-file reference check pass. Original tests remain
+  unchanged. Integer-range and project-wide regex audits remain open; no improvement
+  pass is counted. The experiment facade, generic nudge controller and task runners
+  remain in Python.
 
 ## Dependencies
 
@@ -1116,6 +1138,7 @@ Small Java validation tools check the migration infrastructure:
 ```sh
 jbang validation/VerifyReference.java
 jbang validation/AdapterProbe.java
+jbang validation/SpiralProbe.java
 jbang validation/BridgeProbe.java
 jbang validation/QueueProbe.java
 jbang validation/ContextProbe.java

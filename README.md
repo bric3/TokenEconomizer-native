@@ -62,6 +62,7 @@ tool-result steering and notice policy in Rust.
 opencode v1 and v2 keep TypeScript bindings and run manuals, prompt turns,
 tool-result redirects and session exports in Rust.
 The four experiment dataset adapters also run in Rust and implement the native
-tooling interface.
+tooling interface. The experiment spiral stage and Codex continuation controller
+also run in Rust.
 
 Installed host verification and the remaining migration gates are still in progress.

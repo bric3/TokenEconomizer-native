@@ -1,0 +1,1 @@
+Automated process checkpoint: the task's own success check has now passed several times in a row with no change in between, so running it again will not add information. Preserve the current working state and continue this same session. If a concrete step remains, do the smallest one and check it once; otherwise finish now.

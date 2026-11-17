@@ -20,7 +20,10 @@ class AdapterProbe {
   static class Client implements AutoCloseable {
     final Process process; final PrintWriter input; final BufferedReader output;
     Client(Path checkout, boolean nativeCode) throws Exception {
-      var command = new java.util.ArrayList<>(List.of(checkout.resolve(".venv/bin/python").toString(), checkout.resolve("validation/adapter_host.py").toString()));
+      this(checkout, nativeCode, "adapter_host.py");
+    }
+    Client(Path checkout, boolean nativeCode, String host) throws Exception {
+      var command = new java.util.ArrayList<>(List.of(checkout.resolve(".venv/bin/python").toString(), checkout.resolve("validation").resolve(host).toString()));
       if (nativeCode) command.add("--native");
       process = new ProcessBuilder(command).directory(checkout.toFile()).redirectError(ProcessBuilder.Redirect.INHERIT).start();
       input = new PrintWriter(new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));

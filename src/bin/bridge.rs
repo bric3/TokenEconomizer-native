@@ -19,6 +19,8 @@ mod plugin_dispatch;
 mod prefix_dispatch;
 #[path = "bridge/proposer.rs"]
 mod proposer_dispatch;
+#[path = "bridge/experiment_spiral.rs"]
+mod spiral_dispatch;
 #[path = "bridge/storage.rs"]
 mod storage_dispatch;
 #[path = "bridge/tooling.rs"]
@@ -40,6 +42,9 @@ use tokeneconomizer::{
 
 fn dispatch(request: &Value) -> Result<Value, String> {
     let args = &request["args"];
+    if let Some(value) = spiral_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
+        return Ok(value);
+    }
     if let Some(value) = experiments_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)?
     {
         return Ok(value);

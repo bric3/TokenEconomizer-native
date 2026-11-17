@@ -2930,6 +2930,9 @@ def install_opencode_sdk(module):
 def pytest_collection_modifyitems(items):
     if "te_bench.adapters" in sys.modules:
         install_experiment_adapters()
+    if "te_bench.codex_spiral" in sys.modules or "te_bench.spiral_stage" in sys.modules:
+        from native_experiment_spiral import install
+        install()
     module = sys.modules.get("te_bench.baselines.repomap")
     if module is not None:
         module.GEN = str(ROOT / "validation/native_repomap_gen.py")
