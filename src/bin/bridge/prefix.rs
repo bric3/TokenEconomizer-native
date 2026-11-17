@@ -32,7 +32,7 @@ fn layers_data(layers: &FactLayers) -> Value {
     json!({"env":layers.env,"dist":layers.dist.as_ref().map(proposer_dispatch::data)})
 }
 
-fn prefix_data(prefix: &PrefixStage) -> Value {
+pub(super) fn prefix_data(prefix: &PrefixStage) -> Value {
     json!({"results_root":prefix.results_root,"reason":prefix.reason,"distiller":layers_data(&prefix.distiller)})
 }
 

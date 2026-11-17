@@ -678,7 +678,7 @@ impl CodexUntoolProfile {
             };
             self.transition(kind, &[probe.into()], reason, pending["task_id"].clone())?;
         }
-        let newly = self.eligible_demotions(&current, &protected);
+        let mut newly = self.eligible_demotions(&current, &protected);
         current.extend(newly.iter().cloned());
         current.retain(|c| !protected.contains(c) && CANDIDATE_CAPABILITIES.contains(&c.as_str()));
         self.state["tasks_completed"] = json!(number(&self.state, "tasks_completed", 0)? + 1);
@@ -696,6 +696,7 @@ impl CodexUntoolProfile {
             "completed-use-permanently-protected",
             pending["task_id"].clone(),
         )?;
+        newly.sort();
         let record = json!({"task_id":pending["task_id"],"audit":truthy(&pending["audit"]),"reason":pending["reason"],"logical_capabilities":logical,"config_capabilities":pending["config_capabilities"],
             "relay_capabilities":pending["relay_capabilities"],"task_hints":pending["task_hints"],"probe_capability":pending["probe_capability"],"probe_reason":pending["probe_reason"],"resolved":resolved,
             "loaded_capabilities":loaded,"attempted":counts["attempted"],"completed":counts["completed"],"failed":counts["failed"],"newly_pruned":newly,"mask_after":self.state["current_pruned"]});

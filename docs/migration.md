@@ -352,7 +352,7 @@ complete while any runtime component delegates production behaviour to Python.
   entries, select domain prompts and vocabularies, and reuse the native trace,
   catalog, loop-state and tool-policy implementations. They implement the native
   tooling interface. The original Python classes serve as test bindings during
-  migration; experiment orchestration remains in Python.
+  migration; benchmark task execution remains in Python.
 - The experiment spiral stage and Codex controller now execute in Rust. The stage
   freezes each task's guard parameters, records telemetry, advances generic and
   Codex envelopes, and routes optional judge/writer calls through the native model
@@ -365,6 +365,12 @@ complete while any runtime component delegates production behaviour to Python.
   decisions, and builds continuation prompts. Continuation resets the segment
   state while retaining cumulative turns, costs and history. Its cumulative
   backstop aborts immediately, including when nudge budget remains.
+- The experiment facade now constructs and owns the native prefix, tooling and
+  spiral stages. It resolves each stage's optimizer runner only when required,
+  retains the selected runners, merges per-task parameters and processes results
+  in tooling, spiral, injection order. It supports the native dataset adapters
+  and custom adapters through their shared domain interface. The original facade
+  class serves as a data and callback binding during migration.
 
 ## Remaining production work
 
@@ -404,8 +410,10 @@ complete while any runtime component delegates production behaviour to Python.
 - Verify each host integration in its own runtime, including Windows launchers.
 - Include SDK JSON nesting, environment snapshots and exit-control packet bounds
   in the production-parity audit.
-- Port the experiment facade, task runners and
-  supporting tools, preserving their original test contracts.
+- Audit configuration reference sharing and mutations made by callbacks in the
+  original API alongside the remaining production parity checks.
+- Port the task runners and supporting tools, preserving their original test
+  contracts.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
 
@@ -1040,6 +1048,23 @@ complete while any runtime component delegates production behaviour to Python.
   remain unchanged. No improvement pass is counted. The facade and task runners
   remain in Python; numeric limits and malformed-input diagnostics remain in the
   production-parity audit.
+- Experiment-facade comparisons pass in 87 cases. They cover bare and protocol
+  runners, lazy factories, separate stage runners, every spiral callback flag
+  combination, proposer cadence during construction and errors, default/custom
+  adapters, all three injection profiles, persisted-state reloads, configuration
+  changes, stage failure order, model costs and combined summaries. Codex
+  `newly_pruned` telemetry now sorts its selected capabilities as the source does.
+  A Rust check drives all three concrete stages and verifies their post-task order
+  and saved state without Python. The focused original tests pass: 90 passed.
+  The full original suite with installed-opencode tests enabled passes with
+  1,561 passed and 30 skipped (68.58 seconds).
+  `validation/experiment-facade-calls.json` records the original suite's native
+  entries, including 27 facade post-task transport entries. All 12 Rust library
+  checks, the callback replay check, debug/release builds, Clippy, formatting,
+  the 485-case spiral regression, 127-case adapter regression, 88-case nudge
+  regression and 256-file reference check pass. Original tests remain unchanged.
+  No improvement pass is counted. Task runners and production-parity audits remain
+  open.
 
 ## Dependencies
 
@@ -1163,6 +1188,7 @@ jbang validation/VerifyReference.java
 jbang validation/AdapterProbe.java
 jbang validation/SpiralProbe.java
 jbang validation/NudgeProbe.java
+jbang validation/FacadeProbe.java
 jbang validation/BridgeProbe.java
 jbang validation/QueueProbe.java
 jbang validation/ContextProbe.java

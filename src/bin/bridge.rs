@@ -5,6 +5,8 @@ use std::path::Path;
 mod callback;
 #[path = "bridge/experiments.rs"]
 mod experiments_dispatch;
+#[path = "bridge/experiment_facade.rs"]
+mod facade_dispatch;
 #[path = "bridge/guard.rs"]
 mod guard_dispatch;
 #[path = "bridge/hermes.rs"]
@@ -44,6 +46,9 @@ use tokeneconomizer::{
 
 fn dispatch(request: &Value) -> Result<Value, String> {
     let args = &request["args"];
+    if let Some(value) = facade_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
+        return Ok(value);
+    }
     if let Some(value) = nudge_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
         return Ok(value);
     }

@@ -19,7 +19,18 @@ pub(super) fn failure(error: String) -> Value {
     let (kind, message) = error
         .split_once(": ")
         .filter(|(kind, _)| {
-            ["TypeError", "AttributeError", "IndexError", "ValueError"].contains(kind)
+            [
+                "TypeError",
+                "AttributeError",
+                "IndexError",
+                "ValueError",
+                "RuntimeError",
+                "OSError",
+                "FileNotFoundError",
+                "PermissionError",
+                "KeyError",
+            ]
+            .contains(kind)
         })
         .unwrap_or(("ValueError", &error));
     json!({"raised":kind,"message":message})

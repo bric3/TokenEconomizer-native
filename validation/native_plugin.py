@@ -2928,6 +2928,9 @@ def install_opencode_sdk(module):
 
 
 def pytest_collection_modifyitems(items):
+    if "te_bench.facade" in sys.modules:
+        from native_experiment_facade import install
+        install()
     if "te_bench.nudge_guard" in sys.modules:
         from native_experiment_nudge import install
         install()

@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::BTreeSet, path::Path};
+use std::{cell::RefCell, collections::BTreeSet, ops::Deref, path::Path};
 
 use serde_json::{Map, Value, json};
 use tokeneconomizer::{
@@ -86,16 +86,16 @@ fn codex_dispatch(op: &str, args: &Value) -> Result<Value, String> {
     })
 }
 
-struct AdapterTransport<'a>(&'a RefCell<CallbackTape>);
-impl AdapterTransport<'_> {
-    fn call(&self, method: &str, args: Value) -> Result<Value, String> {
+pub(super) struct AdapterTransport<T: Deref<Target = RefCell<CallbackTape>>>(pub(super) T);
+impl<T: Deref<Target = RefCell<CallbackTape>>> AdapterTransport<T> {
+    pub(super) fn call(&self, method: &str, args: Value) -> Result<Value, String> {
         self.0
             .borrow_mut()
             .call(json!({"callback":"adapter","method":method,"args":args}))
             .map(|reply| reply["value"].clone())
     }
 }
-impl ToolingAdapter for AdapterTransport<'_> {
+impl<T: Deref<Target = RefCell<CallbackTape>>> ToolingAdapter for AdapterTransport<T> {
     fn protected_tools(&mut self) -> Result<ProtectedTools, String> {
         let value = self.call("protected_tools", json!([]))?;
         serde_json::from_value(if value.is_array() {
