@@ -1,4 +1,6 @@
-use super::{context::LiveContext, hosts::session::Environment, sidecall};
+pub mod generator;
+
+use super::{context::LiveContext, hosts::session::Environment, process, sidecall};
 use crate::value::{json_pretty, round_decimal, scalar_text, truthy};
 use regex::Regex;
 use serde_json::{Map, Value, json};
@@ -16,6 +18,15 @@ pub const REFRESH_TIMEOUT_S: f64 = 900.;
 
 pub trait Runtime: sidecall::Runtime {
     fn spawn(&mut self, args: &[&str], log: &str) -> Result<Value, String>;
+    fn run_generator(
+        &mut self,
+        argv: &[String],
+        cwd: &Path,
+        env: &Map<String, Value>,
+        timeout: f64,
+    ) -> std::io::Result<process::Output> {
+        process::run_group(argv, cwd, env, timeout)
+    }
 }
 pub struct RepoMap<'a> {
     pub ctx: &'a LiveContext,
@@ -195,17 +206,21 @@ impl RepoMap<'_> {
         timeout: f64,
         runtime: &mut R,
     ) -> Result<(String, String), String> {
+        let workspace = sidecall::WorkDir::new("te-repomap-").map_err(|e| e.to_string())?;
         let cmd = [
-            python.into(),
             self.generator.to_string_lossy().into_owned(),
+            "--python".into(),
+            python.into(),
             self.ctx.repo.root.to_string_lossy().into_owned(),
             scalar_text(&self.ctx.config["repomap_tokens"]),
             idents.join(","),
             "--git".into(),
             "--cache".into(),
             self.cache_dir().to_string_lossy().into_owned(),
+            "--workspace".into(),
+            workspace.path().to_string_lossy().into_owned(),
         ];
-        let out = match runtime.run(&cmd, &self.ctx.repo.root, &self.gen_env(), None, timeout) {
+        let out = match runtime.run_generator(&cmd, &self.ctx.repo.root, &self.gen_env(), timeout) {
             Ok(out) => out,
             Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
                 return Ok(("".into(), format!("timed out after {timeout}s")));

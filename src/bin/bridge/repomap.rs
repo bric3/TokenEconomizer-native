@@ -4,10 +4,25 @@ use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 use tokeneconomizer::plugin::{
     hosts::session::Environment,
+    process,
     repomap::{self, RepoMap},
+    sidecall::Runtime,
 };
 
 impl repomap::Runtime for Transport {
+    fn run_generator(
+        &mut self,
+        argv: &[String],
+        cwd: &Path,
+        env: &serde_json::Map<String, Value>,
+        timeout: f64,
+    ) -> std::io::Result<process::Output> {
+        if self.flags["run"] == true {
+            self.run(argv, cwd, env, None, timeout)
+        } else {
+            process::run_group(argv, cwd, env, timeout)
+        }
+    }
     fn spawn(&mut self, args: &[&str], log: &str) -> Result<Value, String> {
         let reply = self.channel.call("spawn", json!([args, log]))?;
         self.response_error(&reply)?;

@@ -735,6 +735,7 @@ def pytest_configure(config):
     assert constants["JUDGE_SCHEMA"] == sidecall.JUDGE_SCHEMA
     assert constants["ROLE_SCHEMAS"] == sidecall.ROLE_SCHEMAS
     from tokeneconomizer.plugin import repomap
+    repomap.GEN = str(ROOT / "validation/native_repomap_gen.py")
     constants = invoke("repomap.constants", {})
     for name, value in constants.items():
         assert value == getattr(repomap, name)
@@ -1249,7 +1250,7 @@ def repomap_call(operation, arguments):
     if ctx is not None:
         arguments["ctx"] = context_data(ctx)
     arguments.update(process_env=dict(os.environ), process_cwd=os.getcwd(), home=os.path.expanduser("~"),
-                     generator=repomap.GEN, interpreter=sys.executable,
+                     generator=str(ROOT / "target/debug/te-repomap-gen"), interpreter=sys.executable,
                      transport={"run": subprocess.run is not NATIVE_SPAWN_FUNCTIONS["run"]})
     for name, value in tuple(arguments.items()):
         if isinstance(value, os.PathLike):
@@ -2297,6 +2298,12 @@ def config_from_args(cls, args):
     return cls(injection=InjectionConfig(**result["injection"]),
                tooling=ToolingConfig(**result["tooling"]),
                spiral=SpiralConfig(**result["spiral"]))
+
+
+def pytest_collection_modifyitems():
+    module = sys.modules.get("te_bench.baselines.repomap")
+    if module is not None:
+        module.GEN = str(ROOT / "validation/native_repomap_gen.py")
 
 
 def pytest_sessionfinish(session, exitstatus):

@@ -221,6 +221,28 @@ pub fn run_input(
     )
 }
 
+pub fn run_group(
+    argv: &[String],
+    cwd: &Path,
+    env: &Map<String, Value>,
+    timeout: f64,
+) -> io::Result<Output> {
+    capture_options(command(argv, cwd, Some(env), 0)?, Some(timeout), None, true)
+}
+pub fn run_unbounded(
+    argv: &[String],
+    cwd: &Path,
+    env: &Map<String, Value>,
+    input: Option<&str>,
+) -> io::Result<Output> {
+    capture_options(
+        command(argv, cwd, Some(env), 0)?,
+        None,
+        input.map(|s| s.as_bytes().to_vec()),
+        false,
+    )
+}
+
 pub fn spawn_logged(
     argv: &[String],
     cwd: &Path,
@@ -292,13 +314,38 @@ fn exit_code(status: std::process::ExitStatus) -> i32 {
 fn capture(command: Command, timeout: f64) -> io::Result<Output> {
     capture_input(command, timeout, None)
 }
-fn capture_input(mut command: Command, timeout: f64, input: Option<Vec<u8>>) -> io::Result<Output> {
+fn capture_input(command: Command, timeout: f64, input: Option<Vec<u8>>) -> io::Result<Output> {
+    capture_options(command, Some(timeout), input, false)
+}
+fn capture_options(
+    mut command: Command,
+    timeout: Option<f64>,
+    input: Option<Vec<u8>>,
+    group: bool,
+) -> io::Result<Output> {
     enum PipeResult {
         Input(io::Result<()>),
         Stdout(io::Result<Vec<u8>>),
         Stderr(io::Result<Vec<u8>>),
     }
-    let timeout = Duration::try_from_secs_f64(timeout).map_err(io::Error::other)?;
+    let timeout = timeout
+        .map(Duration::try_from_secs_f64)
+        .transpose()
+        .map_err(io::Error::other)?;
+    #[cfg(unix)]
+    if group {
+        use std::os::unix::process::CommandExt;
+        // Generator subprocesses share this group so a deadline also stops the SDK and Git.
+        unsafe {
+            command.pre_exec(|| {
+                if libc::setsid() < 0 {
+                    Err(io::Error::last_os_error())
+                } else {
+                    Ok(())
+                }
+            });
+        }
+    }
     command
         .stdin(if input.is_some() {
             Stdio::piped()
@@ -357,8 +404,11 @@ fn capture_input(mut command: Command, timeout: f64, input: Option<Vec<u8>>) -> 
                     stderr: text(err),
                 });
             }
-            let Some(remaining) = timeout.checked_sub(started.elapsed()) else {
-                return Err(io::Error::new(io::ErrorKind::TimedOut, "command timed out"));
+            let remaining = match timeout {
+                Some(timeout) => timeout
+                    .checked_sub(started.elapsed())
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::TimedOut, "command timed out"))?,
+                None => Duration::from_millis(10),
             };
             match receive.recv_timeout(remaining.min(Duration::from_millis(10))) {
                 Ok(PipeResult::Stdout(result)) => out = Some(result?),
@@ -375,6 +425,9 @@ fn capture_input(mut command: Command, timeout: f64, input: Option<Vec<u8>>) -> 
         }
     })();
     if result.is_err() {
+        if group {
+            let _ = kill_probe_group(child.id(), cfg!(windows));
+        }
         let _ = child.kill();
         let _ = child.wait();
     }

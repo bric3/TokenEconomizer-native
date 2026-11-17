@@ -6,6 +6,8 @@ persistent state, hook processing, CLI, agent integrations, packaging tools and
 experiment runners and adapters. Preserve observable behaviour, state formats,
 error recovery and integration contracts. Host SDK entry points may require a
 small adapter in the host's language; economizer processing belongs in Rust.
+The optional aider library remains an external dependency. Its binding translates
+values and invokes the SDK; repository-map policy and file selection belong in Rust.
 Reference experiment code remains a compatibility consumer until its corresponding
 production modules are ported.
 
@@ -213,9 +215,15 @@ complete while any runtime component delegates production behaviour to Python.
 - Repository-map state and orchestration now execute in Rust: shared cache paths,
   atomic state writes, commit and token-budget freshness, interpreter discovery,
   first-prompt identifiers, bounded generator calls, cached fallback and refresh
-  scheduling. A failed refresh preserves the prior map and its commit. The
-  configured generator retains its upstream command interface; its file selection
-  and aider bootstrap remain pending.
+  scheduling. A failed refresh preserves the prior map and its commit.
+- The repository-map generator now runs through `te-repomap-gen`. Rust parses its
+  options, normalises Unicode decimal budgets and selects tracked or walked files.
+  Git mode filters generated and vendored assets and caps file sizes; walk mode
+  preserves the upstream Python-file rules. Rust passes the selected files,
+  identifiers and cache directory to aider. The embedded Python
+  binding only calls that optional SDK and separates console output from map text.
+  The live generator call's deadline terminates its process group and removes its
+  private workspace.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -243,8 +251,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit temporary-directory cleanup against Python's permission-repair retries,
   including native Windows behaviour. Current removal uses `remove_dir_all`.
 - Integrate the native controller and host operations into CLI and hooks.
-- Port the repository-map generator's file selection and aider handoff.
-  Port end-to-end model probes, CLI commands and hooks.
+- Port end-to-end model probes, CLI commands and hooks.
   Verify each host integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
   supporting tools, preserving their original test contracts.
@@ -592,6 +599,17 @@ complete while any runtime component delegates production behaviour to Python.
   preserved caches and refresh scheduling. Clippy, formatting and all 256 reference
   files pass. The real aider generator is skipped because aider is not installed;
   its production helper still needs conversion.
+- Generator-focused run: 43 passed, 2 skipped. Full suite with the native generator:
+  1,558 passed, 33 skipped (51.19 seconds).
+  `validation/repomap-generator-calls.json` records native entries. Both plugin and
+  experiment test transports select the native generator.
+  `GeneratorProbe.java` compares requests against the unchanged original generator
+  using an isolated SDK fixture. It covers tracked and walked files, minified and
+  vendored assets, size boundaries, Unicode and newline filenames, symlinks,
+  decimal budgets beyond i64, console routing, SDK failures and signal status.
+  The timeout case checks SDK descendant termination and workspace removal.
+  The orchestration and subprocess-input probes, Clippy, formatting and all 256
+  reference files pass. Real aider execution and native Windows remain unverified.
 
 ## Dependencies
 
@@ -647,8 +665,9 @@ PYTHONPATH=validation .venv/bin/python -m pytest -p native_plugin \
 
 `validation/native_plugin.py` only transports calls and adapts Python values to
 JSON. `te-bridge` is the development test transport; the user-facing CLI and
-hooks are still pending. Python is needed for the original test driver during
-this phase, and will not be a runtime dependency of the finished port.
+hooks are still pending. Python is needed for the original test driver and for
+the optional external aider installation. Core CLI and hook processing will run
+in Rust.
 
 The adapter also transports judge callbacks requested by Rust. It records both
 assessment requests when a callback is required; those counts are transport
@@ -696,6 +715,7 @@ jbang validation/RunnerProbe.java
 jbang validation/ToolcheckProbe.java
 jbang validation/DiscoveryProbe.java
 jbang validation/RepoMapProbe.java
+jbang validation/GeneratorProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 

@@ -23,3 +23,7 @@ toml = { version = "1", default-features = false, features = ["parse", "serde"] 
 [[bin]]
 name = "te-bridge"
 path = "src/bin/bridge.rs"
+
+[[bin]]
+name = "te-repomap-gen"
+path = "src/bin/repomap_gen.rs"

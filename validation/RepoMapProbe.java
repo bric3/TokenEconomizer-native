@@ -17,7 +17,7 @@ class RepoMapProbe {
     return "{\"base\":" + quote(root.resolve("state/project/claude")) + ",\"repo\":{\"root\":" + quote(root.resolve("repo with space")) + ",\"key\":\"project\",\"label\":\"project\",\"remote\":\"\"},\"config\":{\"repomap_python\":" + quote(python) + ",\"repomap_tokens\":2048,\"repomap_timeout\":1},\"env\":{\"PROBE_ROOT\":" + quote(root) + ",\"PYTHONPATH\":\"must be removed\"" + (sync ? ",\"TE_FOLD_SYNC\":\"1\"" : "") + "}}";
   }
   static String common(Path root, String python, boolean sync) {
-    return "\"ctx\":" + context(root,python,sync) + ",\"process_cwd\":" + quote(root) + ",\"home\":" + quote(root) + ",\"process_env\":{\"GIT_CEILING_DIRECTORIES\":" + quote(root) + "},\"generator\":\"generator's body.py\",\"interpreter\":" + quote(root.resolve("good"));
+    return "\"ctx\":" + context(root,python,sync) + ",\"process_cwd\":" + quote(root) + ",\"home\":" + quote(root) + ",\"process_env\":{\"GIT_CEILING_DIRECTORIES\":" + quote(root) + "},\"generator\":" + quote(Path.of("target/debug/te-repomap-gen").toAbsolutePath()) + ",\"interpreter\":" + quote(root.resolve("good"));
   }
   static void fixture(String[] args) throws Exception {
     var root = Path.of(System.getenv("PROBE_ROOT"));
@@ -30,7 +30,7 @@ class RepoMapProbe {
       if (mode.equals("bad")) System.exit(1);
       return;
     }
-    require(argv.size() == 7 && argv.getFirst().equals("generator's body.py") && argv.get(2).equals("2048") && argv.get(4).equals("--git") && argv.get(5).equals("--cache"),argv.toString());
+    require(argv.size() == 7 && Path.of(argv.getFirst()).getFileName().toString().equals("aider_sdk.py") && Files.exists(Path.of(argv.getFirst())) && argv.get(2).equals("2048") && argv.get(4).equals("--git") && argv.get(5).equals("--cache"),argv.toString());
     require(Files.isSameFile(Path.of(""),root.resolve("repo with space")), "Generator cwd changed");
     require(Path.of(argv.getLast()).equals(root.resolve("state/project/repomap-tags")), "Tags cache entered the repository");
     Files.writeString(root.resolve("pid"),Long.toString(ProcessHandle.current().pid()));
