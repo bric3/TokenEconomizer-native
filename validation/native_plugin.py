@@ -74,6 +74,8 @@ def wrap(original, operation):
         arguments = dict(bound.arguments)
         if operation.startswith("hook."):
             return hook_call(operation, arguments)
+        if operation.startswith("cli."):
+            return cli_call(operation, arguments)
         if operation.startswith("hookqueue."):
             return hookqueue_call(operation, arguments)
         if operation.startswith("history."):
@@ -633,6 +635,7 @@ def pytest_configure(config):
         "plugin.toolcheck": ("_request_tools", "_prompt_tokens", "_codex_prompt_chars", "_copilot_version", "verify_codex", "verify_copilot", "measure", "copilot_capture", "_init_tools", "_kill_tree", "refresh_catalog"),
         "plugin.repomap": ("_repo_dir", "_state_path", "_cache_dir", "read_state", "_write_state", "head_commit", "_has_aider", "_aider_command_python", "find_python", "_gen_env", "generate", "refresh", "stale", "spawn_refresh", "cached_block", "prompt_idents", "for_prompt"),
         "plugin.hook": ("_truthy", "run", "_record_error", "main"),
+        "plugin.cli": ("_split_argline", "_expand_argline", "_unwritable", "_refuse_unwritable", "_config_view", "_status_explanations", "_session_note", "_proposal", "cmd_status", "cmd_config"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
@@ -988,6 +991,78 @@ def pytest_configure(config):
     NATIVE_HOOK_HOSTS = {name: {method: getattr(cls, method, None) for method in (
         "cwd", "session_id", "prepare", "record_event", "expand", "render")}
         for name, cls in hosts.HOSTS.items()}
+
+
+def cli_call(operation, arguments):
+    from types import SimpleNamespace
+    from tokeneconomizer.plugin import cli, sidecall, denylist, history, repomap
+    from tokeneconomizer.plugin.context import LiveContext
+    arguments = dict(arguments)
+    ctx = arguments.get("ctx")
+    host = getattr(ctx, "host", None)
+    if "args" in arguments:
+        arguments["args"] = {key: value for key, value in vars(arguments["args"]).items() if key != "fn"}
+    if "ctx" in arguments:
+        arguments["ctx"] = context_data(ctx)
+    if "cfg" in arguments:
+        arguments["cfg"] = dataclasses.asdict(arguments["cfg"])
+    if "tracker" in arguments:
+        arguments["tracker"] = vars(arguments["tracker"])
+    if operation == "cli._session_note":
+        arguments["env"] = dict(os.environ if arguments["env"] is None else arguments["env"])
+    if operation == "cli._expand_argline" and arguments["argv"] is None:
+        arguments["argv"] = sys.argv[1:]
+    if "path" in arguments:
+        arguments["path"] = os.fspath(arguments["path"])
+        if operation == "cli._unwritable":
+            arguments["path"] = os.path.abspath(arguments["path"])
+    arguments.update(pid=os.getpid(), argv=arguments.get("argv", sys.argv[1:]))
+    result = invoke(operation, arguments)
+    while isinstance(result, dict) and result.get("callback") == "cli":
+        method, args = result["method"], result["args"]
+        if method == "pending":
+            result = invoke("cli.resume", {"job": result["job"]})
+            continue
+        try:
+            if method == "context":
+                ctx = cli._ctx(SimpleNamespace(**args))
+                host = ctx.host
+                value = context_data(ctx)
+            elif method == "say":
+                print(args)
+                value = None
+            elif method == "unwritable":
+                value = cli._unwritable(*args)
+            elif method == "service":
+                data, name, params = args
+                if ctx is None:
+                    ctx = LiveContext.__new__(LiveContext)
+                restore_context(ctx, data, host)
+                if name == "session_note":
+                    value = cli._session_note(ctx)
+                elif name == "paused":
+                    value = sidecall.paused(host.name, ctx.root)
+                elif name == "proposal":
+                    value = cli._proposal(ctx, *params)
+                elif name == "applied":
+                    value = denylist.applied_for(ctx.store, ctx.repo.root, host.name)
+                elif name == "history_summary":
+                    value = history.summary(ctx)
+                elif name == "repomap_state":
+                    value = repomap.read_state(ctx)
+                elif name == "resume":
+                    value = sidecall.resume(host.name, ctx.root)
+                elif name == "call_name":
+                    value = sidecall.call_name(host.name)
+                else:
+                    value = getattr(cli, name if name != "refuse_unwritable" else "_refuse_unwritable")(*params)
+            else:
+                raise AssertionError("Unknown CLI callback: " + method)
+            reply = {"value": value}
+        except Exception as error:
+            reply = {"error": str(error), "kind": type(error).__name__}
+        result = invoke("cli.resume", {"job": result["job"], "reply": reply})
+    return storage_result(result)
 
 
 def hook_call(operation, arguments):

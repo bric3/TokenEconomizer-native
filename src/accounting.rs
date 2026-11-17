@@ -42,10 +42,10 @@ pub fn summarize(records: &[Value]) -> Result<Value, String> {
     let mut priced_sessions = 0;
     let mut exec_total = 0.0;
     let mut oh_total = 0.0;
-    let mut requests = 0.0;
-    let mut nudges = 0.0;
-    let mut aborts = 0.0;
-    let mut turns = 0.0;
+    let mut requests = 0i64;
+    let mut nudges = 0i64;
+    let mut aborts = 0i64;
+    let mut turns = 0i64;
     let mut injected_sessions = 0;
     for record in records.iter().filter(|r| r.is_object()) {
         let session = record["kind"] == "session";
@@ -66,11 +66,26 @@ pub fn summarize(records: &[Value]) -> Result<Value, String> {
             priced_sessions += 1;
             exec_total += effective;
         }
-        let count = |key: &str| integer(&record[key]).ok_or_else(|| format!("invalid {key} count"));
-        requests += count("requests")?;
-        nudges += count("nudges")?;
-        aborts += count("aborts")?;
-        turns += count("turns")?;
+        let add = |total: i64, key: &str| {
+            let value = &record[key];
+            // shortcut: ledger counts use i64, extend their range in the production numeric audit.
+            let count = value
+                .as_i64()
+                .or_else(|| value.as_str().and_then(|s| s.trim().parse().ok()))
+                .or_else(|| {
+                    integer(value)
+                        .filter(|n| *n >= i64::MIN as f64 && *n < -(i64::MIN as f64))
+                        .map(|n| n as i64)
+                })
+                .ok_or_else(|| format!("invalid {key} count"))?;
+            total
+                .checked_add(count)
+                .ok_or_else(|| format!("{key} count exceeds i64"))
+        };
+        requests = add(requests, "requests")?;
+        nudges = add(nudges, "nudges")?;
+        aborts = add(aborts, "aborts")?;
+        turns = add(turns, "turns")?;
         if truthy(&record["injected_chars"]) {
             injected_sessions += 1;
         }

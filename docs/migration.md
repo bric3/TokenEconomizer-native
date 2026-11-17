@@ -229,6 +229,13 @@ complete while any runtime component delegates production behaviour to Python.
   UTF-8 input, disable flags, event arguments, progress lines and error logging.
   The original hook tests enter the native lifecycle through the test transport.
   Controller service wiring and the standalone hook executable remain pending.
+- CLI status and configuration processing now execute in Rust: saved-state totals,
+  explanations, configuration grouping, updates and rejections, write checks,
+  session-location notices, proposal filtering and quoted argument-line expansion.
+  Ledger counts remain integers when aggregated, including values above 2^53;
+  checked addition reports counts outside the current i64 range.
+  Other CLI commands, argument-parser wiring and the main CLI and hook executables
+  remain pending.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -251,6 +258,7 @@ complete while any runtime component delegates production behaviour to Python.
   in the path parity audit.
 - Include history, folding, controller and host replay counters beyond i64 in the numeric
   parity audit.
+- Include CLI and ledger counts beyond i64 in the numeric parity audit.
 - Include side-call usage beyond i128 in the numeric parity audit.
 - Include tool-measurement totals and savings outside JSON's i64/u64 range in the
   numeric parity audit.
@@ -624,6 +632,16 @@ complete while any runtime component delegates production behaviour to Python.
   scalar payloads, event precedence, Unicode progress, error boundaries, log-write
   failure and state permissions. Clippy, formatting and all 256 reference files
   pass. The native CLI and standalone hook workflow remain unverified.
+- CLI-focused run: 106 passed. Full suite with native status, configuration and
+  argument helpers: 1,558 passed, 33 skipped (50.57 seconds).
+  `validation/cli-calls.json` records 47 status commands, two configuration commands,
+  48 proposal filters and 104 argument-line expansions. Reference child processes
+  retain their Python entry points.
+  `CliProbe.java` compares human status and configuration output with the unchanged
+  upstream CLI. It also checks rejected settings, I/O error types, relative write
+  checks, quoted arguments, exact ledger counts above 2^53 and bounded overflow.
+  Clippy, formatting and all 256 reference files pass. Standalone native CLI and
+  hook workflows remain pending.
 
 ## Dependencies
 
@@ -731,6 +749,7 @@ jbang validation/DiscoveryProbe.java
 jbang validation/RepoMapProbe.java
 jbang validation/GeneratorProbe.java
 jbang validation/HookProbe.java
+jbang validation/CliProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 

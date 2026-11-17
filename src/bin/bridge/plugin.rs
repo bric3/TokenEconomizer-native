@@ -7,6 +7,8 @@ use tokeneconomizer::plugin::{
 };
 #[path = "live_adapter.rs"]
 mod adapter_dispatch;
+#[path = "cli.rs"]
+mod cli_dispatch;
 #[path = "context.rs"]
 mod context_dispatch;
 #[path = "controller.rs"]
@@ -102,6 +104,9 @@ fn paths_dispatch(op: &str, args: &Value) -> Result<Value, String> {
 }
 
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
+    if op.starts_with("cli.") {
+        return cli_dispatch::dispatch(op, args);
+    }
     if op.starts_with("hook.") {
         return hook_dispatch::dispatch(op, args);
     }
