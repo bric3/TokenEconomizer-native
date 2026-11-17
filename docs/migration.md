@@ -246,8 +246,13 @@ complete while any runtime component delegates production behaviour to Python.
   refresh and measurement output. The pending-apply waiter checks its heartbeat,
   bounds each delay, reloads settings and removes its heartbeat after completion
   or a reported error. CLI error handling preserves backend exception categories.
-  Installation diagnostics, model probes, parser/service wiring and native CLI/hook
-  packaging remain pending.
+- Installation diagnostics, recent-host selection and RTK hook discovery now
+  execute in Rust. Diagnostics reuse native trust, model-selection and repository
+  helpers, preserve error-log line boundaries and accept runtime-version metadata
+  from the caller. Provider URL display validates bracketed addresses and Unicode
+  authority delimiters. Native executable wiring and runtime reporting remain to
+  be checked through the packaged application. Model probes, parser/service wiring
+  and native CLI/hook packaging remain pending.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -265,7 +270,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit JSON numeric edge cases and parser nesting limits, including non-finite
   values accepted by Python.
   Configuration numeric coercion still needs Unicode decimal digits and integers
-  outside the current i64 range. Audit path-normalisation edge cases too.
+  outside the current i64 range. Audit path-normalisation edge cases and typed I/O
+  errors from repository identity too.
 - Complete named-user and Windows tilde expansion for extra history directories
   in the path parity audit.
 - Include history, folding, controller and host replay counters beyond i64 in the numeric
@@ -680,6 +686,18 @@ complete while any runtime component delegates production behaviour to Python.
   suppression, bounded sleeps, settings reload and cleanup after reported errors.
   The status/configuration probe, Clippy, formatting and all 256 reference files
   pass. Native executable interruption and native Windows remain unverified.
+- Diagnostic/default-host focused run: 306 passed, 11 skipped. Full suite with the
+  expanded CLI substitutions: 1,558 passed, 33 skipped (52.18 seconds).
+  `validation/diagnostic-cli-calls.json` records three recent-host lookups; doctor
+  subprocesses launched by the original tests retain their Python entry points.
+  `DoctorProbe.java` compares complete native diagnostic output with unchanged
+  upstream output for installed and absent agents. It checks trust and pause
+  reporting, relative installation paths, malformed package records, read-only
+  state, runtime-version gates, host-recency ties and filesystem errors, and the
+  error-log tail. URL cases match the installed Python parser; the Unicode check
+  normalises every scalar value and verifies all 19 authority-delimiter guards.
+  The status/configuration probe, Clippy, formatting and all 256 reference files
+  pass. Packaged native CLI/hook workflows and native Windows remain unverified.
 
 ## Dependencies
 
@@ -790,6 +808,7 @@ jbang validation/HookProbe.java
 jbang validation/CliProbe.java
 jbang validation/LearningCliProbe.java
 jbang validation/ToolpruneCliProbe.java
+jbang validation/DoctorProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 

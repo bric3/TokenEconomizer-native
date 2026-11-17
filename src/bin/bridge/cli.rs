@@ -1,12 +1,13 @@
 use super::context_dispatch;
 use crate::job::{self, Channel};
 use serde_json::{Value, json};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokeneconomizer::{
     envelope::EnvelopeTracker,
     plugin::{
         cli::{self, Error, Result, Runtime},
         context::LiveContext,
+        hosts::session::Environment,
     },
 };
 
@@ -56,6 +57,11 @@ impl Runtime for Transport {
     }
 }
 fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value> {
+    let environment = Environment {
+        env: args["process_env"].as_object().cloned().unwrap_or_default(),
+        home: PathBuf::from(args["home"].as_str().unwrap_or(".")),
+        cwd: PathBuf::from(args["process_cwd"].as_str().unwrap_or(".")),
+    };
     Ok(match op {
         "cli._split_argline" => json!(cli::split_argline(
             args["line"].as_str().ok_or("expected argument line")?
@@ -130,6 +136,13 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value> {
             runtime
         )?),
         "cli._wait_and_apply" => json!(cli::wait_and_apply(&args["args"], runtime)?),
+        "cli.cmd_doctor" => json!(cli::doctor(&args["args"], &environment, runtime)?),
+        "cli._recent_host" => cli::recent_host(
+            Path::new(args["cwd"].as_str().ok_or("expected working directory")?),
+            &environment,
+        )?,
+        "cli._rtk_hook" => json!(cli::rtk_hooks(&environment.home)?),
+        "cli.netloc" => json!(cli::netloc(args["url"].as_str().ok_or("expected URL")?)?),
         _ => return Err(format!("unknown CLI operation: {op}").into()),
     })
 }

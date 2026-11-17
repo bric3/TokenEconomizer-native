@@ -1,8 +1,10 @@
 mod status;
 pub use status::{status, status_explanations};
+mod diagnostics;
 mod learning;
 mod repositories;
 mod tools;
+pub use diagnostics::{doctor, netloc, recent_host, rtk_hooks};
 pub use learning::{
     facts, fold_command, forget_facts, history_command, judge_command, map_command, print_history,
     session_context, short, when,

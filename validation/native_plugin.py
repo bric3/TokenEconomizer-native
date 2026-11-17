@@ -635,7 +635,7 @@ def pytest_configure(config):
         "plugin.toolcheck": ("_request_tools", "_prompt_tokens", "_codex_prompt_chars", "_copilot_version", "verify_codex", "verify_copilot", "measure", "copilot_capture", "_init_tools", "_kill_tree", "refresh_catalog"),
         "plugin.repomap": ("_repo_dir", "_state_path", "_cache_dir", "read_state", "_write_state", "head_commit", "_has_aider", "_aider_command_python", "find_python", "_gen_env", "generate", "refresh", "stale", "spawn_refresh", "cached_block", "prompt_idents", "for_prompt"),
         "plugin.hook": ("_truthy", "run", "_record_error", "main"),
-        "plugin.cli": ("_split_argline", "_expand_argline", "_unwritable", "_refuse_unwritable", "_config_view", "_status_explanations", "_session_note", "_proposal", "cmd_status", "cmd_config", "cmd_microskills", "_microskills_forget", "_short", "_session_ctx", "cmd_fold", "cmd_judge", "_when", "_print_history", "cmd_history", "cmd_repomap", "cmd_repos", "_print_moves", "cmd_toolprune", "_toolprune_show", "_wait_and_apply"),
+        "plugin.cli": ("_split_argline", "_expand_argline", "_unwritable", "_refuse_unwritable", "_config_view", "_status_explanations", "_session_note", "_proposal", "cmd_status", "cmd_config", "cmd_microskills", "_microskills_forget", "_short", "_session_ctx", "cmd_fold", "cmd_judge", "_when", "_print_history", "cmd_history", "cmd_repomap", "cmd_repos", "_print_moves", "cmd_toolprune", "_toolprune_show", "_wait_and_apply", "cmd_doctor", "_recent_host", "_rtk_hook"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
@@ -995,6 +995,7 @@ def pytest_configure(config):
 
 def cli_call(operation, arguments):
     from types import SimpleNamespace
+    import shutil
     from tokeneconomizer.plugin import cli, sidecall, denylist, history, repomap, fold, judge, repos, paths, toolcheck
     from tokeneconomizer.plugin.context import LiveContext
     arguments = dict(arguments)
@@ -1016,7 +1017,10 @@ def cli_call(operation, arguments):
         arguments["path"] = os.fspath(arguments["path"])
         if operation == "cli._unwritable":
             arguments["path"] = os.path.abspath(arguments["path"])
-    arguments.update(pid=os.getpid(), argv=arguments.get("argv", sys.argv[1:]))
+    if "cwd" in arguments:
+        arguments["cwd"] = os.fspath(arguments["cwd"])
+    arguments.update(pid=os.getpid(), argv=arguments.get("argv", sys.argv[1:]),
+                     process_env=dict(os.environ), home=os.path.expanduser("~"), process_cwd=os.getcwd())
     result = invoke(operation, arguments)
     while isinstance(result, dict) and result.get("callback") == "cli":
         method, args = result["method"], result["args"]
@@ -1042,6 +1046,15 @@ def cli_call(operation, arguments):
                 name, params = args
                 if name == "state_root":
                     value = paths.state_root()
+                elif name == "runtime":
+                    value = {"name": "python", "version": sys.version, "parts": list(sys.version_info[:2]),
+                             "minimum": [3, 10], "required": "3.10"}
+                elif name == "claude_cli":
+                    value = sidecall.claude_cli()
+                elif name == "hermes_cli":
+                    value = sidecall.hermes_cli()
+                elif name == "which":
+                    value = shutil.which(*params)
                 elif name == "time":
                     value = cli.time.time()
                 elif name == "pid":
@@ -1083,6 +1096,8 @@ def cli_call(operation, arguments):
                     value = denylist.codex_project_trusted(ctx.repo.root)
                 elif name == "copilot_trusted":
                     value = denylist.copilot_folder_trusted(ctx.repo.root)
+                elif name == "copilot_folder_trusted":
+                    value = denylist.copilot_folder_trusted(*params)
                 elif name == "deny_apply":
                     value = denylist.apply(ctx.repo.root, params[0], ctx.store, host=host.name)
                 elif name == "deny_restore":
@@ -1105,6 +1120,8 @@ def cli_call(operation, arguments):
                     value = repomap.read_state(ctx)
                 elif name == "repomap_refresh":
                     value = repomap.refresh(ctx)
+                elif name == "repomap_python":
+                    value = repomap.find_python(ctx)
                 elif name == "head_commit":
                     value = repomap.head_commit(*params)
                 elif name == "pending_sessions":
