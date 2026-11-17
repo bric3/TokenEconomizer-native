@@ -29,6 +29,13 @@ impl Runtime for Transport {
     fn context(&mut self, args: &Value) -> Result<LiveContext> {
         context_dispatch::context(&self.request("context", args.clone())?).map_err(Into::into)
     }
+    fn pinned_context(&mut self, args: &Value, session: &Value) -> Result<LiveContext> {
+        context_dispatch::context(&self.request("context_session", json!([args, session]))?)
+            .map_err(Into::into)
+    }
+    fn global(&mut self, method: &str, args: Value) -> Result<Value> {
+        self.request("global", json!([method, args]))
+    }
     fn call(&mut self, ctx: &LiveContext, method: &str, args: Value) -> Result<Value> {
         self.request(
             "service",
@@ -81,6 +88,32 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value> {
         )?,
         "cli.cmd_status" => json!(cli::status(&args["args"], runtime)?),
         "cli.cmd_config" => json!(cli::config_command(&args["args"], runtime)?),
+        "cli.cmd_microskills" => json!(cli::facts(&args["args"], runtime)?),
+        "cli._microskills_forget" => json!(cli::forget_facts(&args["args"], runtime)?),
+        "cli._short" => json!(cli::short(
+            &args["text"],
+            args["n"].as_i64().ok_or("expected abbreviation length")?
+        )),
+        "cli._session_ctx" => context_dispatch::snapshot(&cli::session_context(
+            &args["args"],
+            &args["session_id"],
+            runtime,
+        )?),
+        "cli.cmd_fold" => json!(cli::fold_command(&args["args"], runtime)?),
+        "cli.cmd_judge" => json!(cli::judge_command(&args["args"], runtime)?),
+        "cli._when" => json!(cli::when(&args["ts"])?),
+        "cli._print_history" => {
+            cli::print_history(
+                &context_dispatch::context(&args["ctx"])?,
+                &args["doc"],
+                runtime,
+            )?;
+            Value::Null
+        }
+        "cli.cmd_history" => json!(cli::history_command(&args["args"], runtime)?),
+        "cli.cmd_repomap" => json!(cli::map_command(&args["args"], runtime)?),
+        "cli.cmd_repos" => json!(cli::repositories(&args["args"], runtime)?),
+        "cli._print_moves" => json!(cli::print_moves(&args["done"], runtime)?),
         _ => return Err(format!("unknown CLI operation: {op}").into()),
     })
 }

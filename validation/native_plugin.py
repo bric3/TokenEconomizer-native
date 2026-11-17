@@ -635,7 +635,7 @@ def pytest_configure(config):
         "plugin.toolcheck": ("_request_tools", "_prompt_tokens", "_codex_prompt_chars", "_copilot_version", "verify_codex", "verify_copilot", "measure", "copilot_capture", "_init_tools", "_kill_tree", "refresh_catalog"),
         "plugin.repomap": ("_repo_dir", "_state_path", "_cache_dir", "read_state", "_write_state", "head_commit", "_has_aider", "_aider_command_python", "find_python", "_gen_env", "generate", "refresh", "stale", "spawn_refresh", "cached_block", "prompt_idents", "for_prompt"),
         "plugin.hook": ("_truthy", "run", "_record_error", "main"),
-        "plugin.cli": ("_split_argline", "_expand_argline", "_unwritable", "_refuse_unwritable", "_config_view", "_status_explanations", "_session_note", "_proposal", "cmd_status", "cmd_config"),
+        "plugin.cli": ("_split_argline", "_expand_argline", "_unwritable", "_refuse_unwritable", "_config_view", "_status_explanations", "_session_note", "_proposal", "cmd_status", "cmd_config", "cmd_microskills", "_microskills_forget", "_short", "_session_ctx", "cmd_fold", "cmd_judge", "_when", "_print_history", "cmd_history", "cmd_repomap", "cmd_repos", "_print_moves"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
@@ -995,7 +995,7 @@ def pytest_configure(config):
 
 def cli_call(operation, arguments):
     from types import SimpleNamespace
-    from tokeneconomizer.plugin import cli, sidecall, denylist, history, repomap
+    from tokeneconomizer.plugin import cli, sidecall, denylist, history, repomap, fold, judge, repos, paths
     from tokeneconomizer.plugin.context import LiveContext
     arguments = dict(arguments)
     ctx = arguments.get("ctx")
@@ -1028,11 +1028,34 @@ def cli_call(operation, arguments):
                 ctx = cli._ctx(SimpleNamespace(**args))
                 host = ctx.host
                 value = context_data(ctx)
+            elif method == "context_session":
+                raw, session_id = args
+                ctx = cli._ctx(SimpleNamespace(**raw), session_id=session_id)
+                host = ctx.host
+                value = context_data(ctx)
             elif method == "say":
                 print(args)
                 value = None
             elif method == "unwritable":
                 value = cli._unwritable(*args)
+            elif method == "global":
+                name, params = args
+                if name == "state_root":
+                    value = paths.state_root()
+                elif name == "refuse_unwritable":
+                    value = cli._refuse_unwritable(*params)
+                elif name == "repos_run_migration":
+                    value = repos.run_migration(*params)
+                elif name == "repos_merge":
+                    if isinstance(params[2], dict):
+                        params[2] = paths.RepoId(**params[2])
+                    value = repos.merge(*params)
+                elif name == "repos_refold":
+                    value = repos.refold_moved(*params)
+                elif name == "repos_listing":
+                    value = repos.listing(params[0], current=paths.RepoId(**params[1]))
+                else:
+                    raise AssertionError("Unknown global CLI callback: " + name)
             elif method == "service":
                 data, name, params = args
                 if ctx is None:
@@ -1050,6 +1073,22 @@ def cli_call(operation, arguments):
                     value = history.summary(ctx)
                 elif name == "repomap_state":
                     value = repomap.read_state(ctx)
+                elif name == "repomap_refresh":
+                    value = repomap.refresh(ctx)
+                elif name == "head_commit":
+                    value = repomap.head_commit(*params)
+                elif name == "pending_sessions":
+                    value = fold.pending_sessions(ctx)
+                elif name == "fold_session":
+                    value = fold.fold_session(ctx, *params)
+                elif name == "judge_job":
+                    value = judge.run_job(ctx, *params)
+                elif name == "history_plan":
+                    value = history.plan(ctx)
+                elif name == "history_refusal":
+                    value = history._refusal(ctx, *params)
+                elif name == "history_run":
+                    value = history.run(ctx, auto=params[0], log=lambda line: print(line, flush=True))
                 elif name == "resume":
                     value = sidecall.resume(host.name, ctx.root)
                 elif name == "call_name":
@@ -1062,7 +1101,11 @@ def cli_call(operation, arguments):
         except Exception as error:
             reply = {"error": str(error), "kind": type(error).__name__}
         result = invoke("cli.resume", {"job": result["job"], "reply": reply})
-    return storage_result(result)
+    value = storage_result(result)
+    if operation == "cli._session_ctx":
+        restore_context(ctx, value, host)
+        return ctx
+    return value
 
 
 def hook_call(operation, arguments):

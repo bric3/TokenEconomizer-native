@@ -10,6 +10,7 @@ pub const LAMBDA: f64 = 5.0;
 pub const SCORE_FLOOR: f64 = 0.0;
 pub const FIRE_GATE: f64 = 0.40;
 pub const FIRE_MIN_N: u64 = 4;
+pub const NO_RECORD: &str = "no record";
 
 pub fn edited_files<'a>(
     calls: impl IntoIterator<Item = (&'a str, &'a Value)>,
@@ -236,7 +237,7 @@ pub fn unforget<F: FactRecord>(
     };
     let record = &entry["record"];
     if !crate::value::truthy(record) {
-        return Ok(json!("no record"));
+        return Ok(json!(NO_RECORD));
     }
     facts.insert(
         id.into(),

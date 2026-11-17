@@ -236,6 +236,13 @@ complete while any runtime component delegates production behaviour to Python.
   checked addition reports counts outside the current i64 range.
   Other CLI commands, argument-parser wiring and the main CLI and hook executables
   remain pending.
+- CLI learning and repository commands now execute in Rust too: fact display,
+  forgetting and restoration, history import and status, map display and refresh,
+  session folding and detached judges, repository listing, migration and merges.
+  Session commands use a pin only while its repository holds the session record.
+  Unknown fact IDs preserve saved facts; merge keys must name one state directory.
+  Tool-pruning commands, installation diagnostics, model probes, parser and service
+  wiring, and native CLI/hook packaging remain pending.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -259,6 +266,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Include history, folding, controller and host replay counters beyond i64 in the numeric
   parity audit.
 - Include CLI and ledger counts beyond i64 in the numeric parity audit.
+- Include displayed map sizes and extreme CLI dates in the numeric/timestamp audits.
 - Include side-call usage beyond i128 in the numeric parity audit.
 - Include tool-measurement totals and savings outside JSON's i64/u64 range in the
   numeric parity audit.
@@ -642,6 +650,17 @@ complete while any runtime component delegates production behaviour to Python.
   checks, quoted arguments, exact ledger counts above 2^53 and bounded overflow.
   Clippy, formatting and all 256 reference files pass. Standalone native CLI and
   hook workflows remain pending.
+- Learning/repository CLI focused run: 92 passed, 1 skipped. Full suite with the
+  expanded CLI substitutions: 1,558 passed, 33 skipped (52.94 seconds).
+  `validation/learning-cli-calls.json` records 17 fact commands, seven history
+  commands, ten repository commands and one explicit fold command. Reference child
+  processes retain their Python entry points.
+  `LearningCliProbe.java` compares fact, history, map, migration, abbreviation and
+  date output with the unchanged upstream implementation. It also checks import
+  outcomes, detached dispatch, explicit sessions, pin-record fallback, quiet
+  migration, repository-list output and invalid merge keys.
+  The status/configuration probe, Clippy, formatting and all 256 reference files
+  pass. Real model calls and native Windows execution remain unverified.
 
 ## Dependencies
 
@@ -750,6 +769,7 @@ jbang validation/RepoMapProbe.java
 jbang validation/GeneratorProbe.java
 jbang validation/HookProbe.java
 jbang validation/CliProbe.java
+jbang validation/LearningCliProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 

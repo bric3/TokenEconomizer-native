@@ -1,5 +1,12 @@
 mod status;
 pub use status::{status, status_explanations};
+mod learning;
+mod repositories;
+pub use learning::{
+    facts, fold_command, forget_facts, history_command, judge_command, map_command, print_history,
+    session_context, short, when,
+};
+pub use repositories::{print_moves, repositories};
 
 use super::{config, context::LiveContext, denylist, fold, hosts, repos};
 use crate::{
@@ -61,6 +68,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 pub trait Runtime {
     fn context(&mut self, args: &Value) -> Result<LiveContext>;
+    fn pinned_context(&mut self, args: &Value, session: &Value) -> Result<LiveContext>;
+    fn global(&mut self, method: &str, args: Value) -> Result<Value>;
     fn call(&mut self, ctx: &LiveContext, method: &str, args: Value) -> Result<Value>;
     fn say(&mut self, text: &str) -> Result<()>;
 }
