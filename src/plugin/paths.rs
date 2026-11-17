@@ -244,6 +244,98 @@ pub(crate) fn normalize(path: &Path) -> PathBuf {
     }
 }
 
+pub fn expand_user(
+    path: &str,
+    home: &Path,
+    environment: &Map<String, Value>,
+) -> Result<PathBuf, String> {
+    if !path.starts_with('~') {
+        return Ok(path.into());
+    }
+    let separator = |c| c == '/' || cfg!(windows) && c == '\\';
+    let end = path.find(separator).unwrap_or(path.len());
+    let user = &path[1..end];
+    let mut base = home.to_path_buf();
+    if !user.is_empty() {
+        #[cfg(unix)]
+        {
+            use std::{
+                ffi::{CStr, CString, OsString},
+                mem::MaybeUninit,
+                os::unix::ffi::OsStringExt,
+                ptr,
+            };
+            let _ = environment;
+            let name = CString::new(user).map_err(|e| e.to_string())?;
+            let mut buffer = vec![0u8; 4096];
+            loop {
+                let mut record = MaybeUninit::<libc::passwd>::uninit();
+                let mut found = ptr::null_mut();
+                // The reentrant lookup writes the record and strings into this caller's buffer.
+                let error = unsafe {
+                    libc::getpwnam_r(
+                        name.as_ptr(),
+                        record.as_mut_ptr(),
+                        buffer.as_mut_ptr().cast(),
+                        buffer.len(),
+                        &mut found,
+                    )
+                };
+                if error == libc::ERANGE {
+                    buffer.resize(
+                        buffer
+                            .len()
+                            .checked_mul(2)
+                            .ok_or("user record is too large")?,
+                        0,
+                    );
+                    continue;
+                }
+                if error != 0 {
+                    return Err(std::io::Error::from_raw_os_error(error).to_string());
+                }
+                if found.is_null() {
+                    return Ok(path.into());
+                }
+                // A successful lookup initialises the record; its home string lives in buffer.
+                let dir = unsafe { record.assume_init().pw_dir };
+                if dir.is_null() {
+                    return Ok(path.into());
+                }
+                base = PathBuf::from(OsString::from_vec(
+                    unsafe { CStr::from_ptr(dir) }.to_bytes().to_vec(),
+                ));
+                break;
+            }
+        }
+        #[cfg(windows)]
+        {
+            let current = env(environment, "USERNAME").unwrap_or("");
+            if user != current {
+                if base.file_name().and_then(|s| s.to_str()) != Some(current) {
+                    return Ok(path.into());
+                }
+                base = base.parent().unwrap_or(Path::new("")).join(user);
+            }
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let _ = environment;
+            return Ok(path.into());
+        }
+    }
+    let expanded = format!(
+        "{}{}",
+        base.to_string_lossy().trim_end_matches(separator),
+        &path[end..]
+    );
+    Ok(if expanded.is_empty() {
+        std::path::MAIN_SEPARATOR_STR.into()
+    } else {
+        expanded.into()
+    })
+}
+
 pub fn is_git_entry(dot: &Path) -> Result<bool, String> {
     if dot.is_dir() {
         return Ok(dot.join("HEAD").is_file());

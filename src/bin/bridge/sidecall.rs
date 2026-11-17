@@ -13,6 +13,21 @@ struct Transport {
     flags: Value,
 }
 impl Runtime for Transport {
+    fn program(
+        &mut self,
+        cli: &str,
+        windows: bool,
+        environment: &Environment,
+    ) -> Result<Vec<String>, String> {
+        if self.flags["program"] != true {
+            return sidecall::program(cli, windows, environment, self);
+        }
+        let reply = self.channel.call("program", json!([cli]))?;
+        if let Some(error) = reply["error"].as_str() {
+            return Err(error.into());
+        }
+        serde_json::from_value(reply["value"].clone()).map_err(|e| e.to_string())
+    }
     fn temporary_directory(
         &mut self,
         prefix: &str,
@@ -101,6 +116,18 @@ impl Runtime for Transport {
 fn text<'a>(args: &'a Value, key: &str) -> &'a str {
     args[key].as_str().unwrap_or("")
 }
+fn request(args: &Value) -> sidecall::Call<'_> {
+    sidecall::Call {
+        prompt: text(args, "prompt"),
+        model: text(args, "model"),
+        cli: text(args, "cli"),
+        timeout: args["timeout"]
+            .as_f64()
+            .unwrap_or(sidecall::TIMEOUT_S as f64),
+        effort: text(args, "effort"),
+        windows: args["windows"] == true,
+    }
+}
 fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value, String> {
     let environment = Environment {
         env: args["env"].as_object().cloned().unwrap_or_default(),
@@ -111,6 +138,52 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value, Str
     let host = text(args, "host");
     if matches!(
         op,
+        "sidecall.codex_call"
+            | "sidecall.pi_call"
+            | "sidecall.cursor_call"
+            | "sidecall.grok_call"
+            | "sidecall.opencode_call"
+            | "sidecall.opencode_flags"
+    ) {
+        let call = request(args);
+        let mut cache = args["oc_flags"].as_object().cloned().unwrap_or_default();
+        let value = match op {
+            "sidecall.codex_call" => {
+                sidecall::codex_call(&call, &environment, &root, runtime).map(|v| json!(v))
+            }
+            "sidecall.pi_call" => {
+                let extensions: Vec<String> = serde_json::from_value(
+                    args.get("extensions")
+                        .filter(|v| !v.is_null())
+                        .cloned()
+                        .unwrap_or(json!([])),
+                )
+                .map_err(|e| e.to_string())?;
+                sidecall::pi_call(&call, &extensions, &environment, &root, runtime)
+                    .map(|v| json!(v))
+            }
+            "sidecall.cursor_call" => {
+                sidecall::cursor_call(&call, &environment, &root, runtime).map(|v| json!(v))
+            }
+            "sidecall.grok_call" => {
+                sidecall::grok_call(&call, &environment, &root, runtime).map(|v| json!(v))
+            }
+            "sidecall.opencode_call" => {
+                sidecall::opencode_call(&call, &mut cache, &environment, &root, runtime)
+                    .map(|v| json!(v))
+            }
+            _ => {
+                sidecall::opencode_flags(call.cli, call.windows, &mut cache, &environment, runtime)
+                    .map(|v| json!(v))
+            }
+        };
+        return Ok(match value {
+            Ok(value) => json!({"value":value,"oc_flags":cache}),
+            Err(message) => json!({"raised":"RuntimeError","message":message,"oc_flags":cache}),
+        });
+    }
+    if matches!(
+        op,
         "sidecall._claude_help"
             | "sidecall.claude_flags"
             | "sidecall.claude_no_mcp"
@@ -118,23 +191,8 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value, Str
     ) {
         let mut cache = args["help"].as_object().cloned().unwrap_or_default();
         let value = if op == "sidecall.claude_call" {
-            sidecall::claude_call(
-                &sidecall::ClaudeCall {
-                    prompt: text(args, "prompt"),
-                    model: text(args, "model"),
-                    cli: text(args, "cli"),
-                    timeout: args["timeout"]
-                        .as_f64()
-                        .unwrap_or(sidecall::TIMEOUT_S as f64),
-                    effort: text(args, "effort"),
-                    windows: args["windows"] == true,
-                },
-                &environment,
-                &root,
-                &mut cache,
-                runtime,
-            )
-            .map(|value| json!(value))
+            sidecall::claude_call(&request(args), &environment, &root, &mut cache, runtime)
+                .map(|value| json!(value))
         } else {
             let cli = if op == "sidecall.claude_flags" && text(args, "cli").is_empty() {
                 runtime.claude_cli(&environment, args["windows"] == true)?
@@ -158,6 +216,16 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value, Str
         });
     }
     let value = match op {
+        "sidecall.pi_extension_args" => {
+            let extensions: Vec<String> = serde_json::from_value(
+                args.get("extensions")
+                    .filter(|v| !v.is_null())
+                    .cloned()
+                    .unwrap_or(json!([])),
+            )
+            .map_err(|e| e.to_string())?;
+            json!(sidecall::pi_extension_args(&extensions, &environment)?)
+        }
         "sidecall.process_input" => {
             let argv: Vec<String> =
                 serde_json::from_value(args["argv"].clone()).map_err(|e| e.to_string())?;
@@ -251,7 +319,7 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value, Str
 pub(super) fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
     if op == "sidecall.constants" {
         return Ok(Some(
-            json!({"TIMEOUT_S":sidecall::TIMEOUT_S,"FM_CLI":sidecall::FM_CLI,"FM_TIMEOUT_S":sidecall::FM_TIMEOUT_S,"NO_SIDE_CALLS":sidecall::NO_SIDE_CALLS}),
+            json!({"TIMEOUT_S":sidecall::TIMEOUT_S,"FM_CLI":sidecall::FM_CLI,"FM_TIMEOUT_S":sidecall::FM_TIMEOUT_S,"NO_SIDE_CALLS":sidecall::NO_SIDE_CALLS,"PI_FLAGS":sidecall::PI_FLAGS,"GROK_TOOLS":sidecall::GROK_TOOLS,"GROK_REMOVED":sidecall::GROK_REMOVED,"GROK_DENY_RULES":sidecall::GROK_DENY_RULES,"OPENCODE_CONFIG":sidecall::OPENCODE_CONFIG}),
         ));
     }
     if op == "sidecall.resume_job" {

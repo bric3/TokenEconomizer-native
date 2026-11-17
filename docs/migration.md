@@ -165,6 +165,13 @@ complete while any runtime component delegates production behaviour to Python.
   temporary directory and removes it after subprocess completion or failure.
   Patched subprocesses and temporary-directory constructors remain SDK callbacks
   for the original tests. Native process execution needs no Python callback.
+- Codex, Pi, Cursor, Grok and opencode side calls now execute in Rust. This
+  includes read-only command arguments, model and effort selection, usage
+  normalisation, Pi's older-CLI retry, opencode's cached flags and session deletion,
+  and Grok's tool restrictions. Pi resolves extension paths before entering its
+  temporary directory, including named-user homes through the platform account
+  database. Expansion follows the maintained
+  [Python contract](https://docs.python.org/3.15/library/os.path.html#os.path.expanduser).
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -186,6 +193,7 @@ complete while any runtime component delegates production behaviour to Python.
   in the path parity audit.
 - Include history, folding, controller and host replay counters beyond i64 in the numeric
   parity audit.
+- Include side-call usage beyond i128 in the numeric parity audit.
 - Integrate the native controller and host operations into CLI and hooks.
 - Port side calls, model probes, tool checks, repository maps, CLI commands and
   hooks. Verify each host integration and its launcher and packaging contracts.
@@ -449,6 +457,15 @@ complete while any runtime component delegates production behaviour to Python.
   success and a non-zero exit. Clippy, formatting and the 256-file reference
   integrity check pass. Real Claude calls and native Windows execution remain
   unverified; runner selection and the other hosts' side calls remain pending.
+- Agent side-call focused run: 346 passed, 3 skipped. Full suite with native
+  Codex, Pi, Cursor, Grok and opencode calls: 1,558 passed, 33 skipped (49.50 seconds).
+  `validation/agent-sidecalls-calls.json` records native entries.
+- `AgentCallsProbe.java` executes each of those five commands through local CLI
+  fixtures. It checks prompt boundaries, safe flags, usage pricing, subtraction of
+  large Codex integer counts before conversion, Pi's retry and extension paths,
+  named-user home expansion, opencode's help cache and deletion attempts, and
+  private workspace cleanup. No model or credential is used. Clippy and formatting
+  pass; real-agent and native Windows execution remain unverified.
 
 ## Dependencies
 
@@ -545,6 +562,7 @@ jbang validation/HostStateProbe.java
 jbang validation/ControllerProbe.java
 jbang validation/ProcessInputProbe.java
 jbang validation/ClaudeCallProbe.java
+jbang validation/AgentCallsProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 
