@@ -22,9 +22,12 @@ async function connection(version: number, client?: any) {
   const token = randomBytes(32).toString("hex");
   let child: ReturnType<typeof spawn> | undefined;
   let port: number | undefined;
-  let failed = false;
+  let bootstrap: any;
+  let generation = 0;
+  let restored = false;
   let next = 0;
   let buffer = "";
+  const checkpoint = new Map<string, any>();
   const pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void; mutate?: (action: any) => void }>();
   const references = (active: boolean) => {
     for (const handle of [child, child?.stdin, child?.stdout] as any[]) {
@@ -32,75 +35,97 @@ async function connection(version: number, client?: any) {
     }
   };
   let ready: (value: void) => void;
-  const startup = new Promise<void>((resolve) => { ready = resolve; });
+  let startup: Promise<void>;
   let timer: ReturnType<typeof setTimeout>;
-  const stop = () => {
-    if (failed) return;
-    // shortcut: backend failure loses in-memory exports, add incremental recovery before production parity.
-    failed = true;
+  const stop = (running = child) => {
+    if (!running || running !== child) return;
     clearTimeout(timer);
-    child?.kill("SIGKILL");
+    references(false); child = undefined; port = undefined; buffer = "";
+    running.kill("SIGKILL");
     for (const waiter of pending.values()) waiter.resolve({});
-    pending.clear(); references(false); ready();
+    pending.clear(); ready();
   };
   const write = (packet: any) => { child!.stdin!.write(JSON.stringify(packet) + "\n"); };
-  try {
-    const [program, argv] = launch("te", ["--opencode-bridge", String(version)]);
-    // A Unix backend drains accepted I/O after its SDK worker closes the pipes.
-    child = spawn(program, argv, { cwd: SCRIPTS, detached: process.platform !== "win32", ...HIDDEN, stdio: ["pipe", "pipe", "ignore"],
-      env: { ...process.env, TE_NATIVE_CONTROL_TOKEN: token } });
-    child.on("error", stop); child.on("close", stop); child.stdin!.on("error", stop);
-    child.stdout!.setEncoding("utf8");
-    child.stdout!.on("data", (chunk: string) => {
-      if (failed) return;
-      buffer += chunk;
-      let end;
-      while ((end = buffer.indexOf("\n")) >= 0) {
-        const line = buffer.slice(0, end); buffer = buffer.slice(end + 1);
-        try {
-          const packet = JSON.parse(line);
-          if (port === undefined) {
-            if (!Number.isInteger(packet.ready) || packet.ready < 1 || packet.ready > 65535) { stop(); return; }
-            port = packet.ready; clearTimeout(timer); ready(); references(false); continue;
-          }
-          const waiter = pending.get(packet.id);
-          if (!waiter) { stop(); return; }
-          if (packet.callback) {
-            (async () => {
-              try {
-                let value;
-                if (packet.callback === "context") value = context();
-                else if (packet.callback === "apply") {
-                  if (!waiter.mutate) throw new Error("SDK mutation callback is missing");
-                  waiter.mutate(packet.args[0]);
-                }
-                else if (packet.callback === "stderr") console.error(packet.args[0]);
-                else if (packet.callback === "toast") await client.tui.showToast({ body: { message: packet.args[0], variant: "info" } });
-                else throw new Error("Unknown SDK callback: " + packet.callback);
-                if (!failed) write({ id: packet.id, reply: { value } });
-              } catch (error) { if (!failed) write({ id: packet.id, reply: { error: String(error) } }); }
-            })();
-          } else {
-            pending.delete(packet.id);
-            if (packet.error) waiter.reject(new Error(packet.error)); else waiter.resolve(packet.value ?? {});
-            if (!pending.size) references(false);
-          }
-        } catch { stop(); return; }
-      }
-    });
-    timer = setTimeout(stop, 60_000);
-  } catch { stop(); }
-  await startup;
+  const start = () => {
+    startup = new Promise<void>((resolve) => { ready = resolve; });
+    restored = generation++ === 0;
+    try {
+      const [program, argv] = launch("te", ["--opencode-bridge", String(version)]);
+      // A Unix backend drains accepted I/O after its SDK worker closes the pipes.
+      child = spawn(program, argv, { cwd: SCRIPTS, detached: process.platform !== "win32", ...HIDDEN, stdio: ["pipe", "pipe", "ignore"],
+        env: { ...process.env, TE_NATIVE_CONTROL_TOKEN: token } });
+      const running = child;
+      child.on("error", () => stop(running)); child.on("close", () => stop(running)); child.stdin!.on("error", () => stop(running));
+      child.stdout!.setEncoding("utf8");
+      child.stdout!.on("data", (chunk: string) => {
+        if (child !== running) return;
+        buffer += chunk;
+        let end;
+        while ((end = buffer.indexOf("\n")) >= 0) {
+          const line = buffer.slice(0, end); buffer = buffer.slice(end + 1);
+          try {
+            const packet = JSON.parse(line);
+            if (packet.checkpoint) {
+              if (!Array.isArray(packet.checkpoint) || packet.checkpoint.some((row: any) =>
+                !Array.isArray(row) || row.length < 1 || row.length > 2 || typeof row[0] !== "string")) { stop(running); return; }
+              for (const row of packet.checkpoint) {
+                if (row.length === 1) checkpoint.delete(row[0]); else checkpoint.set(row[0], row[1]);
+              }
+              continue;
+            }
+            if (port === undefined) {
+              if (!Number.isInteger(packet.ready) || packet.ready < 1 || packet.ready > 65535) { stop(running); return; }
+              port = packet.ready; clearTimeout(timer); ready(); references(false); continue;
+            }
+            const waiter = pending.get(packet.id);
+            if (!waiter) { stop(running); return; }
+            if (packet.callback) {
+              (async () => {
+                try {
+                  let value;
+                  if (packet.callback === "context") value = context();
+                  else if (packet.callback === "apply") {
+                    if (!waiter.mutate) throw new Error("SDK mutation callback is missing");
+                    waiter.mutate(packet.args[0]);
+                  }
+                  else if (packet.callback === "stderr") console.error(packet.args[0]);
+                  else if (packet.callback === "toast") await client.tui.showToast({ body: { message: packet.args[0], variant: "info" } });
+                  else throw new Error("Unknown SDK callback: " + packet.callback);
+                  if (child === running) write({ id: packet.id, reply: { value } });
+                } catch (error) { if (child === running) write({ id: packet.id, reply: { error: String(error) } }); }
+              })();
+            } else {
+              pending.delete(packet.id);
+              if (packet.error) waiter.reject(new Error(packet.error)); else waiter.resolve(packet.value ?? {});
+              if (!pending.size) references(false);
+            }
+          } catch { stop(running); return; }
+        }
+      });
+      timer = setTimeout(() => stop(running), 60_000);
+    } catch { if (child) stop(); else ready(); }
+  };
   return {
-    request: (method: string, body: any, mutate?: (action: any) => void): Promise<any> => new Promise((resolve, reject) => {
-      if (failed) { resolve({}); return; }
-      const id = ++next; pending.set(id, { resolve, reject, mutate }); references(true);
-      try { write({ id, method, body, context: context() }); } catch { stop(); }
-    }),
+    request: async (method: string, body: any, mutate?: (action: any) => void): Promise<any> => {
+      const caller = context();
+      if (method === "init") bootstrap = body;
+      if (!child) start();
+      const running = child;
+      await startup;
+      if (!running || child !== running) return {};
+      return new Promise((resolve, reject) => {
+        const id = ++next; pending.set(id, { resolve, reject, mutate }); references(true);
+        try {
+          const restore = restored ? undefined : [...checkpoint];
+          restored = true;
+          write({ id, method, body, context: caller, restore, bootstrap: restore ? bootstrap : undefined });
+        } catch { stop(running); }
+      });
+    },
     exit: () => {
-      if (failed || port === undefined) return;
+      if (bootstrap === undefined) return;
       const [program, argv] = launch("te", ["--opencode-exit"]);
-      try { spawnSync(program, argv, { ...HIDDEN, input: JSON.stringify({ port, token, context: context() }), stdio: ["pipe", "ignore", "ignore"] }); }
+      try { spawnSync(program, argv, { ...HIDDEN, input: JSON.stringify({ port, token, context: context(), version, restore: [...checkpoint], bootstrap }), stdio: ["pipe", "ignore", "ignore"] }); }
       catch { /* fail open */ }
     },
   };

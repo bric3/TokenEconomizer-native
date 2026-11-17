@@ -46,6 +46,15 @@ async function invoke(request) {
   process.env = { ...baseline, ...request.env };
   rejectToast = request.rejectToast ?? false;
   observation = undefined;
+  if (request.method === "exit") { process.emit("exit", 0); return; }
+  if (request.method === "kill") {
+    const file = baseline.TE_OC_LOG + ".backend";
+    if (existsSync(file)) {
+      process.kill(Number(readFileSync(file, "utf8")), "SIGKILL");
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return;
+  }
   if (request.chdir) { process.chdir(request.chdir); return; }
   if (request.writeExport) {
     const path = join(baseline.TOKENECONOMIZER_HOME, "opencode-sessions", request.writeExport.id + ".json");

@@ -24,7 +24,8 @@ class OpencodeProtocolProbe {
       require(process.isAlive(), "Backend stopped before replying");
       require(System.nanoTime() < deadline, "Backend did not reply"); Thread.sleep(5);
     }
-    var line = output.readLine(); require(line != null, "Backend closed its output"); return line;
+    var line = output.readLine(); require(line != null, "Backend closed its output");
+    return line.startsWith("{\"checkpoint\":") ? read(process, output) : line;
   }
   public static void main(String[] args) throws Exception {
     var checkout = Path.of("").toAbsolutePath();
@@ -59,7 +60,7 @@ class OpencodeProtocolProbe {
       require(read(process, output).contains("duplicate opencode request id"), "Duplicate request replaced its waiting caller");
       var request = root.resolve("exit.json");
       Files.writeString(request, "{\"port\":" + port + ",\"token\":" + q(token) + ",\"context\":{\"env\":{\"TE_DISABLE\":\"1\",\"TOKENECONOMIZER_HOME\":" + q(root.resolve("state"))
-          + "},\"home\":" + q(root) + ",\"process_cwd\":" + q(root) + ",\"argv\":[],\"exec_path\":\"/no-agent\"}}");
+          + "},\"home\":" + q(root) + ",\"process_cwd\":" + q(root) + ",\"argv\":[],\"exec_path\":\"/no-agent\"},\"restore\":[[\"unused\"," + q("x".repeat(1_100_000)) + "]]}");
       var helper = new ProcessBuilder(checkout.resolve("target/debug/te").toString(), "--opencode-exit")
           .directory(root.toFile()).redirectInput(request.toFile()).redirectError(ProcessBuilder.Redirect.INHERIT).start();
       try {

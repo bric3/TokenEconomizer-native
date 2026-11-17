@@ -331,8 +331,16 @@ complete while any runtime component delegates production behaviour to Python.
   The Unix backend uses a separate process group and releases idle handles, as
   described by [Node's child-process lifecycle](https://nodejs.org/api/child_process.html#optionsdetached).
   Windows keeps the attached launch and propagates the SDK's hidden-process
-  option. Native Windows execution remains unverified. Backend failure currently
-  requires reloading the plugin; incremental state recovery remains a gate.
+  option. Native Windows execution remains unverified. Incremental checkpoints
+  preserve manuals, counters, session order, recorded messages and shared step
+  references across backend failures. The binding stores opaque slots in memory;
+  Rust restores them on the next callback without replaying interrupted hooks.
+  A pending prompt retains its counter and export record. Checkpoints transfer
+  only changed messages and metadata, and contain no environment snapshots.
+  v2 checkpoints contain the conversation records needed for exports; completed
+  v1 callbacks retain no prompt or tool-result bodies. If the backend has already
+  stopped at process exit, the synchronous helper restores the checkpoint and
+  finishes the open sessions locally.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Direct module CLI subprocess launches are redirected to the native executable.
@@ -372,9 +380,6 @@ complete while any runtime component delegates production behaviour to Python.
   including native Windows behaviour. Current removal uses `remove_dir_all`.
 - Verify native CLI interruption and heartbeat cleanup when packaging the executables.
 - Verify each host integration in its own runtime, including Windows launchers.
-- Recover opencode manuals, counters, open turns and message references after a
-  native backend failure. Use incremental snapshots so tool events do not copy
-  the whole session history.
 - Include SDK JSON nesting, environment snapshots and exit-control packet bounds
   in the production-parity audit.
 - Port experiment production consumers, adapters, runner orchestration and
@@ -951,6 +956,20 @@ complete while any runtime component delegates production behaviour to Python.
   Clippy, formatting, all 256 reference files and the 81 registry crates' legal
   texts pass. Original tests remain unchanged. Native Windows and backend-crash
   recovery remain unverified or incomplete; no improvement pass is counted.
+- opencode recovery now passes 184 callback comparisons across v1/v2 and Node/Bun,
+  including 24 backend kills during hooks and idle periods. Manuals, counters,
+  overlapping prompts, tool names, shared messages and synchronous exit exports
+  survive replacement without replaying interrupted hooks. The original runtime
+  harness also passes. Five Rust checks cover recovery validation, shared message
+  references, incremental checkpoint contents, interrupted prompts, exit ordering
+  and export preservation. The authenticated exit protocol passes with more than
+  1 MB of recovery data; the live backend receives only its control request.
+  The full original suite, including the three installed-opencode workflows,
+  passes with 1,561 passed and 30 skipped (69.51 seconds).
+  `validation/opencode-recovery-calls.json` records native coverage. Marketplace
+  and Droid bundles, debug/release builds, Clippy, formatting and the 256-file
+  reference check pass. Original tests remain unchanged.
+  Native Windows execution remains unverified. No improvement pass is counted.
 
 ## Dependencies
 

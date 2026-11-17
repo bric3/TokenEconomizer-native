@@ -114,6 +114,11 @@ impl NativeRuntime {
     }
 }
 impl super::Runtime for NativeRuntime {
+    fn checkpoint(&mut self, changes: Vec<Value>) {
+        if let Some(output) = &self.output {
+            let _ = send(output, &json!({"checkpoint":changes}));
+        }
+    }
     fn hook(&mut self, payload: &Value) -> Result<Value> {
         let ctx = self.context()?;
         let env = Self::env(&ctx)?;
@@ -289,12 +294,36 @@ pub fn exit() -> Result<()> {
     let port = request["port"]
         .as_u64()
         .and_then(|v| u16::try_from(v).ok())
-        .filter(|p| *p != 0)
-        .ok_or("invalid control port")?;
-    let mut stream =
+        .filter(|p| *p != 0);
+    let connection = port.map(|port| {
         TcpStream::connect_timeout(&(Ipv4Addr::LOCALHOST, port).into(), Duration::from_secs(5))
-            .map_err(|e| e.to_string())?;
-    serde_json::to_writer(&mut stream, &request).map_err(|e| e.to_string())?;
+    });
+    let mut stream = match connection {
+        Some(Ok(stream)) => stream,
+        _ => {
+            let version = request["version"]
+                .as_u64()
+                .and_then(|v| u8::try_from(v).ok())
+                .ok_or("invalid SDK version")?;
+            let bridge = Bridge::new(version)?;
+            bridge.restore(version, request["restore"].clone(), &request["bootstrap"])?;
+            let job = bridge.prepare("exit", &json!({}))?;
+            bridge.run(
+                job,
+                &mut NativeRuntime {
+                    id: 0,
+                    context: request["context"].clone(),
+                    output: None,
+                    replies: None,
+                    executable: std::env::current_exe().map_err(|e| e.to_string())?,
+                },
+            )?;
+            return Ok(());
+        }
+    };
+    // The live backend already owns the transcript; recovery data stays in this helper.
+    let control = json!({"token":request["token"],"context":request["context"]});
+    serde_json::to_writer(&mut stream, &control).map_err(|e| e.to_string())?;
     stream.write_all(b"\n").map_err(|e| e.to_string())?;
     let mut reply = String::new();
     BufReader::new(stream)
@@ -324,6 +353,7 @@ pub fn run(executable: &Path, version: u8) -> Result<()> {
     send(&output, &json!({"ready":port}))?;
     let waiters = Arc::new(Mutex::new(HashMap::<u64, mpsc::Sender<Value>>::new()));
     let mut workers: Vec<thread::JoinHandle<()>> = Vec::new();
+    let mut started = false;
     for line in io::stdin().lock().lines() {
         let request = match serde_json::from_str::<Value>(&line.map_err(|e| e.to_string())?) {
             Ok(value) => value,
@@ -349,6 +379,18 @@ pub fn run(executable: &Path, version: u8) -> Result<()> {
             )?;
             continue;
         }
+        if let Some(saved) = request.get("restore") {
+            let result = if started {
+                Err("restore is only valid on the first request".into())
+            } else {
+                bridge.restore(version, saved.clone(), &request["bootstrap"])
+            };
+            if let Err(error) = result {
+                send(&output, &json!({"id":id,"error":error}))?;
+                continue;
+            }
+        }
+        started = true;
         let job = match bridge.prepare(request["method"].as_str().unwrap_or(""), &request["body"]) {
             Ok(job) => job,
             Err(error) => {
@@ -358,6 +400,13 @@ pub fn run(executable: &Path, version: u8) -> Result<()> {
         };
         let (tx, replies) = mpsc::channel();
         waiters.lock().map_err(|e| e.to_string())?.insert(id, tx);
+        bridge.checkpoint(&mut NativeRuntime {
+            id,
+            context: Value::Null,
+            output: Some(output.clone()),
+            replies: None,
+            executable: executable.to_path_buf(),
+        })?;
         workers.retain(|worker| !worker.is_finished());
         let (bridge, output, waiters, executable) = (
             bridge.clone(),

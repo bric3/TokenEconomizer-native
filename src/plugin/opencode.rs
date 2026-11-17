@@ -1,14 +1,20 @@
 use super::javascript::{nullish, string, truthy};
 use indexmap::IndexMap;
+use recovery::Slot;
 use serde_json::{Value, json};
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex, MutexGuard},
 };
 
+mod recovery;
 pub mod server;
 pub type Result<T> = std::result::Result<T, String>;
-type Message = Arc<Mutex<Value>>;
+type Message = Arc<MessageData>;
+struct MessageData {
+    id: u64,
+    value: Mutex<Value>,
+}
 type Id = Option<Value>;
 
 fn key(id: Option<&Value>) -> String {
@@ -55,6 +61,7 @@ fn extra(out: &Value) -> Option<&Value> {
 }
 
 pub trait Runtime {
+    fn checkpoint(&mut self, _changes: Vec<Value>) {}
     fn hook(&mut self, payload: &Value) -> Result<Value>;
     fn export(&mut self, sid: &Id, directory: &Id, records: Option<Value>) -> Result<String>;
     fn notice(&mut self, text: &str, stderr: bool) -> Result<()>;
@@ -76,6 +83,8 @@ pub struct State {
     records: HashMap<String, Vec<Message>>,
     steps: HashMap<String, Message>,
     names: HashMap<String, Value>,
+    next_message: u64,
+    changes: Vec<Value>,
 }
 impl State {
     pub fn new(version: u8) -> Result<Self> {
@@ -96,6 +105,8 @@ impl State {
             records: HashMap::new(),
             steps: HashMap::new(),
             names: HashMap::new(),
+            next_message: 0,
+            changes: Vec::new(),
         })
     }
     fn base(&self, sid: &Id, event: &str) -> Value {
@@ -114,8 +125,20 @@ impl State {
             return false;
         }
         self.open.insert(key.clone(), sid.clone());
+        self.changed(Slot::Open(key.clone()), Some(recovery::id(sid)));
         self.prompts.insert(key.clone(), 0.0);
+        self.changed(Slot::Count(key.clone()), Some(json!(0)));
+        self.changed(Slot::Starting(key.clone()), Some(json!(true)));
         if self.version == 2 {
+            if let Some(previous) = self.records.remove(&key) {
+                for message in previous {
+                    self.changed(Slot::Record(key.clone(), message.id), None);
+                    if Arc::strong_count(&message) == 1 {
+                        self.changed(Slot::Message(message.id), None);
+                    }
+                }
+            }
+            self.changed(Slot::Records(key.clone()), Some(json!(true)));
             self.records.insert(key, Vec::new());
         }
         true
@@ -128,7 +151,10 @@ impl State {
         let n = self.prompts.entry(key.clone()).or_default();
         *n += 1.0;
         let turn = format!("{}:{}", id_text(sid), string(&json!(n)));
+        let n = *n;
+        self.changed(Slot::Count(key.clone()), Some(json!(n)));
         self.turns.insert(key.clone(), turn.clone());
+        self.changed(Slot::Turn(key.clone()), Some(json!(turn)));
         let text = if self.version == 1 {
             json!(text_parts(&body["output"]["parts"])?)
         } else {
@@ -136,10 +162,9 @@ impl State {
         };
         if self.version == 2 {
             self.unsettled.insert(key.clone());
+            self.changed(Slot::Unsettled(key.clone()), Some(json!(true)));
             let message = json!({"info":{"id":string(nullish(body.get("messageID"), &json!(turn))),"role":"user"},"parts":[{"type":"text","text":text}]});
-            if let Some(records) = self.records.get_mut(&key) {
-                records.push(Arc::new(Mutex::new(message)));
-            }
+            self.append(&key, message);
         }
         let mut payload = self.base(sid, "UserPromptSubmit");
         payload["prompt_id"] = json!(turn);
@@ -147,23 +172,35 @@ impl State {
         Ok(payload)
     }
     fn assistant(&mut self, sid: &Id, mid: Option<&Value>) -> Message {
-        self.steps
-            .entry(key(mid))
-            .or_insert_with(|| {
-                let mut message = json!({"info":{"role":"assistant","path":{}},"parts":[]});
-                if let Some(id) = mid {
-                    message["info"]["id"] = id.clone();
-                }
-                if let Some(cwd) = &self.directory {
-                    message["info"]["path"]["cwd"] = cwd.clone();
-                }
-                let message = Arc::new(Mutex::new(message));
-                if let Some(records) = self.records.get_mut(&key(sid.as_ref())) {
-                    records.push(message.clone());
-                }
-                message
-            })
-            .clone()
+        let message_key = key(mid);
+        if let Some(message) = self.steps.get(&message_key) {
+            return message.clone();
+        }
+        let mut value = json!({"info":{"role":"assistant","path":{}},"parts":[]});
+        if let Some(id) = mid {
+            value["info"]["id"] = id.clone();
+        }
+        if let Some(cwd) = &self.directory {
+            value["info"]["path"]["cwd"] = cwd.clone();
+        }
+        let message = self.append(&key(sid.as_ref()), value);
+        self.changed(Slot::Step(message_key.clone()), Some(json!(message.id)));
+        self.steps.insert(message_key, message.clone());
+        message
+    }
+    fn append(&mut self, key: &str, value: Value) -> Message {
+        let id = self.next_message;
+        self.next_message += 1;
+        self.changed(Slot::Message(id), Some(value.clone()));
+        let message = Arc::new(MessageData {
+            id,
+            value: Mutex::new(value),
+        });
+        if let Some(records) = self.records.get_mut(key) {
+            records.push(message.clone());
+            self.changed(Slot::Record(key.into(), id), Some(json!(true)));
+        }
+        message
     }
     fn record(&mut self, kind: &str, p: &Value, sid: &Id) -> Result<()> {
         if kind == "session.tool.input.started" {
@@ -171,10 +208,14 @@ impl State {
                 key(p.get("id")),
                 p.get("name").cloned().unwrap_or(Value::Null),
             );
+            self.changed(
+                Slot::Name(key(p.get("id"))),
+                Some(p.get("name").cloned().unwrap_or(Value::Null)),
+            );
             return Ok(());
         }
         let assistant = self.assistant(sid, p.get("assistantMessageID"));
-        let mut m = assistant.lock().map_err(|e| e.to_string())?;
+        let mut m = assistant.value.lock().map_err(|e| e.to_string())?;
         match kind {
             "session.step.started" => {
                 if let Some(model) = p["model"]
@@ -217,6 +258,7 @@ impl State {
             }
             _ => return Err(format!("unknown record event: {kind}")),
         }
+        self.changed(Slot::Message(assistant.id), Some(m.clone()));
         Ok(())
     }
     fn tool(&self, sid: &Id, body: &Value) -> (Value, String) {
@@ -300,6 +342,10 @@ impl State {
                         .clone(),
                     )
                 };
+                self.changed(
+                    Slot::Config,
+                    Some(json!({"version":self.version,"directory":recovery::id(&self.directory)})),
+                );
             }
             "prompt" => {
                 if self.version == 1 && !truthy(job.sid.as_ref().unwrap_or(&Value::Null)) {
@@ -307,10 +353,16 @@ impl State {
                 }
                 if self.version == 1 {
                     self.current = job.sid.clone().unwrap();
+                    self.changed(Slot::Current, Some(self.current.clone()));
                 }
                 job.start = self.start(&job.sid);
                 if !job.start {
                     job.payload = Some(self.prompt(&job.sid, body)?);
+                } else {
+                    self.changed(
+                        Slot::Pending(key(job.sid.as_ref())),
+                        Some(json!({"id":recovery::id(&job.sid),"body":body})),
+                    );
                 }
                 job.operation = Operation::Prompt;
             }
@@ -367,11 +419,13 @@ impl State {
                         if self.version == 2 =>
                     {
                         if self.unsettled.remove(&key) {
+                            self.changed(Slot::Unsettled(key.clone()), None);
                             job.operation = Operation::Stop;
                         }
                     }
                     "session.deleted" => {
                         if self.open.shift_remove(&key).is_some() {
+                            self.changed(Slot::Open(key), None);
                             job.operation = Operation::End("deleted".into());
                         }
                     }
@@ -407,7 +461,7 @@ impl State {
             .map(|records| {
                 records
                     .iter()
-                    .map(|m| m.lock().map(|m| m.clone()).map_err(|e| e.to_string()))
+                    .map(|m| m.value.lock().map(|m| m.clone()).map_err(|e| e.to_string()))
                     .collect::<Result<Vec<_>>>()
             })
             .transpose()?
@@ -446,6 +500,13 @@ impl Bridge {
     pub fn prepare(&self, method: &str, body: &Value) -> Result<Job> {
         self.state()?.prepare(method, body)
     }
+    pub fn checkpoint(&self, runtime: &mut dyn Runtime) -> Result<()> {
+        let mut state = self.state()?;
+        if !state.changes.is_empty() {
+            runtime.checkpoint(std::mem::take(&mut state.changes));
+        }
+        Ok(())
+    }
     fn notify(&self, out: &Value, runtime: &mut dyn Runtime) -> Result<()> {
         if let Some(text) = out["systemMessage"].as_str().filter(|s| !s.is_empty()) {
             let version = self.state()?.version;
@@ -479,6 +540,7 @@ impl Bridge {
         Ok(())
     }
     pub fn run(&self, mut job: Job, runtime: &mut dyn Runtime) -> Result<Value> {
+        self.checkpoint(runtime)?;
         if self.state()?.closing && !matches!(job.operation, Operation::Exit) {
             return Ok(json!({"actions":[]}));
         }
@@ -495,7 +557,12 @@ impl Bridge {
                     key(job.sid.as_ref()),
                     nullish(extra(&out), &json!("")).clone(),
                 );
+                let key = key(job.sid.as_ref());
+                let manual = state.manuals[&key].clone();
+                state.changed(Slot::Manual(key.clone()), Some(manual));
+                state.changed(Slot::Starting(key), None);
             }
+            self.checkpoint(runtime)?;
             self.notify(&out, runtime)?;
         }
         match job.operation {
@@ -503,8 +570,14 @@ impl Bridge {
             Operation::Prompt => {
                 let payload = match job.payload {
                     Some(payload) => payload,
-                    None => self.state()?.prompt(&job.sid, &job.body)?,
+                    None => {
+                        let mut state = self.state()?;
+                        let payload = state.prompt(&job.sid, &job.body)?;
+                        state.changed(Slot::Pending(key(job.sid.as_ref())), None);
+                        payload
+                    }
                 };
+                self.checkpoint(runtime)?;
                 let out = runtime.hook(&payload)?;
                 if self.state()?.closing {
                     return Ok(json!({"actions":[]}));
@@ -523,7 +596,10 @@ impl Bridge {
                     } else {
                         extra.clone()
                     };
+                    let manual = manual.clone();
+                    state.changed(Slot::Manual(key(job.sid.as_ref())), Some(manual));
                 }
+                self.checkpoint(runtime)?;
                 self.notify(&out, runtime)?;
             }
             Operation::Tool(text) => {
@@ -570,11 +646,17 @@ impl Bridge {
                     if state.closing {
                         return Ok(json!({"actions":[]}));
                     }
-                    state.open.shift_remove(&key(job.sid.as_ref())).is_some()
+                    let key = key(job.sid.as_ref());
+                    let removed = state.open.shift_remove(&key).is_some();
+                    if removed {
+                        state.changed(Slot::Open(key), None);
+                    }
+                    removed
                 } else {
                     false
                 };
                 if end {
+                    self.checkpoint(runtime)?;
                     self.end(&job.sid, "run", runtime)?;
                 }
             }

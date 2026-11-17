@@ -151,6 +151,58 @@ class OpencodeSdkProbe {
       }
     }
   }
+  static String crash(String request, String event) {
+    if (request.contains("\"env\":{")) return request.replace("\"env\":{", "\"env\":{\"TE_OC_CRASH\":" + q(event) + ",");
+    return request.replace("\"method\":", "\"env\":{\"TE_OC_CRASH\":" + q(event) + "},\"method\":");
+  }
+  static void recovery(Path checkout, Path root, Path sdk, Path original, int version, String runtime) throws Exception {
+    var tag = "recover-" + version + (runtime.endsWith("bun") ? "-bun" : "-node");
+    try (var nativeClient = new Client(checkout, root, sdk, version, tag + "-native", runtime);
+         var source = new Client(checkout, root, original, version, tag + "-source", runtime)) {
+      compare(nativeClient, source, prompt(version, "alpha", "first", true));
+      if (version == 2) {
+        compare(nativeClient, source, r("stream", event("session.step.started", "\"sessionID\":\"alpha\",\"assistantMessageID\":\"a1\",\"model\":{\"id\":\"saved/model\"}")));
+        compare(nativeClient, source, r("stream", event("session.tool.input.started", "\"sessionID\":\"alpha\",\"id\":\"c1\",\"name\":\"saved-tool\"")));
+      }
+      compare(nativeClient, source, crash(prompt(version, "alpha", "crashed", true), "UserPromptSubmit"), "alpha:2");
+      compare(nativeClient, source, context(version, "alpha"), "facts é😀\\n\\nmap");
+      compare(nativeClient, source, prompt(version, "alpha", "after-crash", false), "alpha:3");
+      var tool = version == 1 ? r("tool.execute.after", "\"input\":{\"sessionID\":\"alpha\",\"tool\":\"read\"},\"output\":{\"output\":\"unchanged\"}")
+          : r("execute.after", "\"body\":{\"sessionID\":\"alpha\",\"tool\":\"read\",\"status\":\"completed\",\"result\":{\"content\":\"unchanged\"}}");
+      compare(nativeClient, source, crash(tool, "PostToolUse"), "unchanged");
+      compare(nativeClient, source, context(version, "alpha"), "facts é😀\\n\\nmap");
+      if (version == 2) {
+        compare(nativeClient, source, r("stream", event("session.tool.called", "\"sessionID\":\"alpha\",\"assistantMessageID\":\"a1\",\"id\":\"c1\",\"input\":{\"keep\":true}")));
+        compare(nativeClient, source, r("stream", event("session.step.ended", "\"sessionID\":\"alpha\",\"assistantMessageID\":\"a1\",\"cost\":0.5")));
+      }
+      var shared = "\"TE_OC_CRASH\":\"UserPromptSubmit\",\"TE_OC_CRASH_MATCH\":\"overlap-crash\",\"TE_OC_WAIT_FOR_LOGS\":\"2\",\"TE_OC_WAIT_AFTER_CRASH\":\"crash-done\",";
+      var slow = prompt(version, "alpha", "overlap-crash", false).replace("\"env\":{", "\"env\":{" + shared);
+      slow = slow.substring(0, slow.length() - 1) + ",\"release\":\"crash-done\"}";
+      var other = prompt(version, "alpha", "also-waiting", false)
+          .replace("\"env\":{", "\"env\":{" + shared);
+      compare(nativeClient, source, "{\"batch\":[" + slow + "," + other + "]}", "alpha:4", "alpha:5");
+      compare(nativeClient, source, prompt(version, "alpha", "after-overlap", false), "alpha:6");
+      compare(nativeClient, source, r(version == 1 ? "event" : "stream", event("session.idle", "\"sessionID\":\"alpha\"")));
+      var start = crash(prompt(version, "new-start", "pending-start", false), "SessionStart");
+      var expected = source.call(start);
+      var actual = nativeClient.call(start);
+      require(expected.contains("UserPromptSubmit") && actual.contains("SessionStart") && !actual.contains("UserPromptSubmit"), actual + "\n" + expected);
+      cases++;
+      compare(nativeClient, source, context(version, "new-start"));
+      compare(nativeClient, source, prompt(version, "new-start", "after-start", false), "new-start:2");
+      compare(nativeClient, source, r("kill", ""));
+      compare(nativeClient, source, context(version, "alpha"), "facts é😀\\n\\nmap");
+      compare(nativeClient, source, prompt(version, "at-exit", "exit-after-kill", false));
+      compare(nativeClient, source, r("kill", ""));
+      require(Files.readAllLines(Path.of(nativeClient.log + ".crashes")).size() == 4, "Recovery fixture did not kill four hook backends");
+      compare(nativeClient, source, r("exit", ""), "SessionEnd", version == 2 ? "exit-after-kill" : "at-exit.json");
+    }
+    for (var sid : List.of("alpha", "new-start", "at-exit")) {
+      var relative = Path.of("opencode-sessions", sid + ".json");
+      require(Files.isRegularFile(root.resolve(tag + "-native-state").resolve(relative)), "Exit fallback lost " + sid);
+    }
+    require(Files.readString(root.resolve(tag + "-native.jsonl")).contains("\"reason\":\"exit\""), "Synchronous fallback skipped session ends");
+  }
   static void fixture(String[] args) throws Exception {
     var log = Path.of(System.getenv("TE_OC_LOG"));
     if (args[0].equals("--export")) {
@@ -162,6 +214,26 @@ class OpencodeSdkProbe {
     require(event.find(), payload);
     Files.writeString(log, "{\"payload\":" + payload + ",\"argv\":" + ParserProbe.array(List.of(args).subList(1, args.length))
         + ",\"mode\":" + q(System.getenv("TE_OPENCODE_MODE")) + ",\"control_token\":" + System.getenv().containsKey("TE_NATIVE_CONTROL_TOKEN") + "}\n", StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+    var parent = ProcessHandle.current().parent().orElseThrow();
+    boolean nativeBackend = Path.of(parent.info().command().orElseThrow()).getFileName().toString().equals("te");
+    if (nativeBackend) Files.writeString(Path.of(log + ".backend"), Long.toString(parent.pid()));
+    var waitFor = System.getenv("TE_OC_WAIT_FOR");
+    var match = System.getenv("TE_OC_CRASH_MATCH");
+    boolean matches = match == null || payload.contains(match);
+    if (!matches) waitFor = System.getenv("TE_OC_WAIT_AFTER_CRASH");
+    int expected = Integer.parseInt(System.getenv().getOrDefault("TE_OC_WAIT_FOR_LOGS", "0"));
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+    while ((waitFor != null && !Files.exists(Path.of(log + ".barrier-" + waitFor))) || Files.readAllLines(log).size() < expected) {
+      if (!parent.isAlive()) return;
+      require(System.nanoTime() < deadline, "Hook fixture barrier did not open"); Thread.sleep(10);
+    }
+    if (event.group(1).equals(System.getenv("TE_OC_CRASH")) && matches) {
+      if (nativeBackend) {
+        require(parent.destroyForcibly(), "Fixture could not kill its native backend");
+        Files.writeString(Path.of(log + ".crashes"), "killed\n", StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+      }
+      System.out.print("{}"); return;
+    }
     System.out.print(System.getenv().getOrDefault("TE_OC_" + event.group(1), "{}"));
   }
   static void launcher(Path path, String mode) throws Exception {
@@ -198,10 +270,13 @@ class OpencodeSdkProbe {
       var source = Files.createDirectories(root.resolve("source/opencode")).resolve("tokeneconomizer.ts");
       Files.copy(checkout.resolve("reference/upstream/plugin/opencode/tokeneconomizer.ts"), source);
       launcher(Files.createDirectories(root.resolve("source/scripts")).resolve("te-hook"), "--hook");
-      for (var runtime : List.of("/opt/homebrew/bin/node", "/opt/homebrew/bin/bun")) for (int version : List.of(1, 2)) scenario(checkout, root, plugin.resolve("opencode/tokeneconomizer.ts"), source, version, runtime);
+      for (var runtime : List.of("/opt/homebrew/bin/node", "/opt/homebrew/bin/bun")) for (int version : List.of(1, 2)) {
+        scenario(checkout, root, plugin.resolve("opencode/tokeneconomizer.ts"), source, version, runtime);
+        recovery(checkout, root, plugin.resolve("opencode/tokeneconomizer.ts"), source, version, runtime);
+      }
       originalHarness(checkout, root, plugin.resolve("opencode/tokeneconomizer.ts"));
       unavailable(checkout, root, plugin.resolve("opencode/tokeneconomizer.ts"), source);
-      System.out.println("Packaged opencode SDK matches upstream in " + cases + " callback cases across v1/v2 and Node/Bun; the original runtime harness and synchronous exits passed without an agent on PATH");
+      System.out.println("Packaged opencode SDK matches upstream in " + cases + " callback cases across v1/v2 and Node/Bun; 24 backend kills, the original runtime harness and synchronous exits passed without an agent on PATH");
       passed = true;
     } finally {
       if (passed) { try (var paths = Files.walk(root)) { for (var path : paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(path); } }
