@@ -12,4 +12,5 @@ pub mod judge;
 pub mod paths;
 pub mod process;
 pub mod repos;
+pub mod sidecall;
 pub mod winspawn;

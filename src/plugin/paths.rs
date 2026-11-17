@@ -225,7 +225,7 @@ pub fn gitdir_of_file(dot: &Path) -> Result<Option<PathBuf>, String> {
     }
 }
 
-fn normalize(path: &Path) -> PathBuf {
+pub(crate) fn normalize(path: &Path) -> PathBuf {
     let mut out = PathBuf::new();
     for c in path.components() {
         if c == Component::CurDir {

@@ -27,6 +27,8 @@ mod judge_dispatch;
 mod queue_dispatch;
 #[path = "repos.rs"]
 mod repos_dispatch;
+#[path = "sidecall.rs"]
+mod sidecall_dispatch;
 
 fn text<'a>(args: &'a Value, key: &str) -> &'a str {
     args[key].as_str().unwrap_or("")
@@ -94,6 +96,9 @@ fn paths_dispatch(op: &str, args: &Value) -> Result<Value, String> {
 }
 
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
+    if op.starts_with("sidecall.") {
+        return sidecall_dispatch::dispatch(op, args);
+    }
     if op.starts_with("controller.") {
         return controller_dispatch::dispatch(op, args);
     }

@@ -78,6 +78,8 @@ def wrap(original, operation):
             return host_session_call(operation, arguments)
         if operation.startswith("controller."):
             return controller_call(operation, arguments)
+        if operation.startswith("sidecall."):
+            return sidecall_call(operation, arguments)
         if operation.startswith(("context.", "winspawn.")):
             return context_call(operation, arguments)
         if operation == "trace.copilot.copilot_mcp_servers":
@@ -617,6 +619,7 @@ def pytest_configure(config):
                     "effective_tokens", "approx_tokens", "runner_effective_or_approx"),
         "ledger": ("overhead", "effective_exec"),
         "plugin.accounting": ("effective", "overhead_total", "summarize", "fmt_tokens"),
+        "plugin.sidecall": ("_obj", "_env", "_hermes_env", "_pause_path", "paused", "resume", "_log", "_no_reply", "claude_cli", "hermes_cli", "_shim_argv", "program", "claude_json", "copilot_model", "droid_enabled", "_droid_usage", "local_routes", "call_name"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
@@ -712,7 +715,11 @@ def pytest_configure(config):
     assert defaults == vars(LiveConfig())
     global LIVE_CONFIG_ENV
     LIVE_CONFIG_ENV = invoke("live_config.environment", {})
-    from tokeneconomizer.plugin import repos, hosts
+    from tokeneconomizer.plugin import repos, hosts, sidecall
+    constants = invoke("sidecall.constants", {})
+    for name in ("TIMEOUT_S", "FM_CLI", "FM_TIMEOUT_S"):
+        assert constants[name] == getattr(sidecall, name)
+    assert set(constants["NO_SIDE_CALLS"]) == sidecall.NO_SIDE_CALLS
     constants = invoke("repos.constants", {})
     assert set(constants["HOSTS"]) == set(hosts.HOSTS)
     assert tuple(constants["LEARNED"]) == repos.LEARNED
@@ -998,6 +1005,38 @@ def hookqueue_call(operation, arguments):
             last_error = error
             reply = {"error": str(error), "error_kind": type(error).__name__}
         result = invoke("hookqueue.resume", {"job": result["job"], "reply": reply})
+    return storage_result(result)
+
+
+def sidecall_call(operation, arguments):
+    from tokeneconomizer.plugin import sidecall, paths
+    arguments = dict(arguments)
+    if "config" in arguments:
+        arguments["config"] = vars(arguments["config"])
+    if "env" not in arguments or arguments["env"] is None:
+        arguments["env"] = dict(os.environ)
+    if "root" not in arguments or not arguments["root"]:
+        arguments["root"] = paths.state_root()
+    arguments["root"] = os.fspath(arguments["root"])
+    if "path" in arguments:
+        arguments["path"] = os.fspath(arguments["path"])
+    if "out" in arguments:
+        out = arguments.pop("out")
+        arguments.update(stdout=getattr(out, "stdout", "") or "", stderr=getattr(out, "stderr", "") or "",
+                         code=getattr(out, "returncode", "?"))
+    arguments.update(home=os.path.expanduser("~"), process_cwd=os.getcwd(), windows=os.name == "nt", macos=sidecall._macos())
+    result = invoke(operation, arguments)
+    while isinstance(result, dict) and result.get("callback") == "sidecall":
+        if result["method"] == "pending":
+            result = invoke("sidecall.resume_job", {"job": result["job"]})
+            continue
+        try:
+            if result["method"] != "which":
+                raise AssertionError("Unknown side-call callback: " + result["method"])
+            reply = {"value": sidecall.shutil.which(*result["args"])}
+        except Exception as error:
+            reply = {"error": str(error)}
+        result = invoke("sidecall.resume_job", {"job": result["job"], "reply": reply})
     return storage_result(result)
 
 

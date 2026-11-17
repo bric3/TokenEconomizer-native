@@ -149,6 +149,13 @@ complete while any runtime component delegates production behaviour to Python.
   a hook can deliver them. Side-call policy and repository-map generation still
   cross callbacks; the existing native history, folding and launcher components
   are connected through the test transport until CLI integration.
+- Shared side-call support now executes in Rust: signed-out pause files and
+  resumption, bounded error notes, recursion-safe environment copies, Claude's
+  verbose result selection, Copilot model selection, Droid opt-in and usage
+  fields, local-role routing and command names. Claude and Hermes installer
+  fallbacks and npm shim parsing are native; unsupported batch files are refused
+  before a prompt can reach `cmd.exe`. PATH lookup crosses the SDK test transport.
+  Model-call execution, availability probes and runner orchestration remain pending.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -412,6 +419,12 @@ complete while any runtime component delegates production behaviour to Python.
   retains `PostToolUseFailure` and the queued event is removed. No reference hook
   executable or agent CLI runs in this probe. Clippy, formatting and the integrity
   check of all 256 archived files pass.
+- Side-call support focused run: 534 passed, 8 skipped. Full suite with native
+  pause state, command resolution and policy helpers: 1,558 passed, 33 skipped
+  (51.43 seconds). `validation/sidecall-support-calls.json` records native entries,
+  including 2,277 pause reads, 445 local-role checks and six npm shim parses.
+  The native controller process probe, Clippy, formatting and all 256 archived
+  files pass. Actual agent commands and native Windows execution remain unverified.
 
 ## Dependencies
 
