@@ -17,6 +17,8 @@ mod denylist_dispatch;
 mod fold_dispatch;
 #[path = "history.rs"]
 mod history_dispatch;
+#[path = "hook.rs"]
+mod hook_dispatch;
 #[path = "host_session.rs"]
 mod host_session_dispatch;
 #[path = "hosts.rs"]
@@ -100,6 +102,9 @@ fn paths_dispatch(op: &str, args: &Value) -> Result<Value, String> {
 }
 
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
+    if op.starts_with("hook.") {
+        return hook_dispatch::dispatch(op, args);
+    }
     if op.starts_with("repomap.") {
         return repomap_dispatch::dispatch(op, args);
     }

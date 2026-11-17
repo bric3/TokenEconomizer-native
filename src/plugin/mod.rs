@@ -6,6 +6,7 @@ pub mod controller;
 pub mod denylist;
 pub mod fold;
 pub mod history;
+pub mod hook;
 pub mod hookqueue;
 pub mod hosts;
 pub mod judge;

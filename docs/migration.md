@@ -224,6 +224,11 @@ complete while any runtime component delegates production behaviour to Python.
   binding only calls that optional SDK and separates console output from map text.
   The live generator call's deadline terminates its process group and removes its
   private workspace.
+- Hook lifecycle and input/output policy now execute in Rust: host preparation,
+  deferred context settlement, expanded event ordering, output merging and rendering,
+  UTF-8 input, disable flags, event arguments, progress lines and error logging.
+  The original hook tests enter the native lifecycle through the test transport.
+  Controller service wiring and the standalone hook executable remain pending.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -238,7 +243,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit regular-expression compatibility with Python in the production parity
   pass, including word boundaries, whitespace classes and syntax. The current
   library rejects Python's `(?a)` flag; this remains a required compatibility fix.
-- Audit JSON numeric edge cases, including non-finite values accepted by Python.
+- Audit JSON numeric edge cases and parser nesting limits, including non-finite
+  values accepted by Python.
   Configuration numeric coercion still needs Unicode decimal digits and integers
   outside the current i64 range. Audit path-normalisation edge cases too.
 - Complete named-user and Windows tilde expansion for extra history directories
@@ -251,7 +257,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit temporary-directory cleanup against Python's permission-repair retries,
   including native Windows behaviour. Current removal uses `remove_dir_all`.
 - Integrate the native controller and host operations into CLI and hooks.
-- Port end-to-end model probes, CLI commands and hooks.
+- Port end-to-end model probes and CLI commands, and package the native hook.
   Verify each host integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
   supporting tools, preserving their original test contracts.
@@ -610,6 +616,14 @@ complete while any runtime component delegates production behaviour to Python.
   The timeout case checks SDK descendant termination and workspace removal.
   The orchestration and subprocess-input probes, Clippy, formatting and all 256
   reference files pass. Real aider execution and native Windows remain unverified.
+- Full suite with native hook lifecycle and input/output policy: 1,558 passed,
+  33 skipped (51.68 seconds). `validation/hook-calls.json` records 4,720 hook-main
+  entries and 44 direct hook-run entries. Callbacks and nested facade calls are
+  recorded separately; reference child processes retain their Python entry points.
+  `HookProbe.java` checks malformed UTF-8 before disable checks, unreadable input,
+  scalar payloads, event precedence, Unicode progress, error boundaries, log-write
+  failure and state permissions. Clippy, formatting and all 256 reference files
+  pass. The native CLI and standalone hook workflow remain unverified.
 
 ## Dependencies
 
@@ -716,6 +730,7 @@ jbang validation/ToolcheckProbe.java
 jbang validation/DiscoveryProbe.java
 jbang validation/RepoMapProbe.java
 jbang validation/GeneratorProbe.java
+jbang validation/HookProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 

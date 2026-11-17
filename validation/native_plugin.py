@@ -40,6 +40,8 @@ NATIVE_HOST_ANCESTORS = None
 NATIVE_CONTROLLER_FUNCTIONS = {}
 NATIVE_SIDECALL_FUNCTIONS = {}
 NATIVE_TOOLCHECK_FUNCTIONS = {}
+NATIVE_HOOK_RUN = None
+NATIVE_HOOK_HOSTS = {}
 
 
 def invoke(operation, arguments):
@@ -70,6 +72,8 @@ def wrap(original, operation):
         bound = signature.bind(*args, **kwargs)
         bound.apply_defaults()
         arguments = dict(bound.arguments)
+        if operation.startswith("hook."):
+            return hook_call(operation, arguments)
         if operation.startswith("hookqueue."):
             return hookqueue_call(operation, arguments)
         if operation.startswith("history."):
@@ -628,6 +632,7 @@ def pytest_configure(config):
         "plugin.sidecall": ("_obj", "_env", "_hermes_env", "_pause_path", "paused", "resume", "_log", "_no_reply", "claude_cli", "hermes_cli", "_shim_argv", "program", "claude_json", "copilot_model", "droid_enabled", "_droid_usage", "local_routes", "call_name", "_claude_help", "claude_flags", "claude_no_mcp", "claude_call", "codex_call", "pi_extension_args", "pi_call", "cursor_call", "grok_call", "opencode_flags", "opencode_call", "copilot_call", "_droid_sessions_root", "_droid_settings_usage", "droid_call", "fm_available", "fm_call", "hermes_home", "_hermes_db", "_hermes_ledger", "_hermes_charge", "_hermes_delete", "_hermes_settle", "_hermes_defer", "_hermes_settle_earlier", "hermes_call", "_noted", "_host_call", "local_runner", "runner_for"),
         "plugin.toolcheck": ("_request_tools", "_prompt_tokens", "_codex_prompt_chars", "_copilot_version", "verify_codex", "verify_copilot", "measure", "copilot_capture", "_init_tools", "_kill_tree", "refresh_catalog"),
         "plugin.repomap": ("_repo_dir", "_state_path", "_cache_dir", "read_state", "_write_state", "head_commit", "_has_aider", "_aider_command_python", "find_python", "_gen_env", "generate", "refresh", "stale", "spawn_refresh", "cached_block", "prompt_idents", "for_prompt"),
+        "plugin.hook": ("_truthy", "run", "_record_error", "main"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
@@ -977,6 +982,88 @@ def pytest_configure(config):
     global NATIVE_TOOLCHECK_FUNCTIONS
     NATIVE_TOOLCHECK_FUNCTIONS = {name: getattr(toolcheck, name) for name in (
         "claude_flags", "claude_cli", "program", "_prompt_tokens", "_codex_prompt_chars", "copilot_capture", "_init_tools", "_copilot_version", "_write_json")}
+    from tokeneconomizer.plugin import hook
+    global NATIVE_HOOK_RUN, NATIVE_HOOK_HOSTS
+    NATIVE_HOOK_RUN = hook.run
+    NATIVE_HOOK_HOSTS = {name: {method: getattr(cls, method, None) for method in (
+        "cwd", "session_id", "prepare", "record_event", "expand", "render")}
+        for name, cls in hosts.HOSTS.items()}
+
+
+def hook_call(operation, arguments):
+    from tokeneconomizer.plugin import hook, hosts
+    from tokeneconomizer.plugin.context import LiveContext
+    from tokeneconomizer.plugin.controller import LiveController
+    arguments = dict(arguments)
+    if operation == "hook._truthy":
+        return invoke(operation, arguments)
+    stdout = arguments.pop("stdout", None)
+    stdin = arguments.pop("stdin", None)
+    argv = arguments.pop("argv", None)
+    if operation == "hook.main":
+        stdin = sys.stdin if stdin is None else stdin
+        stdout = sys.stdout if stdout is None else stdout
+        arguments["argv"] = sys.argv[1:] if argv is None else argv
+        try:
+            buffer = getattr(stdin, "buffer", None)
+            raw = buffer.read() if buffer is not None else stdin.read().encode("utf-8")
+            arguments["input"] = list(raw)
+        except Exception:
+            arguments["input_error"] = traceback.format_exc()
+    if operation == "hook._record_error":
+        arguments["error"] = traceback.format_exc()
+    arguments["env"] = dict(os.environ if arguments.get("env") is None else arguments["env"])
+    arguments.update(process_env=dict(os.environ), process_cwd=os.getcwd(), home=os.path.expanduser("~"), pid=os.getpid(),
+                     patched_run=hook.run is not NATIVE_HOOK_RUN)
+    host, ctx = None, None
+    result = invoke(operation, arguments)
+    while isinstance(result, dict) and result.get("callback") == "hook":
+        method, args = result["method"], result["args"]
+        if method == "pending":
+            result = invoke("hook.resume", {"job": result["job"]})
+            continue
+        try:
+            with contextlib.redirect_stdout(sys.stderr):
+                if method == "detect":
+                    payload, env, hint = args
+                    host = hosts.detect(payload, env, hint=hint)
+                    baseline = NATIVE_HOOK_HOSTS.get(host.name, {})
+                    methods = {name: getattr(getattr(host, name, None), "__func__", getattr(host, name, None)) for name in (
+                        "cwd", "session_id", "prepare", "record_event", "expand", "render")}
+                    value = {"host": dict(name=host.name, keeps_history=host.keeps_history,
+                        **{name: hasattr(host, name) for name in ("prepare", "record_event", "expand", "render")}),
+                        "custom": {name: fn is not baseline.get(name) for name, fn in methods.items()}}
+                elif method == "handle":
+                    data, payload = args
+                    if ctx is None:
+                        ctx = LiveContext.__new__(LiveContext)
+                    restore_context(ctx, data, host)
+                    output = LiveController(ctx, payload).handle()
+                    value = {"ctx": context_data(ctx), "output": output}
+                elif method == "host":
+                    name, payload, env, data, output = args
+                    if data is not None:
+                        if ctx is None:
+                            ctx = LiveContext.__new__(LiveContext)
+                        restore_context(ctx, data, host)
+                    params = {"session_id": (payload,), "record_event": (payload,),
+                              "render": (payload, output, ctx)}.get(name, (payload, env))
+                    value = getattr(host, name)(*params)
+                elif method == "run":
+                    payload, env, hint = args
+                    value = hook.run(payload, env, host_hint=hint)
+                else:
+                    raise AssertionError("Unknown hook callback: " + method)
+            reply = {"value": value}
+        except Exception:
+            reply = {"error": traceback.format_exc()}
+        result = invoke("hook.resume", {"job": result["job"], "reply": reply})
+    value = storage_result(result)
+    if operation == "hook.main":
+        stdout.write(value)
+        stdout.flush()
+        return 0
+    return value
 
 
 def config_constructor(cls):
