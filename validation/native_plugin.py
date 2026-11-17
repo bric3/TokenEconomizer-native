@@ -36,6 +36,7 @@ NATIVE_FOLD_FUNCTIONS = {}
 NATIVE_FOLD_DENY = {}
 NATIVE_HOST_ANCESTORS = None
 NATIVE_CONTROLLER_FUNCTIONS = {}
+NATIVE_SIDECALL_FUNCTIONS = {}
 
 
 def invoke(operation, arguments):
@@ -619,7 +620,7 @@ def pytest_configure(config):
                     "effective_tokens", "approx_tokens", "runner_effective_or_approx"),
         "ledger": ("overhead", "effective_exec"),
         "plugin.accounting": ("effective", "overhead_total", "summarize", "fmt_tokens"),
-        "plugin.sidecall": ("_obj", "_env", "_hermes_env", "_pause_path", "paused", "resume", "_log", "_no_reply", "claude_cli", "hermes_cli", "_shim_argv", "program", "claude_json", "copilot_model", "droid_enabled", "_droid_usage", "local_routes", "call_name"),
+        "plugin.sidecall": ("_obj", "_env", "_hermes_env", "_pause_path", "paused", "resume", "_log", "_no_reply", "claude_cli", "hermes_cli", "_shim_argv", "program", "claude_json", "copilot_model", "droid_enabled", "_droid_usage", "local_routes", "call_name", "_claude_help", "claude_flags", "claude_no_mcp", "claude_call"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
@@ -720,6 +721,9 @@ def pytest_configure(config):
     for name in ("TIMEOUT_S", "FM_CLI", "FM_TIMEOUT_S"):
         assert constants[name] == getattr(sidecall, name)
     assert set(constants["NO_SIDE_CALLS"]) == sidecall.NO_SIDE_CALLS
+    global NATIVE_SIDECALL_FUNCTIONS
+    NATIVE_SIDECALL_FUNCTIONS = {name: getattr(sidecall, name) for name in ("claude_cli",)}
+    NATIVE_SIDECALL_FUNCTIONS["temporary_directory"] = sidecall.tempfile.TemporaryDirectory
     constants = invoke("repos.constants", {})
     assert set(constants["HOSTS"]) == set(hosts.HOSTS)
     assert tuple(constants["LEARNED"]) == repos.LEARNED
@@ -1025,19 +1029,47 @@ def sidecall_call(operation, arguments):
         arguments.update(stdout=getattr(out, "stdout", "") or "", stderr=getattr(out, "stderr", "") or "",
                          code=getattr(out, "returncode", "?"))
     arguments.update(home=os.path.expanduser("~"), process_cwd=os.getcwd(), windows=os.name == "nt", macos=sidecall._macos())
+    arguments.update(help=dict(sidecall._HELP), transport={"run": subprocess.run is not NATIVE_SPAWN_FUNCTIONS["run"],
+                                                       "temporary_directory": sidecall.tempfile.TemporaryDirectory is not NATIVE_SIDECALL_FUNCTIONS["temporary_directory"],
+                                                       "claude_cli": sidecall.claude_cli is not NATIVE_SIDECALL_FUNCTIONS["claude_cli"]})
+    last_error = None
+    temporary = None
     result = invoke(operation, arguments)
     while isinstance(result, dict) and result.get("callback") == "sidecall":
         if result["method"] == "pending":
             result = invoke("sidecall.resume_job", {"job": result["job"]})
             continue
         try:
-            if result["method"] != "which":
+            if result["method"] == "which":
+                value = sidecall.shutil.which(*result["args"])
+            elif result["method"] == "claude_cli":
+                value = sidecall.claude_cli()
+            elif result["method"] == "temporary_directory":
+                prefix, ignore_cleanup_errors = result["args"]
+                temporary = sidecall.tempfile.TemporaryDirectory(prefix=prefix, ignore_cleanup_errors=ignore_cleanup_errors)
+                value = temporary.name
+            elif result["method"] == "remove_temporary_directory":
+                temporary.cleanup()
+                value = None
+            elif result["method"] == "run":
+                argv, cwd, env, stdin, timeout = result["args"]
+                kw = {"input": stdin} if stdin is not None else {"stdin": subprocess.DEVNULL}
+                out = subprocess.run(argv, cwd=cwd, env=env, capture_output=True, encoding="utf-8", errors="replace", timeout=timeout, **kw)
+                value = {"code": out.returncode, "stdout": out.stdout or "", "stderr": out.stderr or ""}
+            else:
                 raise AssertionError("Unknown side-call callback: " + result["method"])
-            reply = {"value": sidecall.shutil.which(*result["args"])}
+            reply = {"value": value}
         except Exception as error:
-            reply = {"error": str(error)}
+            last_error = error
+            reply = {"error": str(error), "error_kind": type(error).__name__}
         result = invoke("sidecall.resume_job", {"job": result["job"], "reply": reply})
-    return storage_result(result)
+    if isinstance(result, dict) and "help" in result:
+        sidecall._HELP.clear()
+        sidecall._HELP.update(result["help"])
+    if last_error is not None and isinstance(result, dict) and "raised" in result and result.get("message") == str(last_error):
+        raise last_error
+    value = storage_result(result)
+    return tuple(value) if operation == "sidecall.claude_call" else value
 
 
 def controller_data(ctl):

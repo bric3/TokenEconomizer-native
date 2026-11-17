@@ -1,5 +1,8 @@
 use super::{hosts::session::Environment, paths, process};
-use crate::value::{scalar_text, truthy};
+use crate::{
+    accounting,
+    value::{scalar_text, truthy},
+};
 use chrono::Local;
 use regex::Regex;
 use serde_json::{Map, Value, json};
@@ -7,7 +10,11 @@ use std::{
     fs::{self, OpenOptions},
     io::{self, Write},
     path::{Path, PathBuf},
-    sync::LazyLock,
+    sync::{
+        LazyLock,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 pub const TIMEOUT_S: u64 = 180;
@@ -16,8 +23,34 @@ pub const FM_TIMEOUT_S: u64 = 60;
 pub const NO_SIDE_CALLS: [&str; 1] = ["antigravity"];
 
 pub trait Runtime {
+    fn temporary_directory(
+        &mut self,
+        _prefix: &str,
+        _ignore_cleanup_errors: bool,
+    ) -> Result<Option<PathBuf>, String> {
+        Ok(None)
+    }
+    fn remove_temporary_directory(&mut self, _path: &Path) -> Result<(), String> {
+        Ok(())
+    }
     fn which(&mut self, cli: &str) -> Result<Option<String>, String> {
         Ok(process::which(cli).map(|p| p.to_string_lossy().into_owned()))
+    }
+    fn claude_cli(&mut self, environment: &Environment, windows: bool) -> Result<String, String> {
+        installed_cli("claude", environment, windows, self)
+    }
+    fn run(
+        &mut self,
+        argv: &[String],
+        cwd: &Path,
+        env: &Map<String, Value>,
+        input: Option<&str>,
+        timeout: f64,
+    ) -> io::Result<process::Output> {
+        match input {
+            Some(input) => process::run_input(argv, cwd, env, input, timeout),
+            None => process::run_environment(argv, cwd, env, timeout),
+        }
     }
 }
 static SHIM_TARGET: LazyLock<Regex> =
@@ -93,11 +126,11 @@ pub fn program(
         )
     })
 }
-pub fn installed_cli(
+pub fn installed_cli<R: Runtime + ?Sized>(
     name: &str,
     environment: &Environment,
     windows: bool,
-    runtime: &mut dyn Runtime,
+    runtime: &mut R,
 ) -> Result<String, String> {
     if let Some(found) = runtime.which(name)? {
         return Ok(found);
@@ -267,4 +300,190 @@ pub fn call_name(host: &str) -> String {
         "hermes" => "hermes chat".into(),
         _ => format!("{host} -p"),
     }
+}
+
+pub fn claude_help(
+    cli: &str,
+    cache: &mut Map<String, Value>,
+    environment: &Environment,
+    runtime: &mut dyn Runtime,
+) -> String {
+    if !cache.contains_key(cli) {
+        let help = runtime
+            .run(
+                &[cli.into(), "--help".into()],
+                &environment.cwd,
+                &environment.env,
+                None,
+                30.0,
+            )
+            .map(|out| out.stdout)
+            .unwrap_or_default();
+        cache.insert(cli.into(), json!(help));
+    }
+    cache[cli].as_str().unwrap_or("").into()
+}
+pub fn claude_flags(help: &str) -> Vec<String> {
+    if help.contains("--no-session-persistence") {
+        vec!["--no-session-persistence".into()]
+    } else {
+        Vec::new()
+    }
+}
+pub fn claude_no_mcp(help: &str, cwd: &Path) -> io::Result<Vec<String>> {
+    if !help.contains("--strict-mcp-config") {
+        return Ok(Vec::new());
+    }
+    let path = cwd.join("mcp.json");
+    fs::write(&path, "{\"mcpServers\": {}}")?;
+    Ok(vec![
+        "--strict-mcp-config".into(),
+        "--mcp-config".into(),
+        path.to_string_lossy().into_owned(),
+    ])
+}
+struct WorkDir(PathBuf);
+impl WorkDir {
+    fn new(prefix: &str) -> io::Result<Self> {
+        static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+        loop {
+            let path = std::env::temp_dir().join(format!(
+                "{prefix}{}-{}-{}",
+                std::process::id(),
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos(),
+                SEQUENCE.fetch_add(1, Ordering::Relaxed)
+            ));
+            let mut builder = fs::DirBuilder::new();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::DirBuilderExt;
+                builder.mode(0o700);
+            }
+            match builder.create(&path) {
+                Ok(()) => return Ok(Self(path)),
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(e) => return Err(e),
+            }
+        }
+    }
+}
+impl Drop for WorkDir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+fn with_work_dir<T>(
+    prefix: &str,
+    runtime: &mut dyn Runtime,
+    call: impl FnOnce(&Path, &mut dyn Runtime) -> Result<T, String>,
+) -> Result<T, String> {
+    let external = runtime.temporary_directory(prefix, true)?;
+    let owned = if external.is_none() {
+        Some(WorkDir::new(prefix).map_err(|e| e.to_string())?)
+    } else {
+        None
+    };
+    let path = external
+        .as_deref()
+        .unwrap_or_else(|| &owned.as_ref().unwrap().0);
+    let result = call(path, runtime);
+    if external.is_some() {
+        runtime.remove_temporary_directory(path)?;
+    }
+    result
+}
+pub struct ClaudeCall<'a> {
+    pub prompt: &'a str,
+    pub model: &'a str,
+    pub cli: &'a str,
+    pub timeout: f64,
+    pub effort: &'a str,
+    pub windows: bool,
+}
+pub fn claude_call(
+    request: &ClaudeCall<'_>,
+    environment: &Environment,
+    root: &Path,
+    cache: &mut Map<String, Value>,
+    runtime: &mut dyn Runtime,
+) -> Result<(Value, Option<f64>), String> {
+    let cli = if request.cli.is_empty() {
+        runtime.claude_cli(environment, request.windows)?
+    } else {
+        request.cli.into()
+    };
+    let out = with_work_dir("te-side-", runtime, |cwd, runtime| {
+        let help = claude_help(&cli, cache, environment, runtime);
+        let mut cmd: Vec<String> = [
+            &cli,
+            "-p",
+            "--output-format",
+            "json",
+            "--max-turns",
+            "1",
+            "--tools",
+            "",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
+        cmd.extend(claude_no_mcp(&help, cwd).map_err(|e| e.to_string())?);
+        cmd.extend([
+            "--model".into(),
+            if request.model.is_empty() {
+                "haiku".into()
+            } else {
+                request.model.into()
+            },
+        ]);
+        cmd.extend(claude_flags(&help));
+        if !request.effort.is_empty() && help.contains("--effort") {
+            cmd.extend(["--effort".into(), request.effort.into()]);
+        }
+        runtime
+            .run(
+                &cmd,
+                cwd,
+                &self::environment(&environment.env, false),
+                Some(request.prompt),
+                request.timeout,
+            )
+            .map_err(|e| e.to_string())
+    })?;
+    let data = claude_json(&out.stdout);
+    let failed = truthy(&data["is_error"]) || !truthy(&data["result"]);
+    if failed {
+        no_reply(
+            "claude",
+            root,
+            &out.stdout,
+            &out.stderr,
+            &json!(out.code),
+            super::history::now(),
+        );
+    }
+    let mut usage = data["usage"].as_object().cloned().unwrap_or_default();
+    let model = data["modelUsage"]
+        .as_object()
+        .and_then(|models| models.keys().next())
+        .filter(|m| !m.is_empty())
+        .map(String::as_str)
+        .unwrap_or(if request.model.is_empty() {
+            "claude"
+        } else {
+            request.model
+        });
+    usage.insert("model".into(), json!(model));
+    let (eff, _) = accounting::effective(&json!(usage)).map_err(|e| e.to_string())?;
+    Ok((
+        if failed {
+            json!("")
+        } else {
+            data["result"].clone()
+        },
+        eff,
+    ))
 }

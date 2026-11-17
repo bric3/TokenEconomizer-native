@@ -155,11 +155,16 @@ complete while any runtime component delegates production behaviour to Python.
   fields, local-role routing and command names. Claude and Hermes installer
   fallbacks and npm shim parsing are native; unsupported batch files are refused
   before a prompt can reach `cmd.exe`. PATH lookup crosses the SDK test transport.
-  Model-call execution, availability probes and runner orchestration remain pending.
+  Other hosts' model calls, availability probes and runner orchestration remain pending.
 - Native subprocess capture now accepts UTF-8 prompt input while draining stdout
   and stderr concurrently. The shared timeout covers blocked input and output;
-  early stdin closure preserves the child's result. Side-call subprocess
-  integration is the next production step.
+  early stdin closure preserves the child's result.
+- Claude side calls now execute in Rust: per-executable help caching, supported
+  history and effort flags, empty MCP configuration, prompt input, verbose result
+  selection, no-reply pauses and native usage pricing. Each call owns a private
+  temporary directory and removes it after subprocess completion or failure.
+  Patched subprocesses and temporary-directory constructors remain SDK callbacks
+  for the original tests. Native process execution needs no Python callback.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -435,6 +440,15 @@ complete while any runtime component delegates production behaviour to Python.
   timeout. The existing bridge and host export probes pass. Full reference suite
   after the shared process change: 1,558 passed, 33 skipped (50.53 seconds).
   Clippy and formatting pass; no real model command runs in these probes.
+- Claude side-call focused run: 323 passed. Full suite after native Claude calls:
+  1,558 passed, 33 skipped (49.56 seconds). `validation/claude-sidecall-calls.json`
+  records native bridge entries, including the original side-call fixtures.
+- `ClaudeCallProbe.java` uses a local CLI fixture to verify prompt stdin, private
+  workspaces, empty MCP configuration, model and effort flags, one help invocation
+  across calls, verbose usage pricing, signed-out pause state and cleanup after
+  success and a non-zero exit. Clippy, formatting and the 256-file reference
+  integrity check pass. Real Claude calls and native Windows execution remain
+  unverified; runner selection and the other hosts' side calls remain pending.
 
 ## Dependencies
 
@@ -530,6 +544,7 @@ jbang validation/HostSessionProbe.java
 jbang validation/HostStateProbe.java
 jbang validation/ControllerProbe.java
 jbang validation/ProcessInputProbe.java
+jbang validation/ClaudeCallProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 
