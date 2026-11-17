@@ -1,0 +1,61 @@
+use super::log;
+use serde::Deserialize;
+use std::path::Path;
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Failure {
+    Timeout { timeout: f64 },
+    Exit { returncode: i64 },
+    Exception { name: String, message: String },
+}
+fn general(value: f64) -> String {
+    if !value.is_finite() {
+        return value.to_string().to_lowercase();
+    }
+    let scientific = format!("{value:.5e}");
+    let (coefficient, exponent) = scientific.split_once('e').unwrap();
+    let exponent: i32 = exponent.parse().unwrap();
+    let trim = |s: String| {
+        if s.contains('.') {
+            s.trim_end_matches('0').trim_end_matches('.').to_string()
+        } else {
+            s
+        }
+    };
+    if (-4..6).contains(&exponent) {
+        trim(format!(
+            "{value:.precision$}",
+            precision = (5 - exponent) as usize
+        ))
+    } else {
+        format!(
+            "{}e{}{number:02}",
+            trim(coefficient.into()),
+            if exponent < 0 { "-" } else { "+" },
+            number = exponent.unsigned_abs()
+        )
+    }
+}
+pub fn noted<T>(host: &str, root: &Path, result: Result<T, Failure>) -> Result<T, Failure> {
+    result.inspect_err(|failure| {
+        let note = match failure {
+            Failure::Timeout { timeout } => {
+                format!("no reply (timed out after {}s)", general(*timeout))
+            }
+            Failure::Exit { returncode } => format!("no reply (exit {returncode})"),
+            Failure::Exception { name, message } => {
+                let what: String = message
+                    .split(|c: char| c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c))
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .chars()
+                    .take(200)
+                    .collect();
+                format!("failed ({name}: {what})")
+            }
+        };
+        log(root, &format!("sidecall {host}: {note}\n"));
+    })
+}

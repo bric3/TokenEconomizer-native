@@ -188,6 +188,11 @@ complete while any runtime component delegates production behaviour to Python.
   retrying a failed deletion without charging it again. Timed-out sessions are
   recovered by their source, prompt and start time. The existing read-only
   Hermes database reader supplies the session and usage rows.
+- Side-call failure notes now execute in Rust. Timeout and exit-status notes omit
+  argv, other exceptions use one bounded line, and failures remain available to
+  the caller after logging. Timeout durations follow Python's default
+  [general-format rules](https://docs.python.org/3.15/library/string.html#format-specification-mini-language).
+  The test transport retains the original callable metadata and exception object.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -213,8 +218,9 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit temporary-directory cleanup against Python's permission-repair retries,
   including native Windows behaviour. Current removal uses `remove_dir_all`.
 - Integrate the native controller and host operations into CLI and hooks.
-- Port side calls, model probes, tool checks, repository maps, CLI commands and
-  hooks. Verify each host integration and its launcher and packaging contracts.
+- Complete side-call runner routing and local-model fallback. Port model probes,
+  tool checks, repository maps, CLI commands and hooks. Verify each host
+  integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
   supporting tools, preserving their original test contracts.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
@@ -512,6 +518,14 @@ complete while any runtime component delegates production behaviour to Python.
   updates. The seven-host probe, Clippy and formatting pass. All 256 archived
   files pass the integrity check. No real gateway or model runs in these checks;
   native Windows execution remains unverified.
+- Failure-note focused run: 390 passed, 6 skipped. Full suite with native notes:
+  1,558 passed, 33 skipped (50.69 seconds).
+  `validation/sidecall-notes-calls.json` records calls entering Rust.
+  `SidecallFailureProbe.java` checks success without a log entry, timeout and exit
+  diagnostics, general-format boundaries, Python's extra control separators,
+  Unicode character limits and one line per failure. The original tests verify
+  that the exception reaches the caller and the wrapped callable stays visible.
+  Clippy, formatting and the 256-file reference integrity check pass.
 
 ## Dependencies
 
@@ -611,6 +625,7 @@ jbang validation/ClaudeCallProbe.java
 jbang validation/AgentCallsProbe.java
 jbang validation/LocalModelProbe.java
 jbang validation/HermesCallProbe.java
+jbang validation/SidecallFailureProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 

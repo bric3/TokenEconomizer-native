@@ -172,6 +172,18 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value, Str
     };
     let root = environment.path(Path::new(text(args, "root")));
     let host = text(args, "host");
+    if op == "sidecall.noted_call" {
+        let reply = runtime
+            .channel
+            .call("noted", json!([text(args, "prompt"), text(args, "model")]))?;
+        let result: Result<(), sidecall::Failure> = match reply.get("failure") {
+            Some(failure) => {
+                Err(serde_json::from_value(failure.clone()).map_err(|e| e.to_string())?)
+            }
+            None => Ok(()),
+        };
+        return Ok(json!({"value":null,"failed":sidecall::noted(host,&root,result).is_err()}));
+    }
     if op.starts_with("sidecall._hermes_") && op != "sidecall._hermes_env"
         || matches!(op, "sidecall.hermes_home" | "sidecall.hermes_call")
     {

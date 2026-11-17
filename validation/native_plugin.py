@@ -620,7 +620,7 @@ def pytest_configure(config):
                     "effective_tokens", "approx_tokens", "runner_effective_or_approx"),
         "ledger": ("overhead", "effective_exec"),
         "plugin.accounting": ("effective", "overhead_total", "summarize", "fmt_tokens"),
-        "plugin.sidecall": ("_obj", "_env", "_hermes_env", "_pause_path", "paused", "resume", "_log", "_no_reply", "claude_cli", "hermes_cli", "_shim_argv", "program", "claude_json", "copilot_model", "droid_enabled", "_droid_usage", "local_routes", "call_name", "_claude_help", "claude_flags", "claude_no_mcp", "claude_call", "codex_call", "pi_extension_args", "pi_call", "cursor_call", "grok_call", "opencode_flags", "opencode_call", "copilot_call", "_droid_sessions_root", "_droid_settings_usage", "droid_call", "fm_available", "fm_call", "hermes_home", "_hermes_db", "_hermes_ledger", "_hermes_charge", "_hermes_delete", "_hermes_settle", "_hermes_defer", "_hermes_settle_earlier", "hermes_call"),
+        "plugin.sidecall": ("_obj", "_env", "_hermes_env", "_pause_path", "paused", "resume", "_log", "_no_reply", "claude_cli", "hermes_cli", "_shim_argv", "program", "claude_json", "copilot_model", "droid_enabled", "_droid_usage", "local_routes", "call_name", "_claude_help", "claude_flags", "claude_no_mcp", "claude_call", "codex_call", "pi_extension_args", "pi_call", "cursor_call", "grok_call", "opencode_flags", "opencode_call", "copilot_call", "_droid_sessions_root", "_droid_settings_usage", "droid_call", "fm_available", "fm_call", "hermes_home", "_hermes_db", "_hermes_ledger", "_hermes_charge", "_hermes_delete", "_hermes_settle", "_hermes_defer", "_hermes_settle_earlier", "hermes_call", "_noted"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
@@ -1016,9 +1016,20 @@ def hookqueue_call(operation, arguments):
     return storage_result(result)
 
 
+def noted_runner(host, call):
+    def run(prompt, model="agent"):
+        return sidecall_call("sidecall.noted_call", {"host": host, "call": call, "prompt": prompt, "model": model})
+    run.__wrapped__ = call
+    return run
+
+
 def sidecall_call(operation, arguments):
     from tokeneconomizer.plugin import sidecall, paths
     arguments = dict(arguments)
+    if operation == "sidecall._noted":
+        return noted_runner(arguments["host"], arguments["call"])
+    callback = arguments.pop("call", None)
+    called_value = None
     if "config" in arguments:
         arguments["config"] = vars(arguments["config"])
     if "env" not in arguments or arguments["env"] is None:
@@ -1050,7 +1061,10 @@ def sidecall_call(operation, arguments):
             result = invoke("sidecall.resume_job", {"job": result["job"]})
             continue
         try:
-            if result["method"] == "which":
+            if result["method"] == "noted":
+                called_value = callback(*result["args"])
+                value = None
+            elif result["method"] == "which":
                 value = sidecall.shutil.which(*result["args"])
             elif result["method"] == "claude_cli":
                 value = sidecall.claude_cli()
@@ -1080,6 +1094,14 @@ def sidecall_call(operation, arguments):
         except Exception as error:
             last_error = error
             reply = {"error": str(error), "error_kind": type(error).__name__}
+            if result["method"] == "noted":
+                if isinstance(error, subprocess.TimeoutExpired):
+                    failure = {"type": "timeout", "timeout": error.timeout}
+                elif isinstance(error, subprocess.CalledProcessError):
+                    failure = {"type": "exit", "returncode": error.returncode}
+                else:
+                    failure = {"type": "exception", "name": type(error).__name__, "message": str(error)}
+                reply = {"failure": failure}
         result = invoke("sidecall.resume_job", {"job": result["job"], "reply": reply})
     if isinstance(result, dict) and "help" in result:
         sidecall._HELP.clear()
@@ -1093,6 +1115,10 @@ def sidecall_call(operation, arguments):
     if last_error is not None and isinstance(result, dict) and "raised" in result and result.get("message") == str(last_error):
         raise last_error
     value = storage_result(result)
+    if operation == "sidecall.noted_call":
+        if result["failed"]:
+            raise last_error
+        return called_value
     if operation == "sidecall._hermes_ledger":
         from tokeneconomizer.plugin.store import Store
         return Store(value)

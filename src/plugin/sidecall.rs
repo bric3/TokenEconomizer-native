@@ -21,7 +21,9 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+mod failure;
 pub mod hermes;
+pub use failure::{Failure, noted};
 
 pub const TIMEOUT_S: u64 = 180;
 pub const FM_CLI: &str = "/usr/bin/fm";
