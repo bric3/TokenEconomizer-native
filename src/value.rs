@@ -1,7 +1,35 @@
+use regex::Regex;
 use serde::Serialize;
 use serde_json::Value;
 use serde_json::ser::Formatter;
 use std::io::{self, Write};
+use std::sync::LazyLock;
+
+pub fn decimal_integer(text: &str) -> Option<String> {
+    static INTEGER: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"^[+-]?\p{Nd}+(?:_\p{Nd}+)*$").unwrap());
+    static DIGIT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\p{Nd}$").unwrap());
+    let text = text.trim();
+    if !INTEGER.is_match(text) {
+        return None;
+    }
+    let mut normalized = String::new();
+    for c in text.chars().filter(|c| *c != '_') {
+        if c.is_ascii() {
+            normalized.push(c);
+            continue;
+        }
+        let code = c as u32;
+        let mut start = code;
+        // Decimal digit blocks contain consecutive groups of ten values.
+        while char::from_u32(start - 1).is_some_and(|c| DIGIT.is_match(c.encode_utf8(&mut [0; 4])))
+        {
+            start -= 1;
+        }
+        normalized.push(char::from(b'0' + ((code - start) % 10) as u8));
+    }
+    Some(normalized)
+}
 
 struct JsonFormatter {
     ascii: bool,

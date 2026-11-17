@@ -1,7 +1,10 @@
 mod status;
 pub use status::{status, status_explanations};
 mod diagnostics;
+mod entry;
+pub use entry::main;
 mod learning;
+pub mod parser;
 mod repositories;
 mod tools;
 pub use diagnostics::{doctor, netloc, recent_host, rtk_hooks};
@@ -12,7 +15,7 @@ pub use learning::{
 pub use repositories::{print_moves, repositories};
 pub use tools::{toolprune, toolprune_show, wait_and_apply};
 
-use super::{config, context::LiveContext, denylist, fold, hosts, repos};
+use super::{config, context::LiveContext, denylist, fold, hosts, paths, repos};
 use crate::{
     envelope,
     value::{json_pretty, json_text, python_repr, scalar_text, truthy},

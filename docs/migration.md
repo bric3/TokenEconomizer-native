@@ -251,8 +251,8 @@ complete while any runtime component delegates production behaviour to Python.
   helpers, preserve error-log line boundaries and accept runtime-version metadata
   from the caller. Provider URL display validates bracketed addresses and Unicode
   authority delimiters. Native executable wiring and runtime reporting remain to
-  be checked through the packaged application. Parser/service wiring and native
-  CLI/hook packaging remain pending.
+  be checked through the packaged application. Native service wiring and CLI/hook
+  packaging remain pending.
 - Copilot probe orchestration now executes in Rust: the isolated repository and
   missing-pytest fixture, session environment, CLI reply parsing, log inspection,
   fold deadlines, deny-list measurement and restoration, reporting and cleanup.
@@ -261,6 +261,14 @@ complete while any runtime component delegates production behaviour to Python.
   The optional pytest trap still invokes an external Python interpreter. Host and
   process I/O cross the compatibility adapter until native runtime integration;
   no paid sessions have been run to verify packaged plugin behaviour.
+- CLI argument declarations, parsing and entry orchestration now execute in Rust.
+  This includes aliases, common options before and after the command, defaults,
+  repeated sessions, variable argument lists, Unicode integer parsing, required
+  arguments, help wrapping, errors and choice suggestions matching Python 3.15.
+  The entry path expands slash-command argument lines, selects the default host,
+  dispatches the command and secures the state directory after success or failure.
+  The compatibility adapter translates namespaces and exceptions; production
+  command execution still needs the concrete native runtime and executable.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -285,6 +293,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Include history, folding, controller and host replay counters beyond i64 in the numeric
   parity audit.
 - Include CLI and ledger counts beyond i64 in the numeric parity audit.
+- Include `probe --sessions` integers outside i64 in that audit.
 - Include displayed tool counters in that audit, and audit CLI errors for malformed
   saved state and invalid encodings.
 - Include displayed map sizes and extreme CLI dates in the numeric/timestamp audits.
@@ -295,7 +304,7 @@ complete while any runtime component delegates production behaviour to Python.
   including native Windows behaviour. Current removal uses `remove_dir_all`.
 - Integrate the native controller and host operations into CLI and hooks.
 - Verify native CLI interruption and heartbeat cleanup when packaging the executables.
-- Integrate the model probe and remaining CLI entry points, and package the native hook.
+- Integrate native CLI and model-probe services, and package the native executables.
   Verify each host integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
   supporting tools, preserving their original test contracts.
@@ -720,6 +729,22 @@ complete while any runtime component delegates production behaviour to Python.
   The CLI regression probe, Clippy, formatting and all 256 reference files pass.
   Paid probe sessions, native runtime integration and packaged workflows remain
   unverified. The original tests remain unchanged.
+- CLI entry focused run: 78 passed, 8 skipped. Full suite with the native parser
+  and entry path: 1,558 passed, 33 skipped (51.16 seconds).
+  `validation/cli-entry-calls.json` records 99 entry calls and one parser-metadata
+  request reaching Rust. `ParserProbe.java` compares 179 argument namespaces,
+  help outputs and errors with the pinned CLI on Python 3.15, including aliases,
+  option placement and abbreviations, repeated sessions, list arguments,
+  terminators, invalid choices and suggestions, and widths from 10 to 200.
+  It also checks Unicode, underscored, invalid and oversized `COLUMNS` values.
+  `CliEntryProbe.java` checks default and explicit hosts, dispatch, return values,
+  parse exits and state permissions after failures, including reported interrupts
+  and relative state paths. The compatibility parser retains its creation-time
+  working directory and returns argparse namespaces with native command wrappers.
+  The repository-map generator probe passes after sharing Unicode integer
+  normalisation. Clippy, formatting and all 256 reference files pass.
+  The native executables, concrete service runtime and native interruption remain
+  unverified; this does not complete the production-integration gate.
 
 ## Dependencies
 

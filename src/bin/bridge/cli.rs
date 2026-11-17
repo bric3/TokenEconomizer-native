@@ -71,7 +71,23 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value> {
         home: PathBuf::from(args["home"].as_str().unwrap_or(".")),
         cwd: PathBuf::from(args["process_cwd"].as_str().unwrap_or(".")),
     };
+    let columns = cli::parser::terminal_columns(args["process_env"]["COLUMNS"].as_str());
     Ok(match op {
+        "cli.build_parser" => {
+            json!({"commands":cli::parser::command_names(),"cwd":environment.cwd})
+        }
+        "cli.parse_args" => json!(cli::parser::parse(
+            &cli::words(&args["argv"])?,
+            Path::new(
+                args["cwd"]
+                    .as_str()
+                    .unwrap_or_else(|| environment.cwd.to_str().unwrap_or("."))
+            ),
+            columns
+        )),
+        "cli.format_help" => json!(cli::parser::help(args["command"].as_str(), columns)),
+        "cli.format_usage" => json!(cli::parser::usage(args["command"].as_str(), columns)),
+        "cli.main" => cli::main(&cli::words(&args["argv"])?, &environment, columns, runtime)?,
         "cli._split_argline" => json!(cli::split_argline(
             args["line"].as_str().ok_or("expected argument line")?
         )?),

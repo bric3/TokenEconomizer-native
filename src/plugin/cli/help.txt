@@ -1,0 +1,46 @@
+`te` -- inspect and steer what TokenEconomizer does in your sessions.
+
+    te status                         what it has learned for this repository, and what it did
+    te status --explain               explain the current settings and saved learning state
+    te microskills                    the facts it injects, and the ones still forming
+    te microskills forget ID ...      stop injecting the facts with these ids (as listed by
+                                      `te microskills`); they are not learned again
+                                      under that id or from the same evidence
+    te microskills unforget ID ...    bring forgotten facts back, as they were
+    te toolprune show                 the proposed deny list, and the evidence behind it
+    te toolprune apply [ITEM ...]     write the proposal (or the named items) to the repository's
+                                      settings: tools (Claude Code), capabilities (Codex) or
+                                      MCP servers (Copilot)
+    te toolprune restore [ITEM ...]   remove entries this plugin added
+    te toolprune refresh-catalog      record the tool list a fresh session loads (Claude, Copilot)
+    te toolprune measure              measure the request with and without the proposal
+    te toolprune apply-pending        write a pending `auto` deny list once the repository has
+                                      been idle long enough (the fold starts it, detached)
+    te config show                    each mechanism on or off, its settings, the guard's thresholds
+    te config set KEY=VALUE ...       e.g. `loopguard=off`, `microskills=on`,
+                                      `loopguard.min_turns=12` (this repository; `--global` for
+                                      every repository)
+    te config unset KEY ...           back to the next source down (the global file, then default)
+    te repomap [show | refresh]       the repository map (`repomap=on`): what is cached, or
+                                      make it now
+    te history import [--dry-run]     fold this repository's sessions from before the plugin,
+                                      from the agent's own logs (no model calls,
+                                      no deny list written; only before any session is folded;
+                                      with `history_import=on`, the first session start runs
+                                      it by itself)
+    te history [import --status]      what that import did here
+    te repos                          every repository with state here: how it was identified,
+                                      its agents and sessions, the checkouts seen
+    te repos migrate                  send state recorded under earlier keys where it belongs
+                                      now (runs by itself, once, after an upgrade)
+    te repos merge KEY [INTO]         merge the state directory KEY into INTO (default: this
+                                      repository's), for state whose checkouts are gone
+    te doctor                         check the installation
+    te --host copilot probe           real Copilot sessions in a throwaway repository: does a
+                                      learned fact change what the model does, and what does the
+                                      deny list save (makes model calls; see plugin/probe.py)
+
+`te facts` and `te untool` are the earlier names of `microskills` and `toolprune`, and still work.
+`--cwd` picks the repository (default: the current directory) and `--host` the agent
+(claude | codex | copilot | pi; default: `TE_HOST`, else the agent whose shell runs `te`, else
+claude).

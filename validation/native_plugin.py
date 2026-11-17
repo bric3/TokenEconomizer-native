@@ -641,7 +641,7 @@ def pytest_configure(config):
         "plugin.toolcheck": ("_request_tools", "_prompt_tokens", "_codex_prompt_chars", "_copilot_version", "verify_codex", "verify_copilot", "measure", "copilot_capture", "_init_tools", "_kill_tree", "refresh_catalog"),
         "plugin.repomap": ("_repo_dir", "_state_path", "_cache_dir", "read_state", "_write_state", "head_commit", "_has_aider", "_aider_command_python", "find_python", "_gen_env", "generate", "refresh", "stale", "spawn_refresh", "cached_block", "prompt_idents", "for_prompt"),
         "plugin.hook": ("_truthy", "run", "_record_error", "main"),
-        "plugin.cli": ("_split_argline", "_expand_argline", "_unwritable", "_refuse_unwritable", "_config_view", "_status_explanations", "_session_note", "_proposal", "cmd_status", "cmd_config", "cmd_microskills", "_microskills_forget", "_short", "_session_ctx", "cmd_fold", "cmd_judge", "_when", "_print_history", "cmd_history", "cmd_repomap", "cmd_repos", "_print_moves", "cmd_toolprune", "_toolprune_show", "_wait_and_apply", "cmd_doctor", "cmd_probe", "_recent_host", "_rtk_hook"),
+        "plugin.cli": ("_split_argline", "_expand_argline", "_unwritable", "_refuse_unwritable", "_config_view", "_status_explanations", "_session_note", "_proposal", "cmd_status", "cmd_config", "cmd_microskills", "_microskills_forget", "_short", "_session_ctx", "cmd_fold", "cmd_judge", "_when", "_print_history", "cmd_history", "cmd_repomap", "cmd_repos", "_print_moves", "cmd_toolprune", "_toolprune_show", "_wait_and_apply", "cmd_doctor", "cmd_probe", "_recent_host", "_rtk_hook", "build_parser", "main"),
         "plugin.probe": ("test_commands", "_write", "make_repo", "_plugin_root", "_session_env", "run_session", "inspect_session", "_wait_folded", "_line", "run"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
@@ -1000,12 +1000,38 @@ def pytest_configure(config):
         for name, cls in hosts.HOSTS.items()}
 
 
+class NativeCliParser:
+    """Translate native parser results into the original tests' argparse objects."""
+    def __init__(self, data):
+        from types import SimpleNamespace
+        self.cwd = data["cwd"]
+        self._subparsers = SimpleNamespace(_group_actions=[
+            SimpleNamespace(choices=dict.fromkeys(data["commands"]))])
+
+    def parse_args(self, args=None):
+        return cli_call("cli.parse_args", {"argv": args, "cwd": self.cwd})
+
+    def format_help(self):
+        return cli_call("cli.format_help", {})
+
+    def format_usage(self):
+        return cli_call("cli.format_usage", {})
+
+    def print_help(self, file=None):
+        (sys.stdout if file is None else file).write(self.format_help())
+
+    def print_usage(self, file=None):
+        (sys.stdout if file is None else file).write(self.format_usage())
+
+
 def cli_call(operation, arguments):
+    from argparse import Namespace
     from types import SimpleNamespace
     import shutil
     from tokeneconomizer.plugin import cli, sidecall, denylist, history, repomap, fold, judge, repos, paths, toolcheck
     from tokeneconomizer.plugin.context import LiveContext
     arguments = dict(arguments)
+    exceptions = {}
     ctx = arguments.get("ctx")
     host = getattr(ctx, "host", None)
     if "args" in arguments:
@@ -1018,8 +1044,8 @@ def cli_call(operation, arguments):
         arguments["tracker"] = vars(arguments["tracker"])
     if operation == "cli._session_note":
         arguments["env"] = dict(os.environ if arguments["env"] is None else arguments["env"])
-    if operation == "cli._expand_argline" and arguments["argv"] is None:
-        arguments["argv"] = sys.argv[1:]
+    if operation in ("cli._expand_argline", "cli.main", "cli.parse_args"):
+        arguments["argv"] = list(sys.argv[1:] if arguments["argv"] is None else arguments["argv"])
     if "path" in arguments:
         arguments["path"] = os.fspath(arguments["path"])
         if operation == "cli._unwritable":
@@ -1053,6 +1079,12 @@ def cli_call(operation, arguments):
                 name, params = args
                 if name == "state_root":
                     value = paths.state_root()
+                elif name == "stderr":
+                    value = sys.stderr.write(*params)
+                elif name == "execute":
+                    raw = dict(params[0])
+                    raw["fn"] = getattr(cli, raw["fn"])
+                    value = raw["fn"](Namespace(**raw))
                 elif name == "probe_run":
                     from tokeneconomizer.plugin import probe
                     value = probe.run(sessions=params[0], model=params[1], keep=params[2])
@@ -1155,11 +1187,27 @@ def cli_call(operation, arguments):
             else:
                 raise AssertionError("Unknown CLI callback: " + method)
             reply = {"value": value}
-        except Exception as error:
+        except BaseException as error:
+            exceptions[type(error).__name__, str(error)] = error
             reply = {"error": str(error), "kind": type(error).__name__,
                      "parents": [base.__name__ for base in type(error).__mro__[1:]]}
         result = invoke("cli.resume", {"job": result["job"], "reply": reply})
+    exception = exceptions.get((result.get("raised"), result.get("message")))
+    if exception is not None:
+        raise exception
+    if result.get("raised") == "SystemExit":
+        raise SystemExit(int(result["message"]))
     value = storage_result(result)
+    if operation == "cli.build_parser":
+        return NativeCliParser(value)
+    if operation == "cli.parse_args":
+        sys.stdout.write(value["stdout"])
+        sys.stderr.write(value["stderr"])
+        if value["exit"] is not None:
+            raise SystemExit(value["exit"])
+        parsed = value["args"]
+        parsed["fn"] = getattr(cli, parsed["fn"])
+        return Namespace(**parsed)
     if operation == "cli._session_ctx":
         restore_context(ctx, value, host)
         return ctx

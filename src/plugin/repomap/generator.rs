@@ -1,12 +1,11 @@
 use super::super::{paths, process};
-use regex::Regex;
+use crate::value::decimal_integer;
 use serde_json::{Map, Value, json};
 use std::{
     collections::BTreeSet,
     fs,
     io::{self, Write},
     path::{Path, PathBuf},
-    sync::LazyLock,
 };
 
 pub const SKIP: &[&str] = &[
@@ -59,29 +58,7 @@ fn option(args: &mut Vec<String>, name: &str) -> Result<Option<String>, String> 
     Ok(Some(value))
 }
 fn integer(text: &str) -> Result<String, String> {
-    static INTEGER: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"^[+-]?\p{Nd}+(?:_\p{Nd}+)*$").unwrap());
-    static DIGIT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\p{Nd}$").unwrap());
-    let text = text.trim();
-    if !INTEGER.is_match(text) {
-        return Err(format!("invalid map token budget: {text}"));
-    }
-    let mut normalized = String::new();
-    for c in text.chars().filter(|c| *c != '_') {
-        if c.is_ascii() {
-            normalized.push(c);
-            continue;
-        }
-        let code = c as u32;
-        let mut start = code;
-        // Decimal digit blocks contain consecutive groups of ten values.
-        while char::from_u32(start - 1).is_some_and(|c| DIGIT.is_match(c.encode_utf8(&mut [0; 4])))
-        {
-            start -= 1;
-        }
-        normalized.push(char::from(b'0' + ((code - start) % 10) as u8));
-    }
-    Ok(normalized)
+    decimal_integer(text).ok_or_else(|| format!("invalid map token budget: {}", text.trim()))
 }
 impl Options {
     pub fn parse(args: &[String], cwd: &Path) -> Result<Self, String> {
