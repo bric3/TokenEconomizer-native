@@ -1,7 +1,7 @@
 use std::path::Path;
 use tokeneconomizer::plugin::{
     cli::{Error, Result},
-    hermes,
+    hermes, pi,
     runtime::NativeRuntime,
     winspawn,
 };
@@ -16,6 +16,14 @@ fn run() -> Result<i32> {
         .collect::<Result<Vec<_>>>()?;
     if args == ["--hermes-bridge"] {
         hermes::server::run(&std::env::current_exe()?)?;
+        return Ok(0);
+    }
+    if args == ["--pi-bridge"] {
+        pi::server::run(&std::env::current_exe()?)?;
+        return Ok(0);
+    }
+    if args == ["--pi-carried-section"] {
+        pi::server::carried()?;
         return Ok(0);
     }
     if args.first().is_some_and(|a| a == "--run-spawn-spec") && args.len() == 2 {

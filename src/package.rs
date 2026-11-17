@@ -239,13 +239,15 @@ fn native_payload(plugin: &Path, binaries: &Path, suffix: &str, droid: bool) -> 
     if droid {
         return Ok(());
     }
-    for (host, variable) in [("pi", "mode"), ("opencode", "kind")] {
-        let path = plugin.join(host).join("tokeneconomizer.ts");
+    fs::write(
+        plugin.join("pi/tokeneconomizer.ts"),
+        include_str!("plugin/pi/sdk.ts"),
+    )?;
+    {
+        let path = plugin.join("opencode/tokeneconomizer.ts");
         replace(
             &path,
-            &format!(
-                "  if (platform !== \"win32\") return [join(SCRIPTS, script), args];\n  const {variable} = script === \"te-hook\" ? \"hook\" : \"cli\";\n  return [process.env.TE_PYTHON || \"python\", [join(SCRIPTS, \"te_bootstrap.py\"), {variable}, ...args]];"
-            ),
+            "  if (platform !== \"win32\") return [join(SCRIPTS, script), args];\n  const kind = script === \"te-hook\" ? \"hook\" : \"cli\";\n  return [process.env.TE_PYTHON || \"python\", [join(SCRIPTS, \"te_bootstrap.py\"), kind, ...args]];",
             "  return [join(SCRIPTS, script + (platform === \"win32\" ? \".exe\" : \"\")), args];",
         )?;
         replace(

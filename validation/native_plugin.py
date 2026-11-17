@@ -15,6 +15,7 @@ import json
 import math
 import os
 import queue
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -50,6 +51,22 @@ ORIGINAL_SOURCE_EXEC_MODULE = SourceFileLoader.exec_module
 
 def native_cli_process(*args, **kwargs):
     argv = args[0] if args else kwargs.get("args")
+    if (isinstance(argv, (list, tuple)) and argv
+            and str(argv[-1]) == str(ROOT / "reference/upstream/plugin/pi/tokeneconomizer.ts")):
+        fixture = ROOT / "validation/results/pi-sdk/pi/tokeneconomizer.ts"
+        fixture.parent.mkdir(parents=True, exist_ok=True)
+        fixture.write_text((ROOT / "src/plugin/pi/sdk.ts").read_text(encoding="utf-8"), encoding="utf-8")
+        scripts = fixture.parent.parent / "scripts"
+        scripts.mkdir(exist_ok=True)
+        executable = "te.exe" if os.name == "nt" else "te"
+        shutil.copy2(ROOT / "target/debug" / executable, scripts / executable)
+        argv = [*argv[:-1], str(fixture)]
+        if args:
+            args = (argv, *args[1:])
+        else:
+            kwargs["args"] = argv
+        with LOCK:
+            CALLS["pi_sdk.carried_process"] += 1
     if (isinstance(argv, (list, tuple)) and len(argv) >= 2 and argv[0] == sys.executable
             and str(argv[1]) == str(ROOT / "reference/upstream/scripts/build_plugin.py")):
         argv = [str(ROOT / "target/debug" / ("te-bridge.exe" if os.name == "nt" else "te-bridge")),

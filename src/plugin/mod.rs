@@ -13,6 +13,7 @@ pub mod hookqueue;
 pub mod hosts;
 pub mod judge;
 pub mod paths;
+pub mod pi;
 pub mod probe;
 pub mod process;
 pub mod repomap;

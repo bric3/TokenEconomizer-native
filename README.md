@@ -57,5 +57,7 @@ checkout and carries no Python core package or bootstrap.
 
 Hermes keeps its SDK binding in Python and runs gateway session, redirect and
 notice policy in Rust. Concurrent callbacks retain their profile and repository.
+Pi keeps its TypeScript SDK binding and runs session sections, prompt turns,
+tool-result steering and notice policy in Rust.
 
 Installed host verification and the remaining migration gates are still in progress.

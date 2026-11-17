@@ -289,7 +289,7 @@ complete while any runtime component delegates production behaviour to Python.
   Windows hook commands select native executables and preserve UTF-8 input.
   Codex's command uses [PowerShell's UTF-16LE EncodedCommand](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_powershell_exe?view=powershell-5.1#-encodedcommand-base64encodedcommand)
   to pass the same script through cmd.exe and PowerShell quoting.
-  Pi and opencode SDK adapter policy remains in the pinned host-language files
+  Opencode SDK adapter policy remains in the pinned host-language file
   pending its production-conversion audit.
 - Hermes gateway policy now executes in Rust: read-only session lookup, compression
   aliases, recorded working directories, bounded ignored/ended caches, per-session
@@ -304,6 +304,15 @@ complete while any runtime component delegates production behaviour to Python.
   response stops that backend, releases SDK callers and allows a fresh backend
   on the next callback. The SDK can start it after the gateway's directory has
   been removed.
+- Pi session policy now executes in Rust: carried sections and compaction resets,
+  session sources, prompt counters, manual accumulation, tool-result text,
+  steering messages, notices and command arguments. The TypeScript binding
+  translates SDK values and actions through `te --pi-bridge`. It projects branch
+  metadata and text blocks without copying conversation or image bodies into IPC.
+  Native hooks and commands retain the 60-second deadline and request hidden
+  child processes on Windows. Idle IPC handles allow Node to exit. Hook failures
+  retain the session manual; a backend failure currently requires reloading the
+  extension. Backend state recovery remains a production-parity gate.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Direct module CLI subprocess launches are redirected to the native executable.
@@ -343,7 +352,9 @@ complete while any runtime component delegates production behaviour to Python.
   including native Windows behaviour. Current removal uses `remove_dir_all`.
 - Verify native CLI interruption and heartbeat cleanup when packaging the executables.
 - Verify each host integration in its own runtime, including Windows launchers.
-- Audit the remaining Pi and opencode SDK adapter policy for native
+- Recover Pi session state after a native backend failure without requiring an
+  extension reload. Verify it preserves carried sections and prompt counters.
+- Audit the remaining opencode SDK adapter policy for native
   conversion, retaining the host-language bindings required by their SDKs.
 - Port experiment production consumers, adapters, runner orchestration and
   supporting tools, preserving their original test contracts.
@@ -866,6 +877,22 @@ complete while any runtime component delegates production behaviour to Python.
   Marketplace/Droid regression checks, debug/release builds, Clippy, formatting,
   all 256 reference files and dependency notices pass. Native Windows, paid
   sessions and the real Hermes gateway's event scheduler remain unverified.
+- Pi-focused original tests: 8 passed, 8 skipped. Full suite with native Pi
+  carried-section calls: 1,558 passed, 33 skipped (54.21 seconds).
+  `validation/pi-sdk-calls.json` records the original carried-section test
+  reaching the native helper, alongside the existing native substitutions.
+  `PiSdkProbe.java` compares the packaged TypeScript binding with the original
+  extension in 62 callback cases against identical local hook I/O. It checks session sources,
+  compaction and removal, repeated sections, prompt counters, overlapping prompts,
+  steering, UI/stderr notices, scalar and malformed hook output, disable flags,
+  numeric text coercion, command arguments, hook failures and a removed working
+  directory. Protocol errors,
+  EOF and malformed backend output release SDK callers. The SDK fixture only
+  handles event, process and JSON I/O; all production policy remains in Rust.
+  Native marketplace/Droid relocation checks, debug/release builds, Clippy,
+  formatting, all 256 reference files and dependency notices pass. The original
+  tests remain unchanged. Native Windows, a live Pi installation and backend
+  state recovery remain unverified or incomplete.
 
 ## Dependencies
 
@@ -997,6 +1024,7 @@ jbang validation/HookProbe.java
 jbang validation/NativeHookProbe.java
 jbang validation/PackageProbe.java
 jbang validation/HermesGatewayProbe.java
+jbang validation/PiSdkProbe.java
 jbang validation/CliProbe.java
 jbang validation/LearningCliProbe.java
 jbang validation/ToolpruneCliProbe.java
