@@ -480,18 +480,18 @@ impl Drop for WorkDir {
         }
     }
 }
-fn with_work_dir<T>(
+fn with_work_dir<T, R: Runtime + ?Sized>(
     prefix: &str,
-    runtime: &mut dyn Runtime,
-    call: impl FnOnce(&Path, &mut dyn Runtime) -> Result<T, String>,
+    runtime: &mut R,
+    call: impl FnOnce(&Path, &mut R) -> Result<T, String>,
 ) -> Result<T, String> {
     with_directory(prefix, true, runtime, call)
 }
-fn with_directory<T>(
+pub(crate) fn with_directory<T, R: Runtime + ?Sized>(
     prefix: &str,
     ignore_cleanup_errors: bool,
-    runtime: &mut dyn Runtime,
-    call: impl FnOnce(&Path, &mut dyn Runtime) -> Result<T, String>,
+    runtime: &mut R,
+    call: impl FnOnce(&Path, &mut R) -> Result<T, String>,
 ) -> Result<T, String> {
     let external = runtime.temporary_directory(prefix, ignore_cleanup_errors)?;
     let owned = if external.is_none() {
@@ -603,7 +603,7 @@ pub fn claude_call(
     ))
 }
 
-fn usage_count(value: &Value) -> Result<i128, String> {
+pub(crate) fn usage_count(value: &Value) -> Result<i128, String> {
     if !truthy(value) {
         return Ok(0);
     }

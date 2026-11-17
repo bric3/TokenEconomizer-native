@@ -38,6 +38,7 @@ NATIVE_FOLD_DENY = {}
 NATIVE_HOST_ANCESTORS = None
 NATIVE_CONTROLLER_FUNCTIONS = {}
 NATIVE_SIDECALL_FUNCTIONS = {}
+NATIVE_TOOLCHECK_FUNCTIONS = {}
 
 
 def invoke(operation, arguments):
@@ -80,7 +81,7 @@ def wrap(original, operation):
             return host_session_call(operation, arguments)
         if operation.startswith("controller."):
             return controller_call(operation, arguments)
-        if operation.startswith("sidecall."):
+        if operation.startswith(("sidecall.", "toolcheck.")):
             return sidecall_call(operation, arguments)
         if operation.startswith(("context.", "winspawn.")):
             return context_call(operation, arguments)
@@ -622,6 +623,7 @@ def pytest_configure(config):
         "ledger": ("overhead", "effective_exec"),
         "plugin.accounting": ("effective", "overhead_total", "summarize", "fmt_tokens"),
         "plugin.sidecall": ("_obj", "_env", "_hermes_env", "_pause_path", "paused", "resume", "_log", "_no_reply", "claude_cli", "hermes_cli", "_shim_argv", "program", "claude_json", "copilot_model", "droid_enabled", "_droid_usage", "local_routes", "call_name", "_claude_help", "claude_flags", "claude_no_mcp", "claude_call", "codex_call", "pi_extension_args", "pi_call", "cursor_call", "grok_call", "opencode_flags", "opencode_call", "copilot_call", "_droid_sessions_root", "_droid_settings_usage", "droid_call", "fm_available", "fm_call", "hermes_home", "_hermes_db", "_hermes_ledger", "_hermes_charge", "_hermes_delete", "_hermes_settle", "_hermes_defer", "_hermes_settle_earlier", "hermes_call", "_noted", "_host_call", "local_runner", "runner_for"),
+        "plugin.toolcheck": ("_request_tools", "_prompt_tokens", "_codex_prompt_chars", "_copilot_version", "verify_codex", "verify_copilot", "measure"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
@@ -962,6 +964,11 @@ def pytest_configure(config):
                 if inspect.isfunction(value) and value in replacements:
                     setattr(module, name, replacements[value])
 
+    from tokeneconomizer.plugin import toolcheck
+    global NATIVE_TOOLCHECK_FUNCTIONS
+    NATIVE_TOOLCHECK_FUNCTIONS = {name: getattr(toolcheck, name) for name in (
+        "claude_flags", "claude_cli", "program", "_prompt_tokens", "_codex_prompt_chars")}
+
 
 def config_constructor(cls):
     return state_constructor(cls, "config." + cls.__name__)
@@ -1066,6 +1073,9 @@ def failure_data(error):
 
 def sidecall_call(operation, arguments):
     from tokeneconomizer.plugin import sidecall, paths
+    from tokeneconomizer.plugin import toolcheck
+    namespace = "toolcheck" if operation.startswith("toolcheck.") else "sidecall"
+    api = toolcheck if namespace == "toolcheck" else sidecall
     arguments = dict(arguments)
     if operation == "sidecall._noted":
         return noted_runner(arguments["host"], arguments["call"])
@@ -1093,19 +1103,25 @@ def sidecall_call(operation, arguments):
                                                        "hermes_cli": sidecall.hermes_cli is not NATIVE_SIDECALL_FUNCTIONS["hermes_cli"],
                                                        "effective": sidecall.accounting.effective is not NATIVE_SIDECALL_FUNCTIONS["effective"],
                                                        "access": sidecall.os.access is not NATIVE_SIDECALL_FUNCTIONS["access"],
-                                                       "program": sidecall.program is not NATIVE_SIDECALL_FUNCTIONS["program"],
+                                                       "program": api.program is not NATIVE_SIDECALL_FUNCTIONS["program"],
                                                        "temporary_directory": sidecall.tempfile.TemporaryDirectory is not NATIVE_SIDECALL_FUNCTIONS["temporary_directory"],
-                                                       "claude_cli": sidecall.claude_cli is not NATIVE_SIDECALL_FUNCTIONS["claude_cli"]})
+                                                       "claude_cli": api.claude_cli is not NATIVE_SIDECALL_FUNCTIONS["claude_cli"]})
     arguments["hermes_limits"] = {"delete_timeout": sidecall.HERMES_DELETE_TIMEOUT_S,
                                   "title_wait": sidecall.HERMES_TITLE_WAIT_S, "abandon": sidecall.HERMES_ABANDON_S}
     arguments["transport"].update({name: getattr(sidecall, name) is not original for name, original in NATIVE_SIDECALL_FUNCTIONS.items()
                                   if name.endswith("_call") or name == "fm_available"})
+    if namespace == "toolcheck":
+        arguments["transport"].update({name: getattr(toolcheck, name) is not original
+                                      for name, original in NATIVE_TOOLCHECK_FUNCTIONS.items()})
+        for name in ("tools", "servers", "capabilities", "extra_args", "overrides"):
+            if name in arguments:
+                arguments[name] = list(arguments[name])
     last_error = None
     temporary = None
     result = invoke(operation, arguments)
-    while isinstance(result, dict) and result.get("callback") == "sidecall":
+    while isinstance(result, dict) and result.get("callback") == namespace:
         if result["method"] == "pending":
-            result = invoke("sidecall.resume_job", {"job": result["job"]})
+            result = invoke(namespace + (".resume_job" if namespace == "sidecall" else ".resume"), {"job": result["job"]})
             continue
         try:
             if result["method"] == "noted":
@@ -1114,6 +1130,9 @@ def sidecall_call(operation, arguments):
             elif result["method"] == "model_call":
                 name, data = result["args"]
                 value = getattr(sidecall, name)(data["prompt"], **data["kwargs"])
+            elif result["method"] == "probe":
+                name, data = result["args"]
+                value = getattr(toolcheck, name)(**data)
             elif result["method"] == "fm_available":
                 value = sidecall.fm_available()
             elif result["method"] == "fallback":
@@ -1121,13 +1140,13 @@ def sidecall_call(operation, arguments):
             elif result["method"] == "which":
                 value = sidecall.shutil.which(*result["args"])
             elif result["method"] == "claude_cli":
-                value = sidecall.claude_cli()
+                value = api.claude_cli()
             elif result["method"] == "hermes_cli":
                 value = sidecall.hermes_cli()
             elif result["method"] == "effective":
                 value = sidecall.accounting.effective(*result["args"])
             elif result["method"] == "program":
-                value = sidecall.program(*result["args"])
+                value = api.program(*result["args"])
             elif result["method"] == "access":
                 value = sidecall.os.access(*result["args"])
             elif result["method"] == "temporary_directory":
@@ -1148,7 +1167,7 @@ def sidecall_call(operation, arguments):
         except Exception as error:
             last_error = error
             reply = {"error": str(error), "error_kind": type(error).__name__, "failure": failure_data(error)}
-        result = invoke("sidecall.resume_job", {"job": result["job"], "reply": reply})
+        result = invoke(namespace + (".resume_job" if namespace == "sidecall" else ".resume"), {"job": result["job"], "reply": reply})
     if isinstance(result, dict) and "help" in result:
         sidecall._HELP.clear()
         sidecall._HELP.update(result["help"])
@@ -1176,7 +1195,7 @@ def sidecall_call(operation, arguments):
     if operation == "sidecall._hermes_ledger":
         from tokeneconomizer.plugin.store import Store
         return Store(value)
-    return tuple(value) if operation in ("sidecall.claude_call", "sidecall.codex_call", "sidecall.pi_call", "sidecall.cursor_call", "sidecall.grok_call", "sidecall.opencode_call", "sidecall.copilot_call", "sidecall.droid_call", "sidecall.fm_call", "sidecall.hermes_call", "sidecall._hermes_settle", "sidecall.runner_run") else value
+    return tuple(value) if operation in ("sidecall.claude_call", "sidecall.codex_call", "sidecall.pi_call", "sidecall.cursor_call", "sidecall.grok_call", "sidecall.opencode_call", "sidecall.copilot_call", "sidecall.droid_call", "sidecall.fm_call", "sidecall.hermes_call", "sidecall._hermes_settle", "sidecall.runner_run", "toolcheck._prompt_tokens") else value
 
 
 def controller_data(ctl):

@@ -10,13 +10,13 @@ use tokeneconomizer::plugin::{
 use tokeneconomizer::runner::Runner;
 
 #[derive(Clone)]
-struct Transport {
-    channel: Channel,
-    flags: Value,
-    last: Option<(String, sidecall::Failure)>,
+pub(super) struct Transport {
+    pub(super) channel: Channel,
+    pub(super) flags: Value,
+    pub(super) last: Option<(String, sidecall::Failure)>,
 }
 impl Transport {
-    fn response_error(&mut self, reply: &Value) -> Result<(), String> {
+    pub(super) fn response_error(&mut self, reply: &Value) -> Result<(), String> {
         if let Some(message) = reply["error"].as_str() {
             if let Some(failure) = reply.get("failure") {
                 self.last = Some((

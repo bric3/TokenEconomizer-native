@@ -199,6 +199,13 @@ complete while any runtime component delegates production behaviour to Python.
   fall back to the selected host or an explicit caller-provided runner. The native
   runner implements the shared runner contract; patched model functions and
   callable metadata remain SDK transport for the original tests.
+- Tool measurement and verification policies now execute in Rust: Claude prompt
+  usage and deny-list settings files, Codex prompt rendering and feature checks,
+  Copilot request sizes and remaining server tools, and CLI version parsing.
+  Token sums preserve integer precision; character counts follow Python's Unicode
+  and JSON contracts. Claude and Codex reject failed measurement probes.
+  Copilot's HTTP capture, Claude's streaming discovery and catalog refresh remain
+  pending; captured request bodies still cross that production boundary.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -221,11 +228,14 @@ complete while any runtime component delegates production behaviour to Python.
 - Include history, folding, controller and host replay counters beyond i64 in the numeric
   parity audit.
 - Include side-call usage beyond i128 in the numeric parity audit.
+- Include tool-measurement totals and savings outside JSON's i64/u64 range in the
+  numeric parity audit.
 - Audit temporary-directory cleanup against Python's permission-repair retries,
   including native Windows behaviour. Current removal uses `remove_dir_all`.
 - Integrate the native controller and host operations into CLI and hooks.
-- Port model probes, tool checks, repository maps, CLI commands and hooks. Verify each host
-  integration and its launcher and packaging contracts.
+- Complete Claude's streaming tool-discovery probe, Copilot's local HTTP capture
+  and catalog refresh. Port model probes, repository maps, CLI commands and hooks.
+  Verify each host integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
   supporting tools, preserving their original test contracts.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
@@ -540,6 +550,15 @@ complete while any runtime component delegates production behaviour to Python.
   external fallback, native Pi execution, workspace cleanup and private failure
   notes. Clippy and the 256-file reference integrity check pass. Real model calls
   and native Windows execution remain unverified.
+- Tool-measurement focused run: 31 passed. Full suite with native measurement
+  and verification policies: 1,558 passed, 33 skipped (51.78 seconds).
+  `validation/toolcheck-measure-calls.json` records native entries.
+  `ToolcheckProbe.java` uses local CLI fixtures and captured request bodies to
+  check token sums above 2^53, private settings files, workspace cleanup,
+  Unicode character counts, negative savings, feature state despite a non-zero
+  exit, relative repository paths, Unicode version lines and tool-name precedence.
+  Clippy, formatting and all 256 archived reference files pass. The focused suite's
+  streaming-discovery tests still exercise the reference implementation.
 
 ## Dependencies
 
@@ -641,6 +660,7 @@ jbang validation/LocalModelProbe.java
 jbang validation/HermesCallProbe.java
 jbang validation/SidecallFailureProbe.java
 jbang validation/RunnerProbe.java
+jbang validation/ToolcheckProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 

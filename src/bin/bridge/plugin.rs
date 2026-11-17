@@ -29,6 +29,8 @@ mod queue_dispatch;
 mod repos_dispatch;
 #[path = "sidecall.rs"]
 mod sidecall_dispatch;
+#[path = "toolcheck.rs"]
+mod toolcheck_dispatch;
 
 fn text<'a>(args: &'a Value, key: &str) -> &'a str {
     args[key].as_str().unwrap_or("")
@@ -96,6 +98,9 @@ fn paths_dispatch(op: &str, args: &Value) -> Result<Value, String> {
 }
 
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
+    if op.starts_with("toolcheck.") {
+        return toolcheck_dispatch::dispatch(op, args);
+    }
     if op.starts_with("sidecall.") {
         return sidecall_dispatch::dispatch(op, args);
     }

@@ -13,4 +13,5 @@ pub mod paths;
 pub mod process;
 pub mod repos;
 pub mod sidecall;
+pub mod toolcheck;
 pub mod winspawn;
