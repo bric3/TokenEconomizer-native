@@ -60,6 +60,9 @@ class PiSdkProbe {
   static String event(String event, String fields, String reply) {
     return "{\"event\":" + q(event) + ",\"env\":{\"TE_PI_REPLY\":" + q(reply) + "}" + (fields.isEmpty() ? "" : "," + fields) + "}";
   }
+  static String crash(String event, String fields) {
+    return event(event, fields, "{}").replace("\"env\":{", "\"env\":{\"TE_PI_CRASH\":\"1\",");
+  }
   static String compare(Client nativeClient, Client source, String request, String... fragments) throws Exception {
     var expected = source.call(request); var actual = nativeClient.call(request);
     require(actual.equals(expected), request + "\nNative: " + actual + "\nSource: " + expected);
@@ -113,8 +116,8 @@ class PiSdkProbe {
       compare(nativeClient, source, event("session_start", "\"sid\":\"new-session\",\"file\":\"/tmp/transcript.jsonl\",\"mode\":\"json\"", "{}"), "new-session", "transcript.jsonl", "\"mode\":\"json\"");
       compare(nativeClient, source, event("agent_end", "\"sid\":\"new-session\"", "{}"), "session:1");
       var slow = event("before_agent_start", prompt("slow"), response(q("slow map"), q("slow notice")))
-          .replace("\"env\":{", "\"env\":{\"TE_PI_DELAY_MS\":\"400\",");
-      var fast = event("before_agent_start", prompt("fast"), response(q("fast map"), q("fast notice")));
+          .replace("\"env\":{", "\"env\":{\"TE_PI_WAIT_FOR\":\"fast-prompt\",");
+      var fast = event("before_agent_start", "\"release\":\"fast-prompt\"," + prompt("fast"), response(q("fast map"), q("fast notice")));
       compare(nativeClient, source, "{\"batch\":[" + slow + "," + fast + "]}", "fast map\\n\\nslow map", "session:1", "session:2");
       compare(nativeClient, source, event("before_agent_start", prompt("after concurrent"), "{}"), "fast map\\n\\nslow map", "session:3");
       compare(nativeClient, source, event("before_agent_start", prompt("broken hook"), "invalid JSON"), "fast map\\n\\nslow map", "session:4");
@@ -137,12 +140,54 @@ class PiSdkProbe {
       compare(nativeClient, source, event("before_agent_start", prompt("removed cwd"), "{}"), "fast map\\n\\nslow map");
     }
   }
+  static void recovery(Path checkout, Path root, Path nativeSdk, Path sourceSdk) throws Exception {
+    try (var nativeClient = new Client(checkout, root, nativeSdk, "recover-native");
+         var source = new Client(checkout, root, sourceSdk, "recover-source")) {
+      compare(nativeClient, source, event("session_start", "", response(q("recovery facts é😀"), "null")));
+      compare(nativeClient, source, event("before_agent_start", prompt("first"), response(q("map"), "null")), "session:1");
+      compare(nativeClient, source, crash("before_agent_start", prompt("crash while prompting")), "session:2", "recovery facts é😀\\n\\nmap");
+      compare(nativeClient, source, event("before_agent_start", prompt("after crash"), "{}"), "session:3", "recovery facts é😀\\n\\nmap");
+      compare(nativeClient, source, crash("tool_result", "\"body\":{\"toolName\":\"read\",\"toolCallId\":\"crash\"}"), "session:3");
+      compare(nativeClient, source, event("before_agent_start", prompt("after tool crash"), "{}"), "session:4", "recovery facts é😀\\n\\nmap");
+      var slow = crash("before_agent_start", "\"release\":\"crash-finished\"," + prompt("crash overlapping prompts"))
+          .replace("\"env\":{", "\"env\":{\"TE_PI_WAIT_FOR_LOGS\":\"2\",");
+      var other = event("before_agent_start", prompt("also waiting"), "{}")
+          .replace("\"env\":{", "\"env\":{\"TE_PI_WAIT_FOR\":\"crash-finished\",");
+      compare(nativeClient, source, "{\"batch\":[" + slow + "," + other + "]}", "session:5", "session:6", "recovery facts é😀\\n\\nmap");
+      compare(nativeClient, source, event("before_agent_start", prompt("after overlapping crash"), "{}"), "session:7", "recovery facts é😀\\n\\nmap");
+      var entries = "\"entries\":[{\"type\":\"message\",\"message\":{\"role\":\"system\",\"sections\":{\"tokeneconomizer\":\"<tokeneconomizer>\\ncarried after crash\\n</tokeneconomizer>\"}}}]";
+      compare(nativeClient, source, crash("session_start", entries), "\"source\":\"resume\"");
+      compare(nativeClient, source, event("before_agent_start", prompt("after resumed crash"), "{}"), "session:1", "carried after crash");
+      compare(nativeClient, source, crash("agent_end", ""), "session:1");
+      compare(nativeClient, source, event("before_agent_start", prompt("after stop crash"), "{}"), "session:2", "carried after crash");
+      compare(nativeClient, source, crash("session_start", "\"body\":{\"reason\":\"new\"}"), "\"source\":\"clear\"");
+      var cleared = compare(nativeClient, source, event("before_agent_start", prompt("after cleared crash"), "{}"), "session:1");
+      require(!cleared.contains("carried after crash"), cleared);
+      require(Files.readAllLines(root.resolve("recover-native.jsonl.crashes")).size() == 6, "Recovery fixture did not kill six native backends");
+    }
+  }
   static void hookChild(String[] args) throws Exception {
     var input = new String(System.in.readAllBytes(), StandardCharsets.UTF_8);
     var record = "{\"argv\":" + ParserProbe.array(List.of(args).subList(1, args.length)) + ",\"payload\":" + input
         + ",\"mode\":" + q(System.getenv("TE_PI_MODE")) + ",\"utf8\":" + q(System.getenv("PYTHONUTF8")) + "}\n";
     Files.writeString(Path.of(System.getenv("TE_PI_LOG")), record, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-    Thread.sleep(Long.parseLong(System.getenv().getOrDefault("TE_PI_DELAY_MS", "0")));
+    var parent = ProcessHandle.current().parent().orElseThrow();
+    var waitFor = System.getenv("TE_PI_WAIT_FOR");
+    var log = Path.of(System.getenv("TE_PI_LOG"));
+    int expected = Integer.parseInt(System.getenv().getOrDefault("TE_PI_WAIT_FOR_LOGS", "0"));
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+    while ((waitFor != null && !Files.exists(Path.of(log + ".barrier-" + waitFor))) || Files.readAllLines(log).size() < expected) {
+      if (!parent.isAlive()) return;
+      require(System.nanoTime() < deadline, "Hook fixture barrier did not open");
+      Thread.sleep(10);
+    }
+    if ("1".equals(System.getenv("TE_PI_CRASH"))) {
+      if (Path.of(parent.info().command().orElseThrow()).getFileName().toString().equals("te")) {
+        require(parent.destroyForcibly(), "Fixture could not kill its native parent");
+        Files.writeString(Path.of(System.getenv("TE_PI_LOG") + ".crashes"), "killed\n", StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+      }
+      return;
+    }
     var bytes = System.getenv().getOrDefault("TE_PI_REPLY", "{}").getBytes(StandardCharsets.UTF_8);
     for (var b : bytes) { System.out.write(b); System.out.flush(); }
     System.exit(Integer.parseInt(System.getenv().getOrDefault("TE_PI_EXIT", "0")));
@@ -153,35 +198,59 @@ class PiSdkProbe {
     Files.writeString(scripts.resolve("te-hook"), wrapper);
     Files.setPosixFilePermissions(scripts.resolve("te-hook"), PosixFilePermissions.fromString("rwx------"));
   }
-  static void protocol(Path checkout, Path root) throws Exception {
+  static List<String> exchange(Path checkout, Path root, String requests) throws Exception {
     var process = new ProcessBuilder(checkout.resolve("target/debug/te").toString(), "--pi-bridge")
         .directory(root.toFile()).redirectError(ProcessBuilder.Redirect.INHERIT).start();
     try {
       try (var input = new PrintWriter(new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8))) {
-        input.println("{");
-        input.println("{\"id\":\"bad\"}");
-        input.println("{\"id\":1,\"event\":\"unknown\"}");
-        input.println("{\"id\":2,\"event\":\"session_start\",\"context\":{\"env\":{\"TE_DISABLE\":\"1\"}},\"body\":{\"entries\":[]}}");
+        input.println(requests);
       }
       require(process.waitFor(5, TimeUnit.SECONDS), "Pi protocol did not finish after EOF");
       var lines = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).lines().toList();
-      require(process.exitValue() == 0 && lines.size() == 4, lines.toString());
-      require(lines.get(0).contains("\"error\"") && lines.get(1).contains("invalid request id")
-          && lines.get(2).contains("unknown Pi event"), lines.toString());
-      ContextProbe.expect(lines.get(3), "{\"id\":2,\"value\":{\"actions\":[]}}");
+      require(process.exitValue() == 0, lines.toString());
+      return lines;
     } finally { if (process.isAlive()) process.destroyForcibly().waitFor(); }
+  }
+  static void protocol(Path checkout, Path root) throws Exception {
+    var lines = exchange(checkout, root, String.join("\n", "{", "{\"id\":\"bad\"}", "{\"id\":1,\"event\":\"unknown\"}",
+        "{\"id\":2,\"event\":\"session_start\",\"context\":{\"env\":{\"TE_DISABLE\":\"1\"}},\"body\":{\"entries\":[]}}",
+        "{\"id\":3,\"restore\":{}}"));
+    require(lines.size() == 6, lines.toString());
+    require(lines.get(0).contains("\"error\"") && lines.get(1).contains("invalid request id")
+        && lines.get(2).contains("unknown Pi event") && lines.stream().anyMatch(line -> line.contains("only valid on the first request")), lines.toString());
+    require(lines.get(3).contains("\"replies\":{\"2\":{\"actions\":[]}}"), lines.toString());
+    require(lines.stream().anyMatch(line -> line.startsWith("{\"id\":2,\"value\":{\"actions\":[]},\"checkpoint\":")), lines.toString());
+    var base = ",\"event\":\"before_agent_start\",\"context\":{\"session_id\":\"restored\",\"env\":{\"TE_DISABLE\":\"1\",\"SECRET\":\"private environment\"}},\"body\":{\"prompt\":\"PRIVATE PROMPT\"}}";
+    for (var counter : List.of("-1", "0.5", "9007199254740994", "null", "\"bad\"")) {
+      var result = exchange(checkout, root, "{\"id\":1,\"restore\":{\"manual\":\"facts\",\"prompts\":" + counter + ",\"turn\":\"old:9\"}" + base);
+      require(result.size() == 1 && result.getFirst().contains("\"error\""), result.toString());
+    }
+    var restored = exchange(checkout, root, "{\"id\":1,\"restore\":{\"manual\":\"facts é😀\",\"prompts\":9,\"turn\":\"old:9\"}" + base);
+    require(restored.size() == 2 && restored.getLast().contains("\"turn\":\"restored:10\"") && restored.getLast().contains("\"tokeneconomizer\":\"facts é😀\""), restored.toString());
+    require(restored.getLast().contains("\"replies\":{}"), "Completed requests remained in the recovery snapshot");
+    require(restored.stream().noneMatch(line -> line.contains("PRIVATE PROMPT") || line.contains("private environment")), "Checkpoint copied prompt or environment data");
+    var maximum = exchange(checkout, root, "{\"id\":1,\"restore\":{\"manual\":\"facts\",\"prompts\":9007199254740992,\"turn\":\"old\"}" + base);
+    require(maximum.size() == 2 && maximum.getLast().contains("\"turn\":\"restored:9007199254740992\""), maximum.toString());
+    var failedCommand = exchange(checkout, root, "{\"id\":1,\"event\":\"command\",\"context\":{\"cwd\":\"/tmp\"},\"body\":{\"args\":\"status\"}}");
+    require(failedCommand.size() == 2 && failedCommand.stream().allMatch(line -> line.contains("te: no output (check the native CLI)")), failedCommand.toString());
   }
   static void brokenBackend(Path checkout, Path root, Path sdk) throws Exception {
     var executable = sdk.getParent().getParent().resolve("scripts/te");
-    Files.move(executable, executable.resolveSibling("te.saved"));
-    Files.writeString(executable, "#!/bin/sh\nexec '" + Path.of(System.getProperty("java.home"), "bin/java").toString().replace("'", "'\\''")
-        + "' -cp '" + System.getProperty("java.class.path").replace("'", "'\\''") + "' PiSdkProbe --bad-backend\n");
-    Files.setPosixFilePermissions(executable, PosixFilePermissions.fromString("rwx------"));
     try (var client = new Client(checkout, root, sdk, "broken")) {
+      client.call(event("session_start", "", response(q("facts survive malformed backends"), "null")));
+      client.call(event("before_agent_start", prompt("before malformed backend"), "{}"));
+      client.call(crash("tool_result", "\"body\":{}"));
+      Files.move(executable, executable.resolveSibling("te.saved"));
+      Files.writeString(executable, "#!/bin/sh\nexec '" + Path.of(System.getProperty("java.home"), "bin/java").toString().replace("'", "'\\''")
+          + "' -cp '" + System.getProperty("java.class.path").replace("'", "'\\''") + "' PiSdkProbe --bad-backend\n");
+      Files.setPosixFilePermissions(executable, PosixFilePermissions.fromString("rwx------"));
       for (int i = 0; i < 2; i++) {
-        var actual = client.call(event("before_agent_start", prompt("broken backend"), "{}"));
-        require(actual.contains("\"actions\":[]") && actual.contains("\"other\":\"keep\""), actual);
+        var actual = client.call(event("agent_end", "", "{}"));
+        require(actual.contains("\"actions\":[]") && actual.contains("\"calls\":[]"), actual);
       }
+      Files.delete(executable); Files.move(executable.resolveSibling("te.saved"), executable);
+      var resumed = client.call(event("before_agent_start", prompt("after malformed backend"), "{}"));
+      require(resumed.contains("facts survive malformed backends") && resumed.contains("session:2"), resumed);
     }
   }
   public static void main(String[] args) throws Exception {
@@ -200,9 +269,10 @@ class PiSdkProbe {
       Files.copy(checkout.resolve("target/release/te"), scripts.resolve("te"));
       hookFixture(scripts); hookFixture(plugin.resolve("scripts"));
       scenario(checkout, root, plugin.resolve("pi/tokeneconomizer.ts"), source);
+      recovery(checkout, root, plugin.resolve("pi/tokeneconomizer.ts"), source);
       protocol(checkout, root);
       brokenBackend(checkout, root, plugin.resolve("pi/tokeneconomizer.ts"));
-      System.out.println("Packaged Pi SDK matches upstream in " + cases + " callback cases: carried sections, session sources, turns, steering, notices, hook output, disabling and commands without an agent on PATH");
+      System.out.println("Packaged Pi SDK matches upstream in " + cases + " callback cases; seven backend kills, overlapping pending calls, malformed backend replacement, snapshot privacy and restore validation passed without an agent on PATH");
     } finally {
       try (var paths = Files.walk(root)) { for (var path : paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(path); }
     }

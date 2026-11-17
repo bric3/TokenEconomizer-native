@@ -1,4 +1,4 @@
-use super::{Bridge, HOOK_TIMEOUT_S, Result, Runtime, carried_section, disabled, space};
+use super::{Bridge, HOOK_TIMEOUT_S, Prepared, Result, Runtime, carried_section, disabled, space};
 use crate::plugin::{process, winspawn::NO_WINDOW};
 use serde_json::{Map, Value, json};
 use std::{
@@ -9,6 +9,34 @@ use std::{
 };
 
 type Output = Arc<Mutex<BufWriter<io::Stdout>>>;
+
+#[derive(Default)]
+struct Session {
+    bridge: Bridge,
+    pending: Vec<(u64, Arc<Prepared>)>,
+}
+impl Session {
+    fn checkpoint(&self) -> Value {
+        // Complete accepted requests without hook effects if the backend stops before replying.
+        let mut recovered = self.bridge.clone();
+        let mut replies = Map::new();
+        for (id, prepared) in &self.pending {
+            let value = recovered
+                .complete(prepared, prepared.failed_output())
+                .unwrap_or_else(|_| json!({"actions":[]}));
+            replies.insert(id.to_string(), value);
+        }
+        json!({"state":recovered,"replies":replies})
+    }
+    fn finish(&mut self, id: u64, prepared: &Prepared, out: Result<Value>) -> Value {
+        self.pending.retain(|(pending, _)| *pending != id);
+        let value = self
+            .bridge
+            .complete(prepared, out.unwrap_or_else(|_| prepared.failed_output()))
+            .unwrap_or_else(|_| json!({"actions":[]}));
+        json!({"id":id,"value":value,"checkpoint":self.checkpoint()})
+    }
+}
 fn send(output: &Output, value: &Value) -> Result<()> {
     let mut output = output.lock().map_err(|e| e.to_string())?;
     serde_json::to_writer(&mut *output, value).map_err(|e| e.to_string())?;
@@ -104,9 +132,10 @@ pub fn carried() -> Result<()> {
 
 /// Prepare in arrival order; complete in hook-response order, as Pi's async callbacks do.
 pub fn run(executable: &Path) -> Result<()> {
-    let bridge = Arc::new(Mutex::new(Bridge::default()));
+    let session = Arc::new(Mutex::new(Session::default()));
     let output = Arc::new(Mutex::new(BufWriter::new(io::stdout())));
     let mut workers: Vec<thread::JoinHandle<()>> = Vec::new();
+    let mut started = false;
     for line in io::stdin().lock().lines() {
         let request = match serde_json::from_str::<Value>(&line.map_err(|e| e.to_string())?) {
             Ok(value) => value,
@@ -119,7 +148,27 @@ pub fn run(executable: &Path) -> Result<()> {
             send(&output, &json!({"id":null,"error":"invalid request id"}))?;
             continue;
         };
-        let prepared = bridge.lock().map_err(|e| e.to_string())?.prepare(
+        let mut state = session.lock().map_err(|e| e.to_string())?;
+        if let Some(restore) = request.get("restore") {
+            let restored = if started {
+                Err("restore is only valid on the first request".into())
+            } else {
+                Bridge::restore(restore.clone())
+            };
+            match restored {
+                Ok(bridge) => state.bridge = bridge,
+                Err(error) => {
+                    send(&output, &json!({"id":id,"error":error}))?;
+                    continue;
+                }
+            }
+        }
+        started = true;
+        if state.pending.iter().any(|(pending, _)| *pending == id) {
+            send(&output, &json!({"id":id,"error":"duplicate Pi request id"}))?;
+            continue;
+        }
+        let prepared = state.bridge.prepare(
             request["event"].as_str().unwrap_or(""),
             &request["context"],
             &request["body"],
@@ -131,19 +180,21 @@ pub fn run(executable: &Path) -> Result<()> {
                 continue;
             }
         };
+        let prepared = Arc::new(prepared);
+        state.pending.push((id, prepared.clone()));
+        send(&output, &json!({"checkpoint":state.checkpoint()}))?;
+        drop(state);
         workers.retain(|worker| !worker.is_finished());
-        let (bridge, output, executable) =
-            (bridge.clone(), output.clone(), executable.to_path_buf());
+        let (session, output, executable) =
+            (session.clone(), output.clone(), executable.to_path_buf());
         workers.push(thread::spawn(move || {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let out = prepared.execute(&mut NativeRuntime { executable })?;
-                let mut bridge = bridge.lock().map_err(|e| e.to_string())?;
-                let value = bridge.complete(&prepared, out)?;
-                send(&output, &json!({"id":id,"value":value}))
+                prepared.execute(&mut NativeRuntime { executable })
             }))
             .unwrap_or_else(|_| Err("Pi callback panicked".into()));
-            if let Err(error) = result {
-                let _ = send(&output, &json!({"id":id,"error":error}));
+            if let Ok(mut state) = session.lock() {
+                let packet = state.finish(id, &prepared, result);
+                let _ = send(&output, &packet);
             }
         }));
     }

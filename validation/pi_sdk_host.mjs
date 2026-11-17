@@ -30,6 +30,7 @@ async function invoke(request) {
   const event = request.body ?? {};
   if (request.event === "command") await command(request.args, ctx);
   else await handlers.get(request.event)(event, ctx);
+  if (request.release) writeFileSync(baseline.TE_PI_LOG + ".barrier-" + request.release, "done");
   return event.systemPromptOptions;
 }
 for await (const line of createInterface({ input: process.stdin })) {

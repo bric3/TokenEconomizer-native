@@ -30,8 +30,7 @@ export function carriedSection(entries: any[]): string {
 
 function connection() {
   let child: ReturnType<typeof spawn> | undefined;
-  // shortcut: backend failure requires a reload, restore state before declaring production parity.
-  let failed = false;
+  let checkpoint: any;
   let next = 0;
   let buffer = "";
   const pending = new Map<number, (value: any) => void>();
@@ -40,43 +39,55 @@ function connection() {
       if (active) handle?.ref?.(); else handle?.unref?.();
     }
   };
-  const stop = () => {
-    failed = true;
-    child?.kill("SIGKILL");
-    for (const resolve of pending.values()) resolve({});
-    pending.clear();
+  const stop = (running = child) => {
+    if (!running || child !== running) return;
     references(false);
+    child = undefined;
+    buffer = "";
+    running.kill("SIGKILL");
+    for (const [id, resolve] of pending) resolve(checkpoint?.replies?.[id] ?? {});
+    pending.clear();
   };
   return (event: string, context: any, body: any): Promise<any> => new Promise((resolve) => {
-    if (failed) { resolve({}); return; }
     try {
+      const fresh = !child;
       if (!child) {
         const [program, argv] = launch("te", ["--pi-bridge"]);
         child = spawn(program, argv, { stdio: ["pipe", "pipe", "ignore"], cwd: SCRIPTS, windowsHide: true });
-        child.on("error", stop);
-        child.on("close", stop);
-        child.stdin!.on("error", stop);
+        const running = child;
+        child.on("error", () => stop(running));
+        child.on("close", () => stop(running));
+        child.stdin!.on("error", () => stop(running));
         child.stdout!.setEncoding("utf8");
         child.stdout!.on("data", (chunk: string) => {
+          if (child !== running) return;
           buffer += chunk;
           let end;
           while ((end = buffer.indexOf("\n")) >= 0) {
             const line = buffer.slice(0, end); buffer = buffer.slice(end + 1);
             try {
               const packet = JSON.parse(line);
+              const saved = packet.checkpoint;
+              if (!saved?.state || typeof saved.state !== "object" || Array.isArray(saved.state)
+                  || !saved.replies || typeof saved.replies !== "object" || Array.isArray(saved.replies)) {
+                stop(running); return;
+              }
+              if (packet.id === undefined) { checkpoint = saved; continue; }
               const waiter = pending.get(packet.id);
-              if (!waiter) { stop(); return; }
+              if (!waiter) { stop(running); return; }
+              checkpoint = saved;
               pending.delete(packet.id);
               waiter(packet.value ?? {});
               if (!pending.size) references(false);
-            } catch { stop(); return; }
+            } catch { stop(running); return; }
           }
         });
       }
       const id = ++next;
       let process_cwd: string | undefined;
       try { process_cwd = process.cwd(); } catch { /* A removed cwd makes hook launches fail open. */ }
-      const packet = JSON.stringify({ id, event, context: { ...context, env: process.env, process_cwd }, body });
+      const packet = JSON.stringify({ id, event, context: { ...context, env: process.env, process_cwd }, body,
+        restore: fresh ? checkpoint?.state : undefined });
       pending.set(id, resolve);
       references(true);
       child.stdin!.write(packet + "\n");

@@ -311,8 +311,12 @@ complete while any runtime component delegates production behaviour to Python.
   metadata and text blocks without copying conversation or image bodies into IPC.
   Native hooks and commands retain the 60-second deadline and request hidden
   child processes on Windows. Idle IPC handles allow Node to exit. Hook failures
-  retain the session manual; a backend failure currently requires reloading the
-  extension. Backend state recovery remains a production-parity gate.
+  retain the session manual. Rust sends recovery snapshots with the manual,
+  prompt counter, turn ID and fallback actions for accepted requests. After a
+  backend failure the binding releases those callers and restores a replacement
+  backend on the next call, without replaying hooks. A request that fails before
+  preparation returns no SDK action. Snapshots remain in memory and contain no
+  prompt, tool-result or environment payloads.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Direct module CLI subprocess launches are redirected to the native executable.
@@ -352,8 +356,6 @@ complete while any runtime component delegates production behaviour to Python.
   including native Windows behaviour. Current removal uses `remove_dir_all`.
 - Verify native CLI interruption and heartbeat cleanup when packaging the executables.
 - Verify each host integration in its own runtime, including Windows launchers.
-- Recover Pi session state after a native backend failure without requiring an
-  extension reload. Verify it preserves carried sections and prompt counters.
 - Audit the remaining opencode SDK adapter policy for native
   conversion, retaining the host-language bindings required by their SDKs.
 - Port experiment production consumers, adapters, runner orchestration and
@@ -891,8 +893,23 @@ complete while any runtime component delegates production behaviour to Python.
   handles event, process and JSON I/O; all production policy remains in Rust.
   Native marketplace/Droid relocation checks, debug/release builds, Clippy,
   formatting, all 256 reference files and dependency notices pass. The original
-  tests remain unchanged. Native Windows, a live Pi installation and backend
-  state recovery remain unverified or incomplete.
+  tests remain unchanged. Native Windows and a live Pi installation remain
+  unverified.
+- Full suite with Pi recovery snapshots: 1,558 passed, 33 skipped (53.64 seconds).
+  `validation/pi-recovery-calls.json` records the original native substitutions.
+  `PiSdkProbe.java` compares 76 callback cases with the original extension. Six
+  forced backend kills cover prompts, tool results, resumed and cleared sessions,
+  turn end and two simultaneously pending prompts. Callers receive the native
+  fallback actions; subsequent callbacks retain the same manual and prompt IDs
+  as the original binding. The hook call logs confirm recovery does not replay
+  hook processes. A seventh kill followed by two malformed backend responses
+  retains the last snapshot and resumes after the executable is restored.
+  Restore validation rejects invalid counters and mid-session replacement;
+  snapshots exclude prompt and environment values and remove completed requests.
+  Callback barriers give the concurrency fixture a defined completion order.
+  Native marketplace/Droid bundles, debug/release builds, Clippy, formatting,
+  all 256 reference files and legal texts for 81 registry crates pass. No
+  performance claim is made. Live Pi and Windows execution remain unverified.
 
 ## Dependencies
 

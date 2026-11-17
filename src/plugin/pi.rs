@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 pub mod server;
@@ -98,6 +99,14 @@ pub struct Prepared {
     payload: Value,
 }
 impl Prepared {
+    fn failed_output(&self) -> Value {
+        if self.event == "command" {
+            json!("")
+        } else {
+            json!({})
+        }
+    }
+
     pub fn execute(&self, runtime: &mut dyn Runtime) -> Result<Value> {
         if self.event == "command" {
             let args = nullish(self.body.get("args"), &Value::Null);
@@ -125,13 +134,25 @@ impl Prepared {
         }
     }
 }
-#[derive(Default)]
+#[derive(Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct Bridge {
     manual: Value,
     prompts: f64,
     turn: String,
 }
 impl Bridge {
+    fn restore(state: Value) -> Result<Self> {
+        let bridge: Self = serde_json::from_value(state).map_err(|e| e.to_string())?;
+        if !bridge.prompts.is_finite()
+            || !(0.0..=9_007_199_254_740_992.0).contains(&bridge.prompts)
+            || bridge.prompts.fract() != 0.0
+        {
+            return Err("invalid Pi prompt counter".into());
+        }
+        Ok(bridge)
+    }
+
     pub fn prepare(&mut self, event: &str, context: &Value, body: &Value) -> Result<Prepared> {
         let mut payload = Map::new();
         for key in ["session_id", "transcript_path", "cwd"] {
@@ -141,10 +162,10 @@ impl Bridge {
         }
         let fields = match event {
             "session_start" => {
-                self.prompts = 0.0;
                 let entries = body["entries"]
                     .as_array()
                     .ok_or("branch entries must be a list")?;
+                self.prompts = 0.0;
                 let carried = entries.iter().any(|entry| entry["type"] == "message");
                 let source = if carried {
                     "resume"
