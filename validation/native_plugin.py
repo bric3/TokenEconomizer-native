@@ -2928,6 +2928,8 @@ def install_opencode_sdk(module):
 
 
 def pytest_collection_modifyitems(items):
+    if "te_bench.adapters" in sys.modules:
+        install_experiment_adapters()
     module = sys.modules.get("te_bench.baselines.repomap")
     if module is not None:
         module.GEN = str(ROOT / "validation/native_repomap_gen.py")
@@ -2936,6 +2938,86 @@ def pytest_collection_modifyitems(items):
             if str(item.path) == str(ROOT / "reference/upstream/tests/test_opencode_plugin.py") and item.module.OPENCODE:
                 install_opencode_sdk(item.module)
                 break
+
+
+def install_experiment_adapters():
+    from te_bench.adapters import swebench, webbench, creddata, reposvul
+    constants = invoke("experiment.adapters.constants", {})
+    for module in (swebench, webbench, creddata, reposvul):
+        for name in vars(module).keys() & constants.keys():
+            value = constants[name]
+            assert value == getattr(module, name) or tuple(value) == getattr(module, name)
+            setattr(module, name, tuple(value) if isinstance(value, list) else value)
+
+    def redacted(text):
+        return tuple(invoke("experiment.adapters.redact_gold_pointers", {"text": text}))
+
+    def excluded(used_tools=None, extra_inapplicable=()):
+        return invoke("experiment.adapters.untool_exclusions", {
+            "used_tools": list(used_tools or ()), "extra_inapplicable": list(extra_inapplicable)})
+
+    swebench.redact_gold_pointers = webbench.redact_gold_pointers = redacted
+    swebench.untool_exclusions = excluded
+
+    def constructor(original, name):
+        signature = inspect.signature(original)
+        @functools.wraps(original)
+        def native(self, *args, **kwargs):
+            values = signature.bind(self, *args, **kwargs)
+            values.apply_defaults()
+            data = dict(values.arguments)
+            data.pop("self")
+            for key in ("repo_ids", "instance_ids"):
+                if data.get(key) is not None:
+                    data[key] = list(data[key])
+            data = {key: os.fspath(value) if isinstance(value, os.PathLike) else value for key, value in data.items()}
+            vars(self).update(invoke("experiment.adapters.new", {"name": name, "arguments": data, "env": dict(os.environ)}))
+        return native
+
+    def method(original, name, operation):
+        signature = inspect.signature(original)
+        @functools.wraps(original)
+        def native(*args, **kwargs):
+            values = signature.bind(*args, **kwargs)
+            values.apply_defaults()
+            data = dict(values.arguments)
+            obj = data.pop("self")
+            state = {**vars(obj), "name": name} if obj is not None else invoke("experiment.adapters.new", {
+                "name": name, "arguments": {"project": ""}, "env": {}})
+            if "used_tools" in data:
+                data["used_tools"] = list(data["used_tools"] or ())
+            data = {key: os.fspath(value) if isinstance(value, os.PathLike) else value for key, value in data.items()}
+            state = {key: os.fspath(value) if isinstance(value, os.PathLike) else value for key, value in state.items()}
+            result = invoke("experiment.adapters." + operation, {"self": state, "process_cwd": os.getcwd(), **data})
+            if "raised" in result:
+                if result["raised"] == "JSONDecodeError":
+                    raise json.JSONDecodeError(result["message"], "", 0)
+                if result["raised"] == "UnicodeDecodeError":
+                    raise UnicodeDecodeError("utf-8", bytes(result["bytes"]), result["start"], result["end"], result["message"])
+                raise getattr(builtins, result["raised"])(result["message"])
+            result = result["value"]
+            if operation == "env_vocabulary":
+                return vocabulary_from_data(result)
+            if operation in ("protected_tools",):
+                return frozenset(result)
+            if operation in ("inapplicable_tools", "parse_catalog_with_source"):
+                return tuple(result)
+            if operation == "load_trajectory":
+                return [tuple(row) for row in result]
+            return result
+        return native
+
+    classes = ((swebench.SwebenchAdapter, "swebench"), (webbench.WebBenchAdapter, "webbench"),
+               (creddata.CredDataAdapter, "creddata"), (reposvul.ReposVulAdapter, "reposvul"))
+    originals = {cls: dict(vars(cls)) for cls, _ in classes}
+    for cls, name in classes:
+        cls.__init__ = constructor(originals[cls]["__init__"], name)
+        for operation in ("load_trajectory", "tool_usage", "parse_catalog", "parse_catalog_with_source", "protected_tools",
+                          "inapplicable_tools", "hardcoded_exclusions", "spiral_snapshot", "problem_statements",
+                          "env_vocabulary", "classify_domain", "tasks_path", "meta_dir", "repo_ids", "instances_dir", "instance_ids"):
+            original = originals[cls].get(operation) or originals[swebench.SwebenchAdapter].get(operation)
+            if original is not None:
+                setattr(cls, operation, method(original, name, operation))
 
 
 def pytest_sessionfinish(session, exitstatus):

@@ -37,7 +37,7 @@ class ExtractProposerPrompts {
     System.out.println("Verified native proposer prompts; paper SHA-256: " + hash);
   }
 
-  private static String constant(String source, String name, String expectedRest) {
+  static String constant(String source, String name, String expectedRest) {
     var start = source.indexOf(name + " = (");
     if (start < 0) throw new AssertionError("Missing constant: " + name);
     start += (name + " = (").length();

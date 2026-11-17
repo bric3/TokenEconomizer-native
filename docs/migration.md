@@ -347,6 +347,12 @@ complete while any runtime component delegates production behaviour to Python.
   Other reference code, including packaging launchers, still runs in Python.
 - Remaining production conversion, six improvement passes and final test conversion
   pending. No performance claim is made from these compatibility runs.
+- The SWE-bench, Web-Bench, CredData and ReposVul dataset adapters now execute in
+  Rust. They read task specifications, redact solution URLs, discover dataset
+  entries, select domain prompts and vocabularies, and reuse the native trace,
+  catalog, loop-state and tool-policy implementations. They implement the native
+  tooling interface. The original Python classes serve as test bindings during
+  migration; experiment orchestration remains in Python.
 
 ## Remaining production work
 
@@ -359,6 +365,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit JSON numeric edge cases and parser nesting limits, including non-finite
   values accepted by Python.
   Include the Hermes redirect helper's raw JSON validation in that audit.
+  Include dataset IDs outside the documented string schemas and exact JSON error
+  diagnostics in that audit.
   Configuration numeric coercion still needs Unicode decimal digits and integers
   outside the current i64 range. Audit path-normalisation edge cases and typed I/O
   errors from repository identity too.
@@ -382,7 +390,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Verify each host integration in its own runtime, including Windows launchers.
 - Include SDK JSON nesting, environment snapshots and exit-control packet bounds
   in the production-parity audit.
-- Port experiment production consumers, adapters, runner orchestration and
+- Port experiment production consumers, runner orchestration and
   supporting tools, preserving their original test contracts.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
@@ -970,6 +978,23 @@ complete while any runtime component delegates production behaviour to Python.
   and Droid bundles, debug/release builds, Clippy, formatting and the 256-file
   reference check pass. Original tests remain unchanged.
   Native Windows execution remains unverified. No improvement pass is counted.
+- Dataset-adapter comparisons pass in 127 cases across all four domains, covering
+  environment defaults, explicit paths, constructor snapshots, selected IDs,
+  duplicate selections, hidden entries, directories, globbed roots, task overrides,
+  Unicode redaction, catalog sources, trace reading, tool exclusions and malformed
+  input error types. Four prompt resources match the pinned source exactly.
+  Relative dataset and transcript paths follow the calling process's directory;
+  public path methods preserve their lexical paths.
+  The original adapter, tooling, facade, vocabulary and registry tests pass:
+  57 passed. A Rust integration check passes task prompts and protected tools
+  through the native tooling stage without Python callbacks or model calls.
+  Full original suite with installed-opencode tests enabled: 1,561 passed,
+  30 skipped (64.80 seconds). `validation/experiment-adapters-calls.json` records
+  native adapter entries from the original tests. All six Rust library checks,
+  debug/release builds, Clippy, formatting and the 256-file reference check pass.
+  Original tests remain unchanged; no improvement pass is counted.
+  Dataset IDs currently follow their documented string schemas; other JSON key
+  types and exact parser diagnostics remain in the parity audit.
 
 ## Dependencies
 
@@ -1090,6 +1115,7 @@ Small Java validation tools check the migration infrastructure:
 
 ```sh
 jbang validation/VerifyReference.java
+jbang validation/AdapterProbe.java
 jbang validation/BridgeProbe.java
 jbang validation/QueueProbe.java
 jbang validation/ContextProbe.java

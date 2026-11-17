@@ -1,6 +1,7 @@
 pub mod accounting;
 pub mod config;
 pub mod envelope;
+pub mod experiments;
 pub mod ledger;
 pub mod lifecycle;
 pub mod loopguard;

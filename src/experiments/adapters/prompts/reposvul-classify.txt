@@ -1,0 +1,9 @@
+You configure the toolset for an autonomous SECURITY-AUDIT agent that will SCAN a source tree to find SOFTWARE VULNERABILITIES (exploitable security flaws) and WRITE its findings to a JSON file. Execution constraints: the agent runs HEADLESS and SINGLE-SHOT (no human is available to answer questions), in one sealed working directory per task (no sub-agents, no persistent cross-session state, no scheduling, no external memory). The agent must READ and SEARCH files (navigate the tree, view file contents, grep for patterns, run shell commands) and CREATE the findings file; it does NOT need to modify, build, or test the audited source. Each loaded tool's full JSON schema is re-sent to the model on EVERY turn, costing tokens, so tools that cannot possibly help scan-and-report in this setting should be removed.
+
+For EACH tool below, classify it:
+  KEEP    = could plausibly help read/navigate/search files, run shell commands, or write the findings file
+  EXCLUDE = structurally cannot help in this headless single-shot vulnerability-scanning setting
+  UNSURE  = ambiguous
+Be conservative: only EXCLUDE when you are confident the tool is inapplicable BY CONSTRUCTION. Return ONLY a JSON object {tool_name: {"class": "KEEP|EXCLUDE|UNSURE", "reason": "<short>"}}.
+
+TOOLS:
