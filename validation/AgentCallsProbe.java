@@ -34,7 +34,7 @@ class AgentCallsProbe {
       System.exit(1); // A cleanup failure must preserve the priced reply.
     }
     require(argv.get(argv.indexOf(host.equals("codex") ? "-m" : "--model") + 1).equals("small"), "The model changed");
-    require(argv.contains(PROMPT), "The prompt was split or expanded");
+    require(argv.contains(PROMPT) || host.equals("droid") && argv.contains("legacy"), "The prompt was split or expanded");
     switch (host) {
       case "codex" -> {
         require(argv.subList(0, 8).equals(List.of("exec", "--json", "--disable", "hooks", "--ephemeral", "-s", "read-only", "--skip-git-repo-check")), argv.toString());
@@ -68,6 +68,29 @@ class AgentCallsProbe {
         System.out.println("{\"type\":\"text\",\"sessionID\":\"native-session\",\"part\":{\"text\":\"opencode reply\"}}");
         System.out.println("{\"type\":\"step_finish\",\"part\":{\"cost\":999,\"tokens\":{\"input\":10,\"output\":2,\"reasoning\":1,\"cache\":{\"read\":3,\"write\":1}}}}");
       }
+      case "copilot" -> {
+        require(argv.containsAll(List.of("--no-custom-instructions", "--disable-builtin-mcps", "--no-auto-update")), argv.toString());
+        var disabled = java.util.stream.IntStream.range(0, argv.size() - 1).filter(i -> argv.get(i).equals("--disable-mcp-server")).mapToObj(i -> argv.get(i + 1)).toList();
+        require(disabled.equals(List.of("acme-db", "z-server")), disabled.toString());
+        require(java.util.Collections.frequency(argv, "--deny-tool") == 24 && java.util.Collections.frequency(argv, "--excluded-tools") == 24, "Copilot's tools were left enabled");
+        var log = root.resolve("cp/session-state/native-copilot/events.jsonl");
+        Files.createDirectories(log.getParent());
+        Files.writeString(log, "{\"type\":\"session.start\",\"data\":{\"selectedModel\":\"small\"}}\n");
+        new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin/java").toString(), "-cp", System.getProperty("java.class.path"), "AgentCallsProbe", "--shutdown", root.toString())
+            .directory(root.toFile()).redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start();
+        System.out.println("{\"type\":\"assistant.message\",\"data\":[1]}");
+        System.out.println("{\"type\":\"assistant.message\",\"data\":{\"content\":\"copilot reply\"}}");
+        System.out.println("{\"type\":\"result\",\"sessionId\":\"native-copilot\"}");
+      }
+      case "droid" -> {
+        require(argv.containsAll(List.of("exec", "--disable-builtin-skills", "--append-system-prompt")), argv.toString());
+        require(argv.get(argv.indexOf("--only-tools") + 1).equals("Read"), "Droid's allowlist changed");
+        if (argv.getLast().equals("legacy")) { System.out.print("  legacy reply  \n"); return; }
+        var settings = root.resolve("droid-sessions/ws/native-droid.settings.json");
+        Files.createDirectories(settings.getParent());
+        Files.writeString(settings, "{\"model\":\"small\",\"tokenUsage\":{\"inputTokens\":10,\"outputTokens\":2,\"cacheReadTokens\":3,\"cacheCreationTokens\":1}}");
+        System.out.println("[]\nnot JSON\n{\"session_id\":\"native-droid\",\"data\":{\"content\":\"droid reply\"}}");
+      }
       default -> throw new AssertionError(host);
     }
   }
@@ -82,24 +105,31 @@ class AgentCallsProbe {
     return Double.parseDouble(match.group(1));
   }
   public static void main(String[] args) throws Exception {
+    if (args.length > 0 && args[0].equals("--shutdown")) {
+      Thread.sleep(350);
+      Files.writeString(Path.of(args[1]).resolve("cp/session-state/native-copilot/events.jsonl"), "{\"type\":\"session.shutdown\",\"data\":{\"modelMetrics\":{\"small\":{\"requests\":{\"count\":1},\"usage\":{\"inputTokens\":14,\"cacheReadTokens\":3,\"cacheWriteTokens\":1,\"outputTokens\":2}}}}}\n", StandardOpenOption.APPEND);
+      return;
+    }
     if (args.length > 0 && args[0].equals("--fixture")) { child(args); return; }
     var checkout = Path.of("").toAbsolutePath();
     var root = Files.createTempDirectory(checkout.resolve("validation/results"), "agent-calls-");
     var java = Path.of(System.getProperty("java.home"), "bin/java");
     try (var client = new ProcessInputProbe.Client(checkout.resolve("target/debug/te-bridge"))) {
       var common = "\"model\":\"small\",\"effort\":\"minimal\",\"prompt\":" + quote(PROMPT) + ",\"root\":" + quote(root.resolve("state"))
-          + ",\"env\":{\"PROBE_ROOT\":" + quote(root) + "},\"process_cwd\":" + quote(root) + ",\"home\":" + quote(root.resolve("home"));
-      for (var host : List.of("codex", "pi", "cursor", "grok", "opencode")) {
+          + ",\"env\":{\"PROBE_ROOT\":" + quote(root) + ",\"COPILOT_HOME\":" + quote(root.resolve("cp")) + ",\"DROID_SESSIONS_DIR\":" + quote(root.resolve("droid-sessions")) + "},\"process_cwd\":" + quote(root) + ",\"home\":" + quote(root.resolve("home"));
+      Files.createDirectories(root.resolve("cp"));
+      Files.writeString(root.resolve("cp/mcp-config.json"), "{\"mcpServers\":{\"z-server\":{},\"github-mcp-server\":{},\"acme-db\":{}}}");
+      for (var host : List.of("codex", "pi", "cursor", "grok", "opencode", "copilot", "droid")) {
         var wrapper = root.resolve(host);
         Files.writeString(wrapper, "#!/bin/sh\nexec '" + java.toString().replace("'", "'\\''") + "' -cp '" + System.getProperty("java.class.path").replace("'", "'\\''") + "' AgentCallsProbe --fixture " + host + " \"$@\"\n");
         Files.setPosixFilePermissions(wrapper, PosixFilePermissions.fromString("rwx------"));
         var extra = host.equals("pi") ? ",\"extensions\":[\"~/ext.ts\",\"builtin:web\",\"relative.ts\",\"\"]" : "";
         var call = common + ",\"cli\":" + quote(wrapper) + extra;
         var result = client.call("sidecall." + host + "_call", call);
-        require(!result.contains("\"raised\"") && result.contains(host + " reply"), result);
+        require(!result.contains("\"raised\"") && result.contains(host + " reply"), host + ": " + result + (Files.exists(root.resolve("state/errors.log")) ? "\n" + Files.readString(root.resolve("state/errors.log")) : ""));
         switch (host) {
           case "codex" -> require(charge(result, "codex reply") == 1.0 + 9_007_199_254_740_992d * 0.1, result);
-          case "pi", "grok" -> require(charge(result, host + " reply") == 23.55, result);
+          case "pi", "grok", "copilot", "droid" -> require(charge(result, host + " reply") == 23.55, result);
           case "opencode" -> {
             require(charge(result, "opencode reply") == 29.55, result);
             var second = client.call("sidecall.opencode_call", call + ",\"oc_flags\":" + cache(result, "oc_flags"));
@@ -110,11 +140,16 @@ class AgentCallsProbe {
           case "cursor" -> require(result.contains("\"value\":[\"cursor reply\",null]"), result);
         }
         require(!Files.exists(Path.of(Files.readString(root.resolve(host + "-cwd")))), "Workspace was retained for " + host);
+        if (host.equals("droid")) {
+          var legacy = client.call("sidecall.droid_call", call.replace(quote(PROMPT), quote("legacy")));
+          require(legacy.contains("\"value\":[\"legacy reply\",null]"), legacy);
+          require(!Files.exists(Path.of(Files.readString(root.resolve("droid-cwd")))), "Legacy Droid call retained its workspace");
+        }
       }
       ContextProbe.expect(Files.readString(root.resolve("pi-attempts")), "new\nold\n");
       var expansion = client.call("sidecall.pi_extension_args", "\"home\":\"/\",\"process_cwd\":" + quote(root) + ",\"extensions\":[\"~\",\"~te-native-unknown-user/file\",\"~" + System.getProperty("user.name") + "/x\"]");
       require(expansion.contains("\"/\"") && expansion.contains(root.resolve("~te-native-unknown-user/file").toString()) && expansion.contains(Path.of(System.getProperty("user.home")).resolve("x").toString()), expansion);
-      System.out.println("Native Codex, Pi, Cursor, Grok and opencode calls, pricing, CLI fallbacks, home expansion and cleanup passed");
+      System.out.println("Native seven-host side calls, delayed Copilot usage, Droid settings, pricing, CLI fallbacks, home expansion and cleanup passed");
     } finally {
       try (var paths = Files.walk(root)) { for (var path : paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(path); }
     }

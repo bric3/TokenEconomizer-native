@@ -144,6 +144,8 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value, Str
             | "sidecall.grok_call"
             | "sidecall.opencode_call"
             | "sidecall.opencode_flags"
+            | "sidecall.copilot_call"
+            | "sidecall.droid_call"
     ) {
         let call = request(args);
         let mut cache = args["oc_flags"].as_object().cloned().unwrap_or_default();
@@ -171,6 +173,12 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value, Str
             "sidecall.opencode_call" => {
                 sidecall::opencode_call(&call, &mut cache, &environment, &root, runtime)
                     .map(|v| json!(v))
+            }
+            "sidecall.copilot_call" => {
+                sidecall::copilot_call(&call, &environment, &root, runtime).map(|v| json!(v))
+            }
+            "sidecall.droid_call" => {
+                sidecall::droid_call(&call, &environment, &root, runtime).map(|v| json!(v))
             }
             _ => {
                 sidecall::opencode_flags(call.cli, call.windows, &mut cache, &environment, runtime)
@@ -216,6 +224,10 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value, Str
         });
     }
     let value = match op {
+        "sidecall._droid_sessions_root" => json!(sidecall::droid_sessions_root(&environment)),
+        "sidecall._droid_settings_usage" => {
+            sidecall::droid_settings_usage(&args["sid"], &environment)?
+        }
         "sidecall.pi_extension_args" => {
             let extensions: Vec<String> = serde_json::from_value(
                 args.get("extensions")
@@ -319,7 +331,7 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value, Str
 pub(super) fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
     if op == "sidecall.constants" {
         return Ok(Some(
-            json!({"TIMEOUT_S":sidecall::TIMEOUT_S,"FM_CLI":sidecall::FM_CLI,"FM_TIMEOUT_S":sidecall::FM_TIMEOUT_S,"NO_SIDE_CALLS":sidecall::NO_SIDE_CALLS,"PI_FLAGS":sidecall::PI_FLAGS,"GROK_TOOLS":sidecall::GROK_TOOLS,"GROK_REMOVED":sidecall::GROK_REMOVED,"GROK_DENY_RULES":sidecall::GROK_DENY_RULES,"OPENCODE_CONFIG":sidecall::OPENCODE_CONFIG}),
+            json!({"TIMEOUT_S":sidecall::TIMEOUT_S,"FM_CLI":sidecall::FM_CLI,"FM_TIMEOUT_S":sidecall::FM_TIMEOUT_S,"NO_SIDE_CALLS":sidecall::NO_SIDE_CALLS,"PI_FLAGS":sidecall::PI_FLAGS,"GROK_TOOLS":sidecall::GROK_TOOLS,"GROK_REMOVED":sidecall::GROK_REMOVED,"GROK_DENY_RULES":sidecall::GROK_DENY_RULES,"OPENCODE_CONFIG":sidecall::OPENCODE_CONFIG,"COPILOT_TOOLS":sidecall::COPILOT_TOOLS,"DROID_TOOLS":sidecall::DROID_TOOLS}),
         ));
     }
     if op == "sidecall.resume_job" {

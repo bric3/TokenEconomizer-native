@@ -620,7 +620,7 @@ def pytest_configure(config):
                     "effective_tokens", "approx_tokens", "runner_effective_or_approx"),
         "ledger": ("overhead", "effective_exec"),
         "plugin.accounting": ("effective", "overhead_total", "summarize", "fmt_tokens"),
-        "plugin.sidecall": ("_obj", "_env", "_hermes_env", "_pause_path", "paused", "resume", "_log", "_no_reply", "claude_cli", "hermes_cli", "_shim_argv", "program", "claude_json", "copilot_model", "droid_enabled", "_droid_usage", "local_routes", "call_name", "_claude_help", "claude_flags", "claude_no_mcp", "claude_call", "codex_call", "pi_extension_args", "pi_call", "cursor_call", "grok_call", "opencode_flags", "opencode_call"),
+        "plugin.sidecall": ("_obj", "_env", "_hermes_env", "_pause_path", "paused", "resume", "_log", "_no_reply", "claude_cli", "hermes_cli", "_shim_argv", "program", "claude_json", "copilot_model", "droid_enabled", "_droid_usage", "local_routes", "call_name", "_claude_help", "claude_flags", "claude_no_mcp", "claude_call", "codex_call", "pi_extension_args", "pi_call", "cursor_call", "grok_call", "opencode_flags", "opencode_call", "copilot_call", "_droid_sessions_root", "_droid_settings_usage", "droid_call"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
@@ -718,9 +718,9 @@ def pytest_configure(config):
     LIVE_CONFIG_ENV = invoke("live_config.environment", {})
     from tokeneconomizer.plugin import repos, hosts, sidecall
     constants = invoke("sidecall.constants", {})
-    for name in ("TIMEOUT_S", "FM_CLI", "FM_TIMEOUT_S", "GROK_TOOLS", "GROK_REMOVED", "OPENCODE_CONFIG"):
+    for name in ("TIMEOUT_S", "FM_CLI", "FM_TIMEOUT_S", "GROK_TOOLS", "GROK_REMOVED", "OPENCODE_CONFIG", "DROID_TOOLS"):
         assert constants[name] == getattr(sidecall, name)
-    for name in ("PI_FLAGS", "GROK_DENY_RULES"):
+    for name in ("PI_FLAGS", "GROK_DENY_RULES", "COPILOT_TOOLS"):
         assert tuple(constants[name]) == getattr(sidecall, name)
     assert set(constants["NO_SIDE_CALLS"]) == sidecall.NO_SIDE_CALLS
     global NATIVE_SIDECALL_FUNCTIONS
@@ -1077,7 +1077,7 @@ def sidecall_call(operation, arguments):
     if last_error is not None and isinstance(result, dict) and "raised" in result and result.get("message") == str(last_error):
         raise last_error
     value = storage_result(result)
-    return tuple(value) if operation in ("sidecall.claude_call", "sidecall.codex_call", "sidecall.pi_call", "sidecall.cursor_call", "sidecall.grok_call", "sidecall.opencode_call") else value
+    return tuple(value) if operation in ("sidecall.claude_call", "sidecall.codex_call", "sidecall.pi_call", "sidecall.cursor_call", "sidecall.grok_call", "sidecall.opencode_call", "sidecall.copilot_call", "sidecall.droid_call") else value
 
 
 def controller_data(ctl):

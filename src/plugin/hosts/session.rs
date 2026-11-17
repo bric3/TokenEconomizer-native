@@ -1,6 +1,6 @@
 use super::session_id;
 use crate::{
-    plugin::{paths, process},
+    plugin::{paths, process, sidecall},
     trace::{
         antigravity, calls, claude, codex, copilot, cursor, droid, grok, hermes, opencode, pi,
     },
@@ -105,6 +105,24 @@ pub trait Runtime {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs_f64())
+    }
+}
+pub struct NativeRuntime<'a> {
+    pub environment: &'a Environment,
+}
+impl sidecall::Runtime for NativeRuntime<'_> {}
+impl Runtime for NativeRuntime<'_> {
+    fn program(&mut self, cli: &str) -> Result<Vec<String>> {
+        sidecall::program(cli, cfg!(windows), self.environment, self).map_err(Error::Invalid)
+    }
+    fn ancestors(
+        &mut self,
+        limit: i64,
+        pid: u32,
+        windows: bool,
+        cwd: &Path,
+    ) -> Result<Vec<String>> {
+        ancestor_args(limit, pid, windows, cwd, self)
     }
 }
 pub fn copilot_home(env: &Map<String, Value>, home: &Path) -> PathBuf {

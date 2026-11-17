@@ -1,7 +1,10 @@
-use super::{hosts::session::Environment, paths, process};
+use super::{
+    hosts::session::{self, Environment},
+    paths, process,
+};
 use crate::{
     accounting,
-    trace::{grok, opencode, pi},
+    trace::{copilot, grok, opencode, pi},
     value::{int_value, scalar_text, truthy},
 };
 use chrono::Local;
@@ -38,6 +41,33 @@ pub const GROK_TOOLS: &str = "read_file";
 pub const GROK_REMOVED: &str = "use_tool,search_tool";
 pub const GROK_DENY_RULES: [&str; 6] = ["Bash", "Edit", "Write", "WebFetch", "WebSearch", "Task"];
 pub const OPENCODE_CONFIG: &str = r#"{"permission": {"bash": "deny", "edit": "deny", "webfetch": "deny", "websearch": "deny"}, "share": "disabled", "autoupdate": false}"#;
+pub const COPILOT_TOOLS: [&str; 24] = [
+    "bash",
+    "read_bash",
+    "write_bash",
+    "stop_bash",
+    "list_bash",
+    "view",
+    "grep",
+    "rg",
+    "glob",
+    "edit",
+    "create",
+    "str_replace",
+    "apply_patch",
+    "web_fetch",
+    "web_search",
+    "ask_user",
+    "session_store_sql",
+    "sql",
+    "task",
+    "skill",
+    "list_agents",
+    "read_agent",
+    "write_agent",
+    "fetch_copilot_cli_documentation",
+];
+pub const DROID_TOOLS: &str = "Read";
 
 pub trait Runtime {
     fn temporary_directory(
@@ -896,6 +926,225 @@ pub fn opencode_call(
         } else {
             request.model
         });
+        accounting::effective(&usage).map_err(|e| e.to_string())?.0
+    } else {
+        None
+    };
+    Ok((json!(text), eff))
+}
+
+pub fn copilot_call(
+    request: &Call<'_>,
+    environment: &Environment,
+    root: &Path,
+    runtime: &mut dyn Runtime,
+) -> Result<(Value, Option<f64>), String> {
+    let model = copilot_model(request.model, &environment.env);
+    let mut cmd = runtime.program(request.cli, request.windows, environment)?;
+    cmd.extend(
+        [
+            "-p",
+            request.prompt,
+            "--output-format",
+            "json",
+            "--no-color",
+            "--no-auto-update",
+            "--no-custom-instructions",
+            "--disable-builtin-mcps",
+        ]
+        .map(String::from),
+    );
+    let home = environment.path(&session::copilot_home(&environment.env, &environment.home));
+    for server in copilot::mcp_servers(&json!({"COPILOT_HOME":home}), &environment.home) {
+        if server != "github-mcp-server" {
+            cmd.extend(["--disable-mcp-server".into(), server]);
+        }
+    }
+    for tool in COPILOT_TOOLS {
+        cmd.extend([
+            "--deny-tool".into(),
+            tool.into(),
+            "--excluded-tools".into(),
+            tool.into(),
+        ]);
+    }
+    if !model.is_empty() {
+        cmd.extend(["--model".into(), model.clone()]);
+    }
+    let out = with_work_dir("te-side-", runtime, |cwd, runtime| {
+        runtime
+            .run(
+                &cmd,
+                cwd,
+                &self::environment(&environment.env, false),
+                None,
+                request.timeout,
+            )
+            .map_err(|e| e.to_string())
+    })?;
+    let mut text = json!("");
+    let mut sid = Value::Null;
+    for line in out.stdout.lines() {
+        let Ok(ev) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        if ev["type"] == "assistant.message" && ev["data"].is_object() {
+            if truthy(&ev["data"]["content"]) {
+                text = ev["data"]["content"].clone();
+            }
+        } else if ev["type"] == "result" && truthy(&ev["sessionId"]) {
+            sid = ev["sessionId"].clone();
+        }
+    }
+    if !truthy(&text) {
+        no_reply(
+            "copilot",
+            root,
+            &out.stdout,
+            &out.stderr,
+            &json!(out.code),
+            super::history::now(),
+        );
+    }
+    let eff = if truthy(&sid) {
+        let log = home
+            .join("session-state")
+            .join(sid.as_str().ok_or("Copilot session ID must be text")?)
+            .join("events.jsonl");
+        session::settle(
+            "copilot",
+            Some(&log),
+            5.0,
+            60.0,
+            &mut session::NativeRuntime { environment },
+        )
+        .map_err(|e| e.to_string())?;
+        let mut usage = copilot::session_usage(&log)?;
+        if !truthy(&usage["model"]) {
+            usage["model"] = json!(if model.is_empty() { "copilot" } else { &model });
+        }
+        accounting::effective(&usage).map_err(|e| e.to_string())?.0
+    } else {
+        None
+    };
+    Ok((text, eff))
+}
+pub fn droid_sessions_root(environment: &Environment) -> PathBuf {
+    environment
+        .env
+        .get("DROID_SESSIONS_DIR")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| environment.home.join(".factory/sessions"))
+}
+pub fn droid_settings_usage(sid: &Value, environment: &Environment) -> Result<Value, String> {
+    if !truthy(sid) {
+        return Ok(Value::Null);
+    }
+    let Ok(folders) = fs::read_dir(environment.path(&droid_sessions_root(environment))) else {
+        return Ok(Value::Null);
+    };
+    for folder in folders {
+        let folder = folder.map_err(|e| e.to_string())?;
+        let Ok(bytes) = fs::read(
+            folder
+                .path()
+                .join(format!("{}.settings.json", scalar_text(sid))),
+        ) else {
+            continue;
+        };
+        let Ok(data) = serde_json::from_slice::<Value>(&bytes) else {
+            continue;
+        };
+        let mut usage = data["tokenUsage"].as_object().cloned().unwrap_or_default();
+        usage.insert("model".into(), data["model"].clone());
+        return Ok(droid_usage(&json!(usage)));
+    }
+    Ok(Value::Null)
+}
+pub fn droid_call(
+    request: &Call<'_>,
+    environment: &Environment,
+    root: &Path,
+    runtime: &mut dyn Runtime,
+) -> Result<(Value, Option<f64>), String> {
+    let mut cmd = runtime.program(request.cli, request.windows, environment)?;
+    cmd.extend(
+        [
+            "exec",
+            "--output-format",
+            "json",
+            "--disable-builtin-skills",
+            "--only-tools",
+            DROID_TOOLS,
+            "--append-system-prompt",
+            "Answer with text only. Do not call any tool. Your entire reply is the answer.",
+        ]
+        .map(String::from),
+    );
+    if !request.model.is_empty() {
+        cmd.extend(["--model".into(), request.model.into()]);
+    }
+    cmd.push(request.prompt.into());
+    let out = with_work_dir("te-side-", runtime, |cwd, runtime| {
+        runtime
+            .run(
+                &cmd,
+                cwd,
+                &self::environment(&environment.env, false),
+                None,
+                request.timeout,
+            )
+            .map_err(|e| e.to_string())
+    })?;
+    let mut text = String::new();
+    let mut sid = json!("");
+    let mut usage = Value::Null;
+    for line in out.stdout.lines() {
+        let Ok(ev) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        if truthy(&ev["session_id"]) {
+            sid = ev["session_id"].clone();
+        }
+        for candidate in [&ev["usage"], &ev["data"]["usage"]] {
+            let candidate = droid_usage(candidate);
+            if truthy(&candidate) {
+                usage = candidate;
+                break;
+            }
+        }
+        for value in [
+            &ev["result"],
+            &ev["text"],
+            &ev["message"],
+            &ev["data"]["content"],
+            &ev["data"]["result"],
+            &ev["data"]["text"],
+        ] {
+            if let Some(value) = value.as_str().filter(|s| !s.trim().is_empty()) {
+                text = value.into();
+            }
+        }
+    }
+    if text.is_empty() && !out.stdout.trim().is_empty() {
+        text = out.stdout.trim().into();
+    }
+    if text.is_empty() {
+        no_reply(
+            "droid",
+            root,
+            &out.stdout,
+            &out.stderr,
+            &json!(out.code),
+            super::history::now(),
+        );
+    }
+    if !truthy(&usage) {
+        usage = droid_settings_usage(&sid, environment)?;
+    }
+    let eff = if truthy(&usage) {
         accounting::effective(&usage).map_err(|e| e.to_string())?.0
     } else {
         None

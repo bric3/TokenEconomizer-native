@@ -172,6 +172,12 @@ complete while any runtime component delegates production behaviour to Python.
   temporary directory, including named-user homes through the platform account
   database. Expansion follows the maintained
   [Python contract](https://docs.python.org/3.15/library/os.path.html#os.path.expanduser).
+- Copilot and Droid side calls now execute in Rust. Copilot excludes built-in and
+  configured MCP tools, waits for its session's final usage event and prices that
+  log. Droid allows only `Read`, accepts structured and older plain-text replies,
+  and reads usage from the response or its session settings. The shared native
+  host runtime resolves commands and process ancestry without a test callback.
+  Hermes, on-device execution and runner orchestration remain pending.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -466,6 +472,13 @@ complete while any runtime component delegates production behaviour to Python.
   named-user home expansion, opencode's help cache and deletion attempts, and
   private workspace cleanup. No model or credential is used. Clippy and formatting
   pass; real-agent and native Windows execution remain unverified.
+- Copilot/Droid focused run: 410 passed, 2 skipped. Full suite with both native
+  calls: 1,558 passed, 33 skipped (49.58 seconds).
+  `validation/copilot-droid-sidecalls-calls.json` records native entries.
+  The expanded `AgentCallsProbe.java` checks all seven hosts, including a Copilot
+  shutdown event appended by a process after the CLI exits, Droid settings usage
+  and its plain-text fallback. The native host probe, Clippy, formatting and all
+  256 reference files pass. No real model command runs in these checks.
 
 ## Dependencies
 
