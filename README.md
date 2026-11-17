@@ -59,5 +59,7 @@ Hermes keeps its SDK binding in Python and runs gateway session, redirect and
 notice policy in Rust. Concurrent callbacks retain their profile and repository.
 Pi keeps its TypeScript SDK binding and runs session sections, prompt turns,
 tool-result steering and notice policy in Rust.
+opencode v1 and v2 keep TypeScript bindings and run manuals, prompt turns,
+tool-result redirects and session exports in Rust.
 
 Installed host verification and the remaining migration gates are still in progress.

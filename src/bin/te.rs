@@ -1,7 +1,7 @@
 use std::path::Path;
 use tokeneconomizer::plugin::{
     cli::{Error, Result},
-    hermes, pi,
+    hermes, opencode, pi,
     runtime::NativeRuntime,
     winspawn,
 };
@@ -24,6 +24,17 @@ fn run() -> Result<i32> {
     }
     if args == ["--pi-carried-section"] {
         pi::server::carried()?;
+        return Ok(0);
+    }
+    if args.first().is_some_and(|arg| arg == "--opencode-bridge") && args.len() == 2 {
+        opencode::server::run(
+            &std::env::current_exe()?,
+            args[1].parse().map_err(|_| "invalid SDK version")?,
+        )?;
+        return Ok(0);
+    }
+    if args == ["--opencode-exit"] {
+        opencode::server::exit()?;
         return Ok(0);
     }
     if args.first().is_some_and(|a| a == "--run-spawn-spec") && args.len() == 2 {

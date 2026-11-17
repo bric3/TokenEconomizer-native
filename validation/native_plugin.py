@@ -4,6 +4,7 @@ This is test compatibility code, retained only until the final test conversion.
 Production calculations live in Rust. Original test files remain unmodified.
 """
 import collections
+import builtins
 from collections.abc import Iterator
 import contextlib
 import dataclasses
@@ -20,6 +21,7 @@ from pathlib import Path
 import subprocess
 import sys
 import threading
+import types
 import traceback
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -51,6 +53,19 @@ ORIGINAL_SOURCE_EXEC_MODULE = SourceFileLoader.exec_module
 
 def native_cli_process(*args, **kwargs):
     argv = args[0] if args else kwargs.get("args")
+    if (isinstance(argv, (list, tuple)) and len(argv) >= 3 and argv[0] == sys.executable
+            and str(argv[1]) == str(ROOT / "reference/upstream/plugin/scripts/te_bootstrap.py")
+            and argv[2] == "cli"):
+        executable = "te.exe" if os.name == "nt" else "te"
+        fixture = ROOT / "validation/results/opencode-sdk-tests/scripts" / executable
+        program = fixture if (kwargs.get("env") or {}).get("TE_CONSOLE_PROBE") and fixture.is_file() else ROOT / "target/debug" / executable
+        argv = [str(program), *argv[3:]]
+        if args:
+            args = (argv, *args[1:])
+        else:
+            kwargs["args"] = argv
+        with LOCK:
+            CALLS["native_cli.bootstrap_process"] += 1
     if (isinstance(argv, (list, tuple)) and argv
             and str(argv[-1]) == str(ROOT / "reference/upstream/plugin/pi/tokeneconomizer.ts")):
         fixture = ROOT / "validation/results/pi-sdk/pi/tokeneconomizer.ts"
@@ -2863,10 +2878,64 @@ def config_from_args(cls, args):
                spiral=SpiralConfig(**result["spiral"]))
 
 
-def pytest_collection_modifyitems():
+def install_opencode_sdk(module):
+    fixture = ROOT / "validation/results/opencode-sdk-tests"
+    scripts = fixture / "scripts"
+    scripts.mkdir(parents=True, exist_ok=True)
+    sdk = fixture / "opencode/tokeneconomizer.ts"
+    sdk.parent.mkdir(exist_ok=True)
+    sdk.write_text((ROOT / "src/plugin/opencode/sdk.ts").read_text(encoding="utf-8"), encoding="utf-8")
+    suffix = ".exe" if os.name == "nt" else ""
+    shutil.copy2(ROOT / "target/debug" / ("te-repomap-gen" + suffix), scripts / ("te-repomap-gen" + suffix))
+    shutil.copy2(ROOT / "target/debug" / ("te" + suffix), scripts / ("te-native" + suffix))
+    shutil.copy2(ROOT / "target/debug" / ("te-hook" + suffix), scripts / ("te-hook-native" + suffix))
+    shutil.copy2(ROOT / "target/debug" / ("te-console-probe" + suffix), scripts / ("te-hook" + suffix))
+    shutil.copy2(ROOT / "target/debug" / ("te-console-probe" + suffix), scripts / ("te" + suffix))
+    original_scripts = str(ROOT / "reference/upstream/plugin/scripts")
+    original_sdk = str(ROOT / "reference/upstream/plugin/opencode/tokeneconomizer.ts")
+
+    def copytree(source, target, *args, **kwargs):
+        return shutil.copytree(scripts if str(source) == original_scripts else source, target, *args, **kwargs)
+
+    def open_sdk(path, *args, **kwargs):
+        return builtins.open(sdk if str(path) == original_sdk else path, *args, **kwargs)
+
+    module.shutil = types.SimpleNamespace(**(vars(shutil) | {"copytree": copytree}))
+    module.open = open_sdk
+
+    def wrap(original, operation):
+        @functools.wraps(original)
+        def native(tmp_path, *args, **kwargs):
+            original_os = module.os
+            temporary = tmp_path / "native-sdk-tmp"
+            temporary.mkdir(exist_ok=True)
+            environment = dict(os.environ, TMPDIR=str(temporary), TE_MICROSKILLS="envfacts",
+                               TE_LOOPGUARD="off", TE_TOOLPRUNE="off", TE_REPOMAP="off",
+                               OPENCODE_DISABLE_MODELS_FETCH="1")
+            module.os = types.SimpleNamespace(**(vars(os) | {"environ": environment}))
+            if operation == "opencode_sdk.runtime_harness" and args and str(args[0]) == original_sdk:
+                args = (str(sdk), *args[1:])
+            with LOCK:
+                CALLS[operation] += 1
+            try:
+                return original(tmp_path, *args, **kwargs)
+            finally:
+                module.os = original_os
+        return native
+
+    module._run = wrap(module._run, "opencode_sdk.runtime_harness")
+    module._service_run = wrap(module._service_run, "opencode_sdk.service")
+
+
+def pytest_collection_modifyitems(items):
     module = sys.modules.get("te_bench.baselines.repomap")
     if module is not None:
         module.GEN = str(ROOT / "validation/native_repomap_gen.py")
+    if os.environ.get("TE_OPENCODE_E2E") == "1":
+        for item in items:
+            if str(item.path) == str(ROOT / "reference/upstream/tests/test_opencode_plugin.py") and item.module.OPENCODE:
+                install_opencode_sdk(item.module)
+                break
 
 
 def pytest_sessionfinish(session, exitstatus):

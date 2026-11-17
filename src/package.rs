@@ -202,15 +202,6 @@ pub fn build(source: &Path, binaries: Option<&Path>, out: &Path, droid: bool) ->
     Ok(plugin)
 }
 
-fn replace(path: &Path, before: &str, after: &str) -> Result<()> {
-    let text = fs::read_to_string(path)?;
-    if text.matches(before).count() != 1 {
-        return Err(format!("unexpected pinned launcher in {}", path.display()).into());
-    }
-    fs::write(path, text.replacen(before, after, 1))?;
-    Ok(())
-}
-
 fn native_payload(plugin: &Path, binaries: &Path, suffix: &str, droid: bool) -> Result<()> {
     let scripts = plugin.join("scripts");
     fs::write(plugin.join("README.md"), include_str!("package/README.md"))?;
@@ -243,19 +234,10 @@ fn native_payload(plugin: &Path, binaries: &Path, suffix: &str, droid: bool) -> 
         plugin.join("pi/tokeneconomizer.ts"),
         include_str!("plugin/pi/sdk.ts"),
     )?;
-    {
-        let path = plugin.join("opencode/tokeneconomizer.ts");
-        replace(
-            &path,
-            "  if (platform !== \"win32\") return [join(SCRIPTS, script), args];\n  const kind = script === \"te-hook\" ? \"hook\" : \"cli\";\n  return [process.env.TE_PYTHON || \"python\", [join(SCRIPTS, \"te_bootstrap.py\"), kind, ...args]];",
-            "  return [join(SCRIPTS, script + (platform === \"win32\" ? \".exe\" : \"\")), args];",
-        )?;
-        replace(
-            &path,
-            "/** The program and arguments that run a launcher. The launchers are POSIX `sh`, which Windows\n * cannot start; there the bootstrap they run is started with Python itself (`TE_PYTHON`, else\n * `python`). */",
-            "/** The native launcher for the bundle's platform. */",
-        )?;
-    }
+    fs::write(
+        plugin.join("opencode/tokeneconomizer.ts"),
+        include_str!("plugin/opencode/sdk.ts"),
+    )?;
     let hermes = plugin.join("hermes/__init__.py");
     fs::write(hermes, include_str!("plugin/hermes/sdk.py"))?;
     for host in ["codex", "copilot"] {

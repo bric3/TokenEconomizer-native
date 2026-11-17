@@ -40,3 +40,7 @@ path = "src/bin/hook.rs"
 [[bin]]
 name = "te-package"
 path = "src/bin/package.rs"
+
+[[bin]]
+name = "te-console-probe"
+path = "validation/console_probe.rs"

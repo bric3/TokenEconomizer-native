@@ -289,8 +289,6 @@ complete while any runtime component delegates production behaviour to Python.
   Windows hook commands select native executables and preserve UTF-8 input.
   Codex's command uses [PowerShell's UTF-16LE EncodedCommand](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_powershell_exe?view=powershell-5.1#-encodedcommand-base64encodedcommand)
   to pass the same script through cmd.exe and PowerShell quoting.
-  Opencode SDK adapter policy remains in the pinned host-language file
-  pending its production-conversion audit.
 - Hermes gateway policy now executes in Rust: read-only session lookup, compression
   aliases, recorded working directories, bounded ignored/ended caches, per-session
   serialisation, resumed starts, held redirects, notice delivery and finalisation.
@@ -317,6 +315,24 @@ complete while any runtime component delegates production behaviour to Python.
   backend on the next call, without replaying hooks. A request that fails before
   preparation returns no SDK action. Snapshots remain in memory and contain no
   prompt, tool-result or environment payloads.
+- opencode v1 and v2 session policy now executes in Rust: open-session tracking,
+  manuals, prompt counters, redirects, notices, turn settlement and exports.
+  The TypeScript bindings register SDK hooks, project JSON values and apply native
+  actions. Shared JavaScript whitespace, truthiness and text coercion also serve
+  Pi. Each request captures its caller's environment and working directory.
+  v1 exports through the host CLI; v2 records prompts, assistant steps, tools,
+  tokens and costs. Shared message references retain later step updates, and an
+  empty plugin copy preserves another copy's existing export. Duplicate v2 end
+  signals settle a turn once. Redirects mutate SDK results before notices.
+  A synchronous exit helper uses an authenticated loopback connection to the
+  backend that owns the open sessions. Exit freezes pending continuations,
+  writes exports and dispatches the remaining session ends before acknowledging.
+  Accepted native I/O drains after EOF while stopped SDK callbacks are released.
+  The Unix backend uses a separate process group and releases idle handles, as
+  described by [Node's child-process lifecycle](https://nodejs.org/api/child_process.html#optionsdetached).
+  Windows keeps the attached launch and propagates the SDK's hidden-process
+  option. Native Windows execution remains unverified. Backend failure currently
+  requires reloading the plugin; incremental state recovery remains a gate.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Direct module CLI subprocess launches are redirected to the native executable.
@@ -356,8 +372,11 @@ complete while any runtime component delegates production behaviour to Python.
   including native Windows behaviour. Current removal uses `remove_dir_all`.
 - Verify native CLI interruption and heartbeat cleanup when packaging the executables.
 - Verify each host integration in its own runtime, including Windows launchers.
-- Audit the remaining opencode SDK adapter policy for native
-  conversion, retaining the host-language bindings required by their SDKs.
+- Recover opencode manuals, counters, open turns and message references after a
+  native backend failure. Use incremental snapshots so tool events do not copy
+  the whole session history.
+- Include SDK JSON nesting, environment snapshots and exit-control packet bounds
+  in the production-parity audit.
 - Port experiment production consumers, adapters, runner orchestration and
   supporting tools, preserving their original test contracts.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
@@ -910,6 +929,28 @@ complete while any runtime component delegates production behaviour to Python.
   Native marketplace/Droid bundles, debug/release builds, Clippy, formatting,
   all 256 reference files and legal texts for 81 registry crates pass. No
   performance claim is made. Live Pi and Windows execution remain unverified.
+- The three original opencode runtime/service tests pass against the native
+  binding, hooks and CLI on opencode 2.3.0 and macOS. They use the original local
+  response fixture; the fold retains the session's prompt. The test transport
+  supplies native executables and a Rust console I/O probe while preserving the
+  original assertions, service configuration and asynchronous folding.
+  Full suite with these tests enabled: 1,561 passed, 30 skipped (74.55 seconds).
+  `validation/opencode-sdk-calls.json` records one original runtime harness,
+  two original service workflows and the native CLI bootstrap subprocess.
+  `OpencodeSdkProbe.java` compares 108 callback cases across v1/v2 and Node/Bun.
+  It covers session starts, repeated sections, turn IDs, tool-result coercion,
+  redirects before notices, image preservation, failed tools, disabled hooks,
+  toast fallback, message references, tokens, cost, repeated end signals,
+  missing SDK registrations, subscription cleanup and synchronous exports.
+  It also runs the original runtime harness under Bun and opencode's embedded
+  Bun runtime. `OpencodeProtocolProbe.java` rejects unauthenticated control,
+  invalid configuration and duplicate request IDs, then completes a synchronous
+  exit while an SDK callback is waiting. Two Rust checks cover late session-start
+  replies after exit and empty-copy export preservation, including file modes.
+  Marketplace/Droid bundles, Pi's 76-case regression, debug/release builds,
+  Clippy, formatting, all 256 reference files and the 81 registry crates' legal
+  texts pass. Original tests remain unchanged. Native Windows and backend-crash
+  recovery remain unverified or incomplete; no improvement pass is counted.
 
 ## Dependencies
 
@@ -978,6 +1019,17 @@ and the optional external aider installation. Reference-payload packaging tests
 retain the Python library and launchers as fixture data; production `te-package`
 bundles the native executables.
 
+Enable the original opencode runtime and service tests when opencode is installed:
+
+```sh
+TE_OPENCODE_E2E=1 TE_OPENCODE_BIN="$(command -v opencode)" PYTHONPATH=validation \
+  .venv/bin/python -m pytest -o addopts= -p native_plugin \
+  reference/upstream/tests/test_opencode_plugin.py
+```
+
+The adapter uses `te-console-probe` only for the original console assertions.
+Production bundles contain the native entry points without this validation shim.
+
 The optional `TE_NATIVE_HOOK_TEST_EXEC` route runs selected original hook tests
 through `te-hook`. Use tests whose dependencies require no Python patches; this
 route creates a separate process and cannot retain those patches. The learning
@@ -1042,6 +1094,8 @@ jbang validation/NativeHookProbe.java
 jbang validation/PackageProbe.java
 jbang validation/HermesGatewayProbe.java
 jbang validation/PiSdkProbe.java
+jbang validation/OpencodeSdkProbe.java
+jbang validation/OpencodeProtocolProbe.java
 jbang validation/CliProbe.java
 jbang validation/LearningCliProbe.java
 jbang validation/ToolpruneCliProbe.java
