@@ -70,6 +70,9 @@ pub const COPILOT_TOOLS: [&str; 24] = [
 pub const DROID_TOOLS: &str = "Read";
 
 pub trait Runtime {
+    fn executable(&mut self, path: &Path) -> Result<bool, String> {
+        paths::executable(path)
+    }
     fn temporary_directory(
         &mut self,
         _prefix: &str,
@@ -115,6 +118,7 @@ static SHIM_PROG: LazyLock<Regex> =
 static SIGNED_OUT: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"To authenticate|/login\b|\b[Nn]ot (?:logged|signed) in").unwrap()
 });
+static ANSI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\x1b\[[0-9;]*m").unwrap());
 
 pub fn shim_argv<R: Runtime + ?Sized>(
     path: &Path,
@@ -1150,4 +1154,98 @@ pub fn droid_call(
         None
     };
     Ok((json!(text), eff))
+}
+
+pub fn fm_available(
+    cli: &str,
+    macos: bool,
+    cache: &mut Map<String, Value>,
+    environment: &Environment,
+    runtime: &mut dyn Runtime,
+) -> Result<bool, String> {
+    if !cache.contains_key(cli) {
+        let ok = macos
+            && runtime.executable(&environment.path(Path::new(cli)))?
+            && runtime
+                .run(
+                    &[cli.into(), "available".into()],
+                    &environment.cwd,
+                    &self::environment(&environment.env, false),
+                    None,
+                    30.0,
+                )
+                .is_ok_and(|out| {
+                    out.code == 0 && !out.stdout.to_lowercase().contains("unavailable")
+                });
+        cache.insert(cli.into(), json!(ok));
+    }
+    Ok(cache[cli] == true)
+}
+pub fn fm_call(
+    request: &Call<'_>,
+    schema: &Value,
+    environment: &Environment,
+    root: &Path,
+    runtime: &mut dyn Runtime,
+) -> Result<(Value, u64), String> {
+    let out = with_work_dir("te-fm-", runtime, |cwd, runtime| {
+        let mut cmd = vec![
+            request.cli.into(),
+            "respond".into(),
+            "--no-stream".into(),
+            "--greedy".into(),
+        ];
+        if truthy(schema) {
+            let path = cwd.join("schema.json");
+            fs::write(
+                &path,
+                serde_json::to_vec(schema).map_err(|e| e.to_string())?,
+            )
+            .map_err(|e| e.to_string())?;
+            cmd.extend(["--schema".into(), path.to_string_lossy().into_owned()]);
+        }
+        Ok(
+            match runtime.run(
+                &cmd,
+                cwd,
+                &self::environment(&environment.env, false),
+                Some(request.prompt),
+                request.timeout,
+            ) {
+                Ok(out) => Some(out),
+                Err(error) => {
+                    let kind = match error.kind() {
+                        io::ErrorKind::TimedOut => "TimeoutExpired",
+                        io::ErrorKind::NotFound => "FileNotFoundError",
+                        io::ErrorKind::PermissionDenied => "PermissionError",
+                        _ => "OSError",
+                    };
+                    log(root, &format!("sidecall fm: no reply ({kind})\n"));
+                    None
+                }
+            },
+        )
+    })?;
+    let Some(out) = out else {
+        return Ok((Value::Null, 0));
+    };
+    let text = ANSI.replace_all(&out.stdout, "").trim().to_string();
+    if out.code != 0 || text.is_empty() || text.starts_with("Error:") {
+        let error = if !out.stderr.is_empty() {
+            &out.stderr
+        } else {
+            &out.stdout
+        };
+        let error: String = ANSI
+            .replace_all(error.trim(), "")
+            .chars()
+            .take(200)
+            .collect();
+        log(
+            root,
+            &format!("sidecall fm: no reply (exit {}): {error}\n", out.code),
+        );
+        return Ok((Value::Null, 0));
+    }
+    Ok((json!(text), 0))
 }

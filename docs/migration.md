@@ -177,7 +177,11 @@ complete while any runtime component delegates production behaviour to Python.
   log. Droid allows only `Read`, accepts structured and older plain-text replies,
   and reads usage from the response or its session settings. The shared native
   host runtime resolves commands and process ancestry without a test callback.
-  Hermes, on-device execution and runner orchestration remain pending.
+  Hermes and runner orchestration remain pending.
+- The on-device `fm` command now executes in Rust: platform and executable checks,
+  per-executable availability caching, private JSON schema files, prompt stdin,
+  greedy non-streaming arguments, ANSI removal, empty and error replies, timeout
+  notes and zero-cost results. Runner routing and fallback still cross callbacks.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -479,6 +483,15 @@ complete while any runtime component delegates production behaviour to Python.
   shutdown event appended by a process after the CLI exits, Droid settings usage
   and its plain-text fallback. The native host probe, Clippy, formatting and all
   256 reference files pass. No real model command runs in these checks.
+- Local-model focused run: 323 passed. Full suite with native `fm` calls and
+  availability checks: 1,558 passed, 33 skipped (49.64 seconds).
+  `validation/fm-sidecall-calls.json` records native entries.
+- `LocalModelProbe.java` uses a local CLI fixture to check the platform gate,
+  availability caching across an executable-permission change, schema files,
+  UTF-8 prompt stdin, ANSI stripping, zero-cost replies, error rejection and
+  timeout cleanup without recording the prompt in the error log. The seven-host
+  probe, Clippy, formatting and all 256 reference files pass. The system's actual
+  on-device model and native Windows execution remain unverified.
 
 ## Dependencies
 
@@ -576,6 +589,7 @@ jbang validation/ControllerProbe.java
 jbang validation/ProcessInputProbe.java
 jbang validation/ClaudeCallProbe.java
 jbang validation/AgentCallsProbe.java
+jbang validation/LocalModelProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 

@@ -620,7 +620,7 @@ def pytest_configure(config):
                     "effective_tokens", "approx_tokens", "runner_effective_or_approx"),
         "ledger": ("overhead", "effective_exec"),
         "plugin.accounting": ("effective", "overhead_total", "summarize", "fmt_tokens"),
-        "plugin.sidecall": ("_obj", "_env", "_hermes_env", "_pause_path", "paused", "resume", "_log", "_no_reply", "claude_cli", "hermes_cli", "_shim_argv", "program", "claude_json", "copilot_model", "droid_enabled", "_droid_usage", "local_routes", "call_name", "_claude_help", "claude_flags", "claude_no_mcp", "claude_call", "codex_call", "pi_extension_args", "pi_call", "cursor_call", "grok_call", "opencode_flags", "opencode_call", "copilot_call", "_droid_sessions_root", "_droid_settings_usage", "droid_call"),
+        "plugin.sidecall": ("_obj", "_env", "_hermes_env", "_pause_path", "paused", "resume", "_log", "_no_reply", "claude_cli", "hermes_cli", "_shim_argv", "program", "claude_json", "copilot_model", "droid_enabled", "_droid_usage", "local_routes", "call_name", "_claude_help", "claude_flags", "claude_no_mcp", "claude_call", "codex_call", "pi_extension_args", "pi_call", "cursor_call", "grok_call", "opencode_flags", "opencode_call", "copilot_call", "_droid_sessions_root", "_droid_settings_usage", "droid_call", "fm_available", "fm_call"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
@@ -726,6 +726,7 @@ def pytest_configure(config):
     global NATIVE_SIDECALL_FUNCTIONS
     NATIVE_SIDECALL_FUNCTIONS = {name: getattr(sidecall, name) for name in ("claude_cli", "program")}
     NATIVE_SIDECALL_FUNCTIONS["temporary_directory"] = sidecall.tempfile.TemporaryDirectory
+    NATIVE_SIDECALL_FUNCTIONS["access"] = sidecall.os.access
     constants = invoke("repos.constants", {})
     assert set(constants["HOSTS"]) == set(hosts.HOSTS)
     assert tuple(constants["LEARNED"]) == repos.LEARNED
@@ -1031,7 +1032,8 @@ def sidecall_call(operation, arguments):
         arguments.update(stdout=getattr(out, "stdout", "") or "", stderr=getattr(out, "stderr", "") or "",
                          code=getattr(out, "returncode", "?"))
     arguments.update(home=os.path.expanduser("~"), process_cwd=os.getcwd(), windows=os.name == "nt", macos=sidecall._macos())
-    arguments.update(help=dict(sidecall._HELP), oc_flags=dict(sidecall._OC_FLAGS), transport={"run": subprocess.run is not NATIVE_SPAWN_FUNCTIONS["run"],
+    arguments.update(help=dict(sidecall._HELP), oc_flags=dict(sidecall._OC_FLAGS), fm_ok=dict(sidecall._fm_ok), transport={"run": subprocess.run is not NATIVE_SPAWN_FUNCTIONS["run"],
+                                                       "access": sidecall.os.access is not NATIVE_SIDECALL_FUNCTIONS["access"],
                                                        "program": sidecall.program is not NATIVE_SIDECALL_FUNCTIONS["program"],
                                                        "temporary_directory": sidecall.tempfile.TemporaryDirectory is not NATIVE_SIDECALL_FUNCTIONS["temporary_directory"],
                                                        "claude_cli": sidecall.claude_cli is not NATIVE_SIDECALL_FUNCTIONS["claude_cli"]})
@@ -1049,6 +1051,8 @@ def sidecall_call(operation, arguments):
                 value = sidecall.claude_cli()
             elif result["method"] == "program":
                 value = sidecall.program(*result["args"])
+            elif result["method"] == "access":
+                value = sidecall.os.access(*result["args"])
             elif result["method"] == "temporary_directory":
                 prefix, ignore_cleanup_errors = result["args"]
                 temporary = sidecall.tempfile.TemporaryDirectory(prefix=prefix, ignore_cleanup_errors=ignore_cleanup_errors)
@@ -1074,10 +1078,13 @@ def sidecall_call(operation, arguments):
     if isinstance(result, dict) and "oc_flags" in result:
         sidecall._OC_FLAGS.clear()
         sidecall._OC_FLAGS.update(result["oc_flags"])
+    if isinstance(result, dict) and "fm_ok" in result:
+        sidecall._fm_ok.clear()
+        sidecall._fm_ok.update(result["fm_ok"])
     if last_error is not None and isinstance(result, dict) and "raised" in result and result.get("message") == str(last_error):
         raise last_error
     value = storage_result(result)
-    return tuple(value) if operation in ("sidecall.claude_call", "sidecall.codex_call", "sidecall.pi_call", "sidecall.cursor_call", "sidecall.grok_call", "sidecall.opencode_call", "sidecall.copilot_call", "sidecall.droid_call") else value
+    return tuple(value) if operation in ("sidecall.claude_call", "sidecall.codex_call", "sidecall.pi_call", "sidecall.cursor_call", "sidecall.grok_call", "sidecall.opencode_call", "sidecall.copilot_call", "sidecall.droid_call", "sidecall.fm_call") else value
 
 
 def controller_data(ctl):

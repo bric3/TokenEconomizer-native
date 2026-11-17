@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use tokeneconomizer::plugin::{
     history,
     hosts::session::Environment,
-    process,
+    paths, process,
     sidecall::{self, Runtime},
 };
 
@@ -13,6 +13,16 @@ struct Transport {
     flags: Value,
 }
 impl Runtime for Transport {
+    fn executable(&mut self, path: &Path) -> Result<bool, String> {
+        if self.flags["access"] != true {
+            return paths::executable(path);
+        }
+        let reply = self.channel.call("access", json!([path, 1]))?;
+        if let Some(error) = reply["error"].as_str() {
+            return Err(error.into());
+        }
+        Ok(reply["value"] == true)
+    }
     fn program(
         &mut self,
         cli: &str,
@@ -97,10 +107,11 @@ impl Runtime for Transport {
             .map_err(std::io::Error::other)?;
         if let Some(error) = reply["error"].as_str() {
             return Err(std::io::Error::new(
-                if reply["error_kind"] == "TimeoutExpired" {
-                    std::io::ErrorKind::TimedOut
-                } else {
-                    std::io::ErrorKind::Other
+                match reply["error_kind"].as_str() {
+                    Some("TimeoutExpired") => std::io::ErrorKind::TimedOut,
+                    Some("FileNotFoundError") => std::io::ErrorKind::NotFound,
+                    Some("PermissionError") => std::io::ErrorKind::PermissionDenied,
+                    _ => std::io::ErrorKind::Other,
                 },
                 error.to_string(),
             ));
@@ -136,6 +147,25 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value, Str
     };
     let root = environment.path(Path::new(text(args, "root")));
     let host = text(args, "host");
+    if op == "sidecall.fm_available" {
+        let mut cache = args["fm_ok"].as_object().cloned().unwrap_or_default();
+        let value = sidecall::fm_available(
+            text(args, "cli"),
+            args["macos"] == true,
+            &mut cache,
+            &environment,
+            runtime,
+        )?;
+        return Ok(json!({"value":value,"fm_ok":cache}));
+    }
+    if op == "sidecall.fm_call" {
+        let mut call = request(args);
+        if args["timeout"].is_null() {
+            call.timeout = sidecall::FM_TIMEOUT_S as f64;
+        }
+        return sidecall::fm_call(&call, &args["schema"], &environment, &root, runtime)
+            .map(|v| json!({"value":v}));
+    }
     if matches!(
         op,
         "sidecall.codex_call"
