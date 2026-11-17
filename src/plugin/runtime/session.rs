@@ -111,7 +111,7 @@ impl Services<'_> {
         };
         Ok(selected.then(|| Box::new(runner) as Box<dyn Runner>))
     }
-    fn map(&mut self, method: &str, args: &Value) -> Result<Value> {
+    pub(super) fn map(&mut self, method: &str, args: &Value) -> Result<Value> {
         let env = self.environment();
         let generator = self
             .app
@@ -130,6 +130,10 @@ impl Services<'_> {
             "repomap_python" => json!(map.find_python(self)?),
             "repomap_refresh" => map.refresh(self)?,
             "head_commit" => json!(map.head_commit(path(&args[0])?, self)),
+            "stale" => json!(map.stale(self)),
+            "spawn_refresh" => map.spawn_refresh(self)?,
+            "cached_block" => json!(map.cached_block()?),
+            "for_prompt" => json!(map.for_prompt(text(&args[0])?, self)?),
             _ => return Err(format!("unknown map operation: {method}").into()),
         })
     }

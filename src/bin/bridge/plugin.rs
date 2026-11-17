@@ -74,6 +74,12 @@ fn paths_dispatch(op: &str, args: &Value) -> Result<Value, String> {
             home,
             args["windows_python"].as_str()
         )?),
+        "paths.ensure_native_launcher" => json!(paths::ensure_native_launcher(
+            &environment,
+            home,
+            path("target"),
+            args["windows"].as_bool().unwrap_or(false)
+        )?),
         "paths.home_dir" => json!(
             paths::home_dir(&environment, home)?
                 .map(|p| p.to_string_lossy().into_owned())

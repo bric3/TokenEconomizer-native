@@ -125,9 +125,45 @@ pub fn ensure_launcher(
                 continue;
             }
         }
-        fs::create_dir_all(launcher.parent().ok_or("missing launcher directory")?)
-            .map_err(|e| e.to_string())?;
-        let temporary = PathBuf::from(format!("{}.{}.tmp", launcher.display(), std::process::id()));
+        write_launcher(&launcher, body.as_bytes())?;
+    }
+    Ok(Some(path))
+}
+
+pub fn ensure_native_launcher(
+    environment: &Map<String, Value>,
+    home: &Path,
+    target: &Path,
+    windows: bool,
+) -> Result<Option<PathBuf>, String> {
+    if !executable(target)? {
+        return Ok(None);
+    }
+    let path = launcher_path(environment, home)?;
+    if realpath(&path)? == realpath(target)? {
+        return Ok(Some(path));
+    }
+    let target_text = target.to_string_lossy();
+    let quoted = format!("'{}'", target_text.replace('\'', "'\"'\"'"));
+    let body = format!(
+        "#!/bin/sh\n# Written by the TokenEconomizer plugin at session start: its `te` command line.\nexec {quoted} \"$@\"\n"
+    );
+    write_launcher(&path, body.as_bytes())?;
+    if windows {
+        // Compare bytes so a replacement with unchanged size and timestamps still updates the launcher.
+        let binary = fs::read(target).map_err(|e| e.to_string())?;
+        write_launcher(&path.with_extension("exe"), &binary)?;
+    }
+    Ok(Some(path))
+}
+fn write_launcher(path: &Path, body: &[u8]) -> Result<(), String> {
+    if fs::read(path).is_ok_and(|bytes| bytes == body) {
+        return Ok(());
+    }
+    fs::create_dir_all(path.parent().ok_or("missing launcher directory")?)
+        .map_err(|e| e.to_string())?;
+    let temporary = PathBuf::from(format!("{}.{}.tmp", path.display(), std::process::id()));
+    let result = (|| -> Result<(), String> {
         fs::write(&temporary, body).map_err(|e| e.to_string())?;
         #[cfg(unix)]
         {
@@ -135,9 +171,12 @@ pub fn ensure_launcher(
             fs::set_permissions(&temporary, fs::Permissions::from_mode(0o700))
                 .map_err(|e| e.to_string())?;
         }
-        fs::rename(&temporary, &launcher).map_err(|e| e.to_string())?;
+        fs::rename(&temporary, path).map_err(|e| e.to_string())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(temporary);
     }
-    Ok(Some(path))
+    result
 }
 
 fn resolve(path: &Path, links: &mut BTreeSet<PathBuf>) -> Result<PathBuf, String> {

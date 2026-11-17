@@ -31,3 +31,7 @@ path = "src/bin/repomap_gen.rs"
 [[bin]]
 name = "te"
 path = "src/bin/te.rs"
+
+[[bin]]
+name = "te-hook"
+path = "src/bin/hook.rs"

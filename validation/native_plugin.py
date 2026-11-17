@@ -1345,6 +1345,22 @@ def hook_call(operation, arguments):
     arguments["env"] = dict(os.environ if arguments.get("env") is None else arguments["env"])
     arguments.update(process_env=dict(os.environ), process_cwd=os.getcwd(), home=os.path.expanduser("~"), pid=os.getpid(),
                      patched_run=hook.run is not NATIVE_HOOK_RUN)
+    executable = os.environ.get("TE_NATIVE_HOOK_TEST_EXEC")
+    if (operation == "hook.main" and executable and "input" in arguments
+            and not arguments["patched_run"]):
+        process_env = {key: os.environ[key] for key in (
+            "HOME", "USERPROFILE", "SystemRoot", "WINDIR", "COMSPEC", "PATHEXT",
+            "TMPDIR", "TMP", "TEMP", "LANG", "LC_ALL", "TZ") if key in os.environ}
+        process_env.update({key: str(value) for key, value in arguments["env"].items()})
+        result = ORIGINAL_SUBPROCESS_RUN([executable, *arguments["argv"]],
+            input=bytes(arguments["input"]), capture_output=True, env=process_env, timeout=30)
+        if result.returncode:
+            raise RuntimeError(result.stderr.decode("utf-8", errors="replace"))
+        sys.stderr.write(result.stderr.decode("utf-8", errors="replace"))
+        stdout.write(result.stdout.decode("utf-8"))
+        stdout.flush()
+        CALLS["native_hook.process"] += 1
+        return 0
     host, ctx = None, None
     result = invoke(operation, arguments)
     while isinstance(result, dict) and result.get("callback") == "hook":

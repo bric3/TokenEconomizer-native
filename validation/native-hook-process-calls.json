@@ -1,0 +1,22 @@
+{
+  "live_config.new": 1,
+  "live_config.environment": 1,
+  "sidecall.constants": 1,
+  "repomap.constants": 1,
+  "repos.constants": 1,
+  "distiller.prompts": 1,
+  "toolprune.tools.constants": 1,
+  "live_adapter.constants": 1,
+  "hookqueue.constants": 1,
+  "history.constants": 1,
+  "fold.constants": 1,
+  "winspawn.constants": 1,
+  "host_helpers.constants": 1,
+  "host_helpers.profile": 11,
+  "controller.constants": 1,
+  "native_hook.process": 24,
+  "paths.repo_identity": 1,
+  "paths.repo_state_dir": 1,
+  "store.new": 1,
+  "store.read_lines": 1
+}

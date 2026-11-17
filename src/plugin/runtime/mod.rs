@@ -1,3 +1,4 @@
+mod hook;
 mod probe;
 mod session;
 
@@ -23,6 +24,7 @@ pub struct NativeRuntime {
     pub executable: PathBuf,
     checks: toolcheck::Checks,
     sidecalls: sidecall::runner::NativeRuntime,
+    hook_output: bool,
 }
 impl NativeRuntime {
     pub fn capture() -> Result<Self> {
@@ -58,9 +60,11 @@ impl NativeRuntime {
             executable,
             checks,
             sidecalls: Default::default(),
+            hook_output: false,
         }
     }
     pub fn run(&mut self, argv: &[String]) -> Result<Value> {
+        self.hook_output = false;
         let columns = cli::parser::terminal_columns(
             self.environment.env.get("COLUMNS").and_then(Value::as_str),
         );
@@ -203,10 +207,10 @@ impl Runtime for NativeRuntime {
         self.build(args, session.clone())
     }
     fn say(&mut self, text: &str) -> Result<()> {
-        let mut out = io::stdout().lock();
-        writeln!(out, "{text}")?;
-        out.flush()?;
-        Ok(())
+        if self.hook_output {
+            return print_line(io::stderr().lock(), text);
+        }
+        print_line(io::stdout().lock(), text)
     }
     fn global(&mut self, method: &str, args: Value) -> Result<Value> {
         Ok(match method {
@@ -289,4 +293,9 @@ impl Runtime for NativeRuntime {
     fn call(&mut self, ctx: &LiveContext, method: &str, args: Value) -> Result<Value> {
         Services { app: self, ctx }.cli(method, &args)
     }
+}
+fn print_line(mut out: impl Write, text: &str) -> Result<()> {
+    writeln!(out, "{text}")?;
+    out.flush()?;
+    Ok(())
 }

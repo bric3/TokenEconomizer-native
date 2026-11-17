@@ -227,15 +227,17 @@ complete while any runtime component delegates production behaviour to Python.
 - Hook lifecycle and input/output policy now execute in Rust: host preparation,
   deferred context settlement, expanded event ordering, output merging and rendering,
   UTF-8 input, disable flags, event arguments, progress lines and error logging.
-  The original hook tests enter the native lifecycle through the test transport.
-  Controller service wiring and the standalone hook executable remain pending.
+  The standalone `te-hook` connects the controller to native session, folding,
+  history, judge, repository-map and migration services. It reads stdin directly,
+  writes hook JSON to stdout and directs service diagnostics to stderr. Keep `te`
+  beside `te-hook` for background work and the generated `bin/te` launcher.
+  On Windows the launcher includes a native `te.exe` copy; its update policy has
+  local filesystem checks, while execution on Windows remains unverified.
 - CLI status and configuration processing now execute in Rust: saved-state totals,
   explanations, configuration grouping, updates and rejections, write checks,
   session-location notices, proposal filtering and quoted argument-line expansion.
   Ledger counts remain integers when aggregated, including values above 2^53;
   checked addition reports counts outside the current i64 range.
-  Other CLI commands, argument-parser wiring and the main CLI and hook executables
-  remain pending.
 - CLI learning and repository commands now execute in Rust too: fact display,
   forgetting and restoration, history import and status, map display and refresh,
   session folding and detached judges, repository listing, migration and merges.
@@ -251,7 +253,7 @@ complete while any runtime component delegates production behaviour to Python.
   helpers, preserve error-log line boundaries and accept runtime-version metadata
   from the caller. Provider URL display validates bracketed addresses and Unicode
   authority delimiters. The standalone CLI reports its native package version.
-  Packaged installation and hook workflows remain pending.
+  Packaged installation workflows remain pending.
 - Copilot probe orchestration now executes in Rust: the isolated repository and
   missing-pytest fixture, session environment, CLI reply parsing, log inspection,
   fold deadlines, deny-list measurement and restoration, reporting and cleanup.
@@ -312,9 +314,8 @@ complete while any runtime component delegates production behaviour to Python.
   numeric parity audit.
 - Audit temporary-directory cleanup against Python's permission-repair retries,
   including native Windows behaviour. Current removal uses `remove_dir_all`.
-- Integrate the native controller and host operations into the native hook.
 - Verify native CLI interruption and heartbeat cleanup when packaging the executables.
-- Complete the native hook runtime and package the native executables.
+- Package the native executables.
   Verify each host integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
   supporting tools, preserving their original test contracts.
@@ -774,6 +775,24 @@ complete while any runtime component delegates production behaviour to Python.
   Context/WMI and offline probe regression checks, Clippy, formatting and all
   256 reference files pass. Model services were not contacted. Native Windows,
   interruption handling and installed plugin/hook workflows remain unverified.
+- Standalone native hook learning/resume checks: 2 passed, with 24 hook-process
+  invocations recorded in `validation/native-hook-process-calls.json`. These
+  original tests exercise learning, inline folding, next-session injection,
+  once-only notices, resume and shadow behaviour with no agents on PATH.
+  Safety and reference packaging regressions: 41 passed, 8 skipped. Full suite:
+  1,558 passed, 33 skipped (56.36 seconds); `validation/native-hook-calls.json`
+  records the default native substitutions, preserving dependency patches.
+  `NativeHookProbe.java` compares seeded-fact output with upstream for all ten
+  hosts, including Cursor and Grok payload translation and Antigravity expansion.
+  It checks fail-open UTF-8/JSON input, state permissions, quoted native launchers,
+  idempotent launcher writes, same-size executable updates and self-overwrite
+  protection. Windows copy semantics are simulated on macOS. Native history
+  diagnostics stay on stderr; failed map refreshes preserve cached context, prompt
+  map lookup uses that cache, queued prompt/tool events replay in order, and a
+  hook's detached native fold persists its ledger record. Native CLI regression
+  checks, Clippy, formatting and all 256 pinned reference files pass. The original
+  tests remain unchanged. Native Windows, paid model sessions, interruption and
+  installed plugin workflows remain unverified; packaging is the next gate.
 
 ## Dependencies
 
@@ -828,10 +847,22 @@ PYTHONPATH=validation .venv/bin/python -m pytest -p native_plugin \
 ```
 
 `validation/native_plugin.py` only transports calls and adapts Python values to
-JSON. `te-bridge` is the development test transport; the user-facing CLI and
-hooks are still pending. Python is needed for the original test driver and for
-the optional external aider installation. Core CLI and hook processing will run
-in Rust.
+JSON. `te-bridge` is the development test transport; `te` and `te-hook` are the
+standalone native entry points. Python is needed for the original test driver
+and the optional external aider installation. The reference packaging launchers
+still invoke Python while native packaging is pending.
+
+The optional `TE_NATIVE_HOOK_TEST_EXEC` route runs selected original hook tests
+through `te-hook`. Use tests whose dependencies require no Python patches; this
+route creates a separate process and cannot retain those patches. The learning
+and resume checks run with an empty PATH to prevent model-agent calls:
+
+```sh
+PATH= TE_NATIVE_HOOK_TEST_EXEC="$PWD/target/debug/te-hook" PYTHONPATH=validation \
+  .venv/bin/python -m pytest -o addopts= -p native_plugin \
+  reference/upstream/tests/test_live_hooks.py \
+  -k 'a_learned_fact_reaches_the_next_session_and_is_announced_once or resume_does_not_inject_again_and_shadow_never_injects'
+```
 
 The adapter also transports judge callbacks requested by Rust. It records both
 assessment requests when a callback is required; those counts are transport
@@ -881,6 +912,7 @@ jbang validation/DiscoveryProbe.java
 jbang validation/RepoMapProbe.java
 jbang validation/GeneratorProbe.java
 jbang validation/HookProbe.java
+jbang validation/NativeHookProbe.java
 jbang validation/CliProbe.java
 jbang validation/LearningCliProbe.java
 jbang validation/ToolpruneCliProbe.java
@@ -900,7 +932,7 @@ and checks that their handlers preserve every shared-state update. It also
 checks queue ordering, event and time limits, removal before replay, foreign
 session refusal, failure recovery, contended fallback and a waiting job sharing
 the bridge with its lock holder. It does not use the reference hook executable;
-the user-facing native hook and CLI workflows remain pending.
+standalone hook checks cover queued replay and the native services separately.
 
 IntelliJ has no open project for this checkout. Use Cargo's compiler, formatter
 and Clippy until IDE access becomes available.

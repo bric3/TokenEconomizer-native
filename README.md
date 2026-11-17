@@ -22,6 +22,17 @@ target/debug/te --host claude --cwd /path/to/repo config show
 It reads and writes the existing TokenEconomizer state formats. Background folds,
 judges and map refreshes use the same native executable.
 
+The native hook reads the host's JSON payload from stdin and writes its JSON
+response to stdout:
+
+```sh
+printf '%s\n' '{"hook_event_name":"SessionStart","session_id":"example","cwd":"/path/to/repo"}' \
+  | target/debug/te-hook --host claude
+```
+
+Keep `te` beside `te-hook`: the hook uses it for background work and creates the
+state directory's `bin/te` launcher. Hook diagnostics go to stderr.
+
 The native repository-map generator is available now. It uses an optional aider
 installation in the interpreter selected with `--python`:
 
@@ -31,5 +42,4 @@ target/debug/te-repomap-gen --python /path/to/python /path/to/repo 2048 \
   'Engine,parse_config' --git --cache /path/to/state/tags
 ```
 
-Native hook integration, plugin packaging and the remaining migration gates are
-still in progress.
+Plugin packaging and the remaining migration gates are still in progress.
