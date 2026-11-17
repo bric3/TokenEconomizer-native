@@ -20,6 +20,15 @@ impl Transport {
             return Err(Error {
                 kind: reply["kind"].as_str().unwrap_or("RuntimeError").into(),
                 message: message.into(),
+                parents: reply["parents"]
+                    .as_array()
+                    .map(|parents| {
+                        parents
+                            .iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
             });
         }
         Ok(reply["value"].clone())
@@ -114,6 +123,13 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value> {
         "cli.cmd_repomap" => json!(cli::map_command(&args["args"], runtime)?),
         "cli.cmd_repos" => json!(cli::repositories(&args["args"], runtime)?),
         "cli._print_moves" => json!(cli::print_moves(&args["done"], runtime)?),
+        "cli.cmd_toolprune" => json!(cli::toolprune(&args["args"], runtime)?),
+        "cli._toolprune_show" => json!(cli::toolprune_show(
+            &context_dispatch::context(&args["ctx"])?,
+            &args["unt"],
+            runtime
+        )?),
+        "cli._wait_and_apply" => json!(cli::wait_and_apply(&args["args"], runtime)?),
         _ => return Err(format!("unknown CLI operation: {op}").into()),
     })
 }

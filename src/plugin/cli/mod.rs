@@ -2,11 +2,13 @@ mod status;
 pub use status::{status, status_explanations};
 mod learning;
 mod repositories;
+mod tools;
 pub use learning::{
     facts, fold_command, forget_facts, history_command, judge_command, map_command, print_history,
     session_context, short, when,
 };
 pub use repositories::{print_moves, repositories};
+pub use tools::{toolprune, toolprune_show, wait_and_apply};
 
 use super::{config, context::LiveContext, denylist, fold, hosts, repos};
 use crate::{
@@ -20,13 +22,23 @@ use std::{fmt, fs, io, path::Path};
 pub struct Error {
     pub kind: String,
     pub message: String,
+    pub parents: Vec<String>,
+}
+impl Error {
+    pub fn new(kind: &str, message: impl Into<String>) -> Self {
+        Self {
+            kind: kind.into(),
+            message: message.into(),
+            parents: Vec::new(),
+        }
+    }
+    pub fn is(&self, kind: &str) -> bool {
+        self.kind == kind || self.parents.iter().any(|parent| parent == kind)
+    }
 }
 impl From<String> for Error {
     fn from(message: String) -> Self {
-        Self {
-            kind: "RuntimeError".into(),
-            message,
-        }
+        Self::new("RuntimeError", message)
     }
 }
 impl From<&str> for Error {
@@ -47,6 +59,11 @@ impl From<io::Error> for Error {
             }
             .into(),
             message: error.to_string(),
+            parents: if error.kind() == io::ErrorKind::InvalidData {
+                Vec::new()
+            } else {
+                vec!["OSError".into()]
+            },
         }
     }
 }
@@ -152,10 +169,7 @@ pub fn split_argline(line: &str) -> Result<Vec<String>> {
         }
     }
     if quote.is_some() {
-        return Err(Error {
-            kind: "ValueError".into(),
-            message: "No closing quotation".into(),
-        });
+        return Err(Error::new("ValueError", "No closing quotation"));
     }
     if started {
         args.push(token);
@@ -341,7 +355,7 @@ pub fn config_command(args: &Value, runtime: &mut dyn Runtime) -> Result<i32> {
     };
     let cur = match setting {
         Ok(value) => value,
-        Err(error) if error.kind == "ValueError" => {
+        Err(error) if error.is("ValueError") => {
             runtime.say(&format!("rejected: {}", error.message))?;
             return Ok(2);
         }

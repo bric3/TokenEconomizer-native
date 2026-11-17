@@ -635,7 +635,7 @@ def pytest_configure(config):
         "plugin.toolcheck": ("_request_tools", "_prompt_tokens", "_codex_prompt_chars", "_copilot_version", "verify_codex", "verify_copilot", "measure", "copilot_capture", "_init_tools", "_kill_tree", "refresh_catalog"),
         "plugin.repomap": ("_repo_dir", "_state_path", "_cache_dir", "read_state", "_write_state", "head_commit", "_has_aider", "_aider_command_python", "find_python", "_gen_env", "generate", "refresh", "stale", "spawn_refresh", "cached_block", "prompt_idents", "for_prompt"),
         "plugin.hook": ("_truthy", "run", "_record_error", "main"),
-        "plugin.cli": ("_split_argline", "_expand_argline", "_unwritable", "_refuse_unwritable", "_config_view", "_status_explanations", "_session_note", "_proposal", "cmd_status", "cmd_config", "cmd_microskills", "_microskills_forget", "_short", "_session_ctx", "cmd_fold", "cmd_judge", "_when", "_print_history", "cmd_history", "cmd_repomap", "cmd_repos", "_print_moves"),
+        "plugin.cli": ("_split_argline", "_expand_argline", "_unwritable", "_refuse_unwritable", "_config_view", "_status_explanations", "_session_note", "_proposal", "cmd_status", "cmd_config", "cmd_microskills", "_microskills_forget", "_short", "_session_ctx", "cmd_fold", "cmd_judge", "_when", "_print_history", "cmd_history", "cmd_repomap", "cmd_repos", "_print_moves", "cmd_toolprune", "_toolprune_show", "_wait_and_apply"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
@@ -995,7 +995,7 @@ def pytest_configure(config):
 
 def cli_call(operation, arguments):
     from types import SimpleNamespace
-    from tokeneconomizer.plugin import cli, sidecall, denylist, history, repomap, fold, judge, repos, paths
+    from tokeneconomizer.plugin import cli, sidecall, denylist, history, repomap, fold, judge, repos, paths, toolcheck
     from tokeneconomizer.plugin.context import LiveContext
     arguments = dict(arguments)
     ctx = arguments.get("ctx")
@@ -1042,6 +1042,14 @@ def cli_call(operation, arguments):
                 name, params = args
                 if name == "state_root":
                     value = paths.state_root()
+                elif name == "time":
+                    value = cli.time.time()
+                elif name == "pid":
+                    value = os.getpid()
+                elif name == "sleep":
+                    value = cli.time.sleep(*params)
+                elif name == "touch":
+                    value = os.utime(*params)
                 elif name == "refuse_unwritable":
                     value = cli._refuse_unwritable(*params)
                 elif name == "repos_run_migration":
@@ -1069,6 +1077,28 @@ def cli_call(operation, arguments):
                     value = cli._proposal(ctx, *params)
                 elif name == "applied":
                     value = denylist.applied_for(ctx.store, ctx.repo.root, host.name)
+                elif name == "kept":
+                    value = denylist.kept_for(ctx.store, ctx.repo.root, host.name)
+                elif name == "codex_trusted":
+                    value = denylist.codex_project_trusted(ctx.repo.root)
+                elif name == "copilot_trusted":
+                    value = denylist.copilot_folder_trusted(ctx.repo.root)
+                elif name == "deny_apply":
+                    value = denylist.apply(ctx.repo.root, params[0], ctx.store, host=host.name)
+                elif name == "deny_restore":
+                    value = denylist.restore(ctx.repo.root, ctx.store, params[0], host=host.name)
+                elif name == "set_kept":
+                    value = denylist.set_kept(ctx.store, ctx.repo.root, host.name, add=params[0], remove=params[1])
+                elif name == "verify_copilot":
+                    value = toolcheck.verify_copilot(ctx.repo.root, *params)
+                elif name == "verify_codex":
+                    value = toolcheck.verify_codex(ctx.repo.root, *params)
+                elif name == "apply_pending":
+                    value = fold.apply_pending(ctx)
+                elif name == "refresh_catalog":
+                    value = toolcheck.refresh_catalog(paths.state_root(), host=host.name)
+                elif name == "measure":
+                    value = toolcheck.measure(params[0], host=host.name)
                 elif name == "history_summary":
                     value = history.summary(ctx)
                 elif name == "repomap_state":
@@ -1099,7 +1129,8 @@ def cli_call(operation, arguments):
                 raise AssertionError("Unknown CLI callback: " + method)
             reply = {"value": value}
         except Exception as error:
-            reply = {"error": str(error), "kind": type(error).__name__}
+            reply = {"error": str(error), "kind": type(error).__name__,
+                     "parents": [base.__name__ for base in type(error).__mro__[1:]]}
         result = invoke("cli.resume", {"job": result["job"], "reply": reply})
     value = storage_result(result)
     if operation == "cli._session_ctx":

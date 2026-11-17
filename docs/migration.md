@@ -241,8 +241,13 @@ complete while any runtime component delegates production behaviour to Python.
   session folding and detached judges, repository listing, migration and merges.
   Session commands use a pin only while its repository holds the session record.
   Unknown fact IDs preserve saved facts; merge keys must name one state directory.
-  Tool-pruning commands, installation diagnostics, model probes, parser and service
-  wiring, and native CLI/hook packaging remain pending.
+- Tool-pruning CLI processing now executes in Rust: proposal and evidence display,
+  apply/restore ordering, kept-item updates, trust and verification notices, catalog
+  refresh and measurement output. The pending-apply waiter checks its heartbeat,
+  bounds each delay, reloads settings and removes its heartbeat after completion
+  or a reported error. CLI error handling preserves backend exception categories.
+  Installation diagnostics, model probes, parser/service wiring and native CLI/hook
+  packaging remain pending.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -266,6 +271,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Include history, folding, controller and host replay counters beyond i64 in the numeric
   parity audit.
 - Include CLI and ledger counts beyond i64 in the numeric parity audit.
+- Include displayed tool counters in that audit, and audit CLI errors for malformed
+  saved state and invalid encodings.
 - Include displayed map sizes and extreme CLI dates in the numeric/timestamp audits.
 - Include side-call usage beyond i128 in the numeric parity audit.
 - Include tool-measurement totals and savings outside JSON's i64/u64 range in the
@@ -273,6 +280,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit temporary-directory cleanup against Python's permission-repair retries,
   including native Windows behaviour. Current removal uses `remove_dir_all`.
 - Integrate the native controller and host operations into CLI and hooks.
+- Verify native CLI interruption and heartbeat cleanup when packaging the executables.
 - Port end-to-end model probes and CLI commands, and package the native hook.
   Verify each host integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
@@ -661,6 +669,17 @@ complete while any runtime component delegates production behaviour to Python.
   migration, repository-list output and invalid merge keys.
   The status/configuration probe, Clippy, formatting and all 256 reference files
   pass. Real model calls and native Windows execution remain unverified.
+- Tool-pruning CLI focused run: 140 passed, 13 skipped. Full suite with native
+  tool-pruning command processing: 1,558 passed, 33 skipped (52.10 seconds).
+  `validation/toolprune-cli-calls.json` records 14 tool-pruning commands. Reference
+  child processes retain their Python entry points.
+  `ToolpruneCliProbe.java` compares proposal output for Claude, Codex and Copilot
+  with the unchanged upstream CLI, including stable streak ordering and its row
+  limit. It checks apply/restore ordering, kept items, exception subclasses,
+  measurement fallback, trust and verification notices, catalog reporting, waiter
+  suppression, bounded sleeps, settings reload and cleanup after reported errors.
+  The status/configuration probe, Clippy, formatting and all 256 reference files
+  pass. Native executable interruption and native Windows remain unverified.
 
 ## Dependencies
 
@@ -770,6 +789,7 @@ jbang validation/GeneratorProbe.java
 jbang validation/HookProbe.java
 jbang validation/CliProbe.java
 jbang validation/LearningCliProbe.java
+jbang validation/ToolpruneCliProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 

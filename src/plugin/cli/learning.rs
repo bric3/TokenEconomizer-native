@@ -149,10 +149,7 @@ pub fn forget_facts(args: &Value, runtime: &mut dyn Runtime) -> Result<i32> {
         }
         Err(fold::Error::Io(error)) => return Err(error.into()),
         Err(fold::Error::Value(message)) => {
-            return Err(Error {
-                kind: "ValueError".into(),
-                message,
-            });
+            return Err(Error::new("ValueError", message));
         }
         Err(error) => return Err(error.to_string().into()),
     };
