@@ -214,8 +214,19 @@ pub fn run_input(
     input: &str,
     timeout: f64,
 ) -> io::Result<Output> {
+    run_input_configured(argv, cwd, env, input, timeout, 0)
+}
+
+pub fn run_input_configured(
+    argv: &[String],
+    cwd: &Path,
+    env: &Map<String, Value>,
+    input: &str,
+    timeout: f64,
+    flags: u32,
+) -> io::Result<Output> {
     capture_input(
-        command(argv, cwd, Some(env), 0)?,
+        command(argv, cwd, Some(env), flags)?,
         timeout,
         Some(input.as_bytes().to_vec()),
     )

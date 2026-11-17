@@ -55,4 +55,7 @@ The bundler reads the pinned host assets from `reference/upstream` and copies
 binary directory. The resulting plugin directory can move independently of this
 checkout and carries no Python core package or bootstrap.
 
+Hermes keeps its SDK binding in Python and runs gateway session, redirect and
+notice policy in Rust. Concurrent callbacks retain their profile and repository.
+
 Installed host verification and the remaining migration gates are still in progress.

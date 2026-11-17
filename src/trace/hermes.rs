@@ -385,8 +385,12 @@ fn lineage(connection: &Connection, session_id: &str) -> rusqlite::Result<Vec<Va
             break;
         }
     }
+    ancestors(connection, tip)
+}
+
+fn ancestors(connection: &Connection, mut tip: Option<Value>) -> rusqlite::Result<Vec<Value>> {
     let mut rows = Vec::new();
-    seen.clear();
+    let mut seen = HashSet::new();
     while let Some(row) = tip.take() {
         if !seen.insert(row["id"].to_string()) {
             break;
@@ -399,6 +403,13 @@ fn lineage(connection: &Connection, session_id: &str) -> rusqlite::Result<Vec<Va
     }
     rows.reverse();
     Ok(rows)
+}
+
+pub(crate) fn gateway_lineage(db_path: &Path, session_id: &str) -> rusqlite::Result<Vec<Value>> {
+    // Gateway events name the current leaf; export readers also search for newer children.
+    let connection = connect(db_path)?;
+    connection.busy_timeout(Duration::from_secs(2))?;
+    ancestors(&connection, session(&connection, session_id)?)
 }
 
 pub fn kept(row: &Value, fields: &[String]) -> Value {

@@ -79,6 +79,97 @@ def native_package_module(loader, module):
             "source": module.REPO, "out": str(out), "droid": False})
         module.build_droid = lambda out: invoke("package.build_reference", {
             "source": module.REPO, "out": str(out), "droid": True})
+    elif str(loader.path) == str(ROOT / "reference/upstream/plugin/hermes/__init__.py"):
+        install_hermes_gateway(module)
+
+
+def install_hermes_gateway(module):
+    original = module.Bridge
+    module.__dict__.update(invoke("hermes_gateway.constants", {}))
+    module.with_redirect = lambda result, text: invoke("hermes_gateway.with_redirect", {"result": result, "text": text})
+    module.untrusted = lambda tool_name: invoke("hermes_gateway.untrusted", {"tool_name": tool_name})
+    module.disabled = lambda: invoke("hermes_gateway.disabled", {"env": dict(os.environ)})
+
+    class HeldLock:
+        def __init__(self, bridge, sid):
+            self.bridge, self.sid, self.pending = bridge, sid, None
+
+        def acquire(self):
+            self.pending = self.bridge._call("hermes_gateway.hold", {"sid": self.sid})
+            return True
+
+        def release(self):
+            result = invoke("hermes_gateway.resume", {"job": self.pending["job"], "reply": {"value": None}})
+            while isinstance(result, dict) and result.get("callback") == "hermes_gateway":
+                result = invoke("hermes_gateway.resume", {"job": result["job"]})
+            storage_result(result)
+            self.pending = None
+
+    class Bridge:
+        def __init__(self, call=module.dispatch, home=module.hermes_home):
+            self.call, self.home, self._records = call, home, {}
+            # shortcut: handles live for this pytest process; final test conversion removes this transport.
+            self._bridge = invoke("hermes_gateway.new", {})
+
+        def _call(self, operation, fields):
+            args = dict(fields, bridge=self._bridge, env=dict(os.environ), home=os.path.expanduser("~"),
+                        limits={"max_ended": module.MAX_ENDED, "max_ignored": module.MAX_IGNORED,
+                                "lock_timeout": module.LOCK_TIMEOUT_S})
+            result = invoke(operation, args)
+            exceptions = {}
+            while isinstance(result, dict) and result.get("callback") == "hermes_gateway":
+                method, params = result["method"], result["args"]
+                if method == "locked":
+                    return result
+                try:
+                    if method == "pending":
+                        result = invoke("hermes_gateway.resume", {"job": result["job"]})
+                        continue
+                    if method == "home":
+                        value = os.fspath(self.home())
+                    elif method == "dispatch":
+                        value = self.call(*params)
+                    elif method == "notice":
+                        value = module.logger.info("%s", params[0])
+                    else:
+                        raise AssertionError("Unknown Hermes callback: " + method)
+                    reply = {"value": value}
+                except Exception as error:
+                    exceptions[str(error)] = error
+                    reply = {"error": str(error)}
+                result = invoke("hermes_gateway.resume", {"job": result["job"], "reply": reply})
+            if isinstance(result, dict) and result.get("raised") and result.get("message") in exceptions:
+                raise exceptions[result["message"]]
+            return storage_result(result)
+
+        def _record_view(self, raw):
+            if raw is None:
+                return None
+            record = self._records.setdefault(raw["id"], {"lock": HeldLock(self, raw["id"])})
+            record.update(raw)
+            return record
+
+        def session(self, session_id):
+            return self._record_view(self._call("hermes_gateway.invoke", {
+                "method": "session", "args": {"session_id": session_id}}))
+
+        @property
+        def sessions(self):
+            raw = self._call("hermes_gateway.invoke", {"method": "snapshots", "args": {}})
+            return {key: self._record_view(value) for key, value in raw.items()}
+
+    def method(name):
+        signature = inspect.signature(getattr(original, name))
+        def call(self, *args, **kwargs):
+            bound = signature.bind(self, *args, **kwargs)
+            bound.apply_defaults()
+            params = dict(bound.arguments)
+            params.pop("self")
+            return self._call("hermes_gateway.invoke", {"method": name, "args": params})
+        return call
+    for name in ("section", "pre_llm_call", "transform_tool_result", "on_session_end", "on_session_finalize"):
+        setattr(Bridge, name, method(name))
+    module.Bridge = Bridge
 
 
 def invoke(operation, arguments):

@@ -5,6 +5,8 @@ use std::path::Path;
 mod callback;
 #[path = "bridge/guard.rs"]
 mod guard_dispatch;
+#[path = "bridge/hermes.rs"]
+mod hermes_dispatch;
 #[path = "bridge/job.rs"]
 mod job;
 #[path = "bridge/microskills.rs"]
@@ -36,6 +38,9 @@ use tokeneconomizer::{
 
 fn dispatch(request: &Value) -> Result<Value, String> {
     let args = &request["args"];
+    if let Some(value) = hermes_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
+        return Ok(value);
+    }
     if let Some(value) = plugin_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
         return Ok(value);
     }

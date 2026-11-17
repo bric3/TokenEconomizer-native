@@ -73,7 +73,7 @@ class PackageProbe {
       require(source.contains("script + (platform === \"win32\" ? \".exe\" : \"\")") && !source.contains("te_bootstrap.py"),host+" did not select the native launcher");
     }
     var hermes=Files.readString(plugin.resolve("hermes/__init__.py"));
-    require(hermes.contains("subprocess.run([HOOK,") && !hermes.contains("te_bootstrap.py") && !hermes.contains("sys.executable"),"Hermes did not select the native hook");
+    require(hermes.contains("--hermes-bridge") && !hermes.contains("te_bootstrap.py") && !hermes.contains("sys.executable"),"Hermes did not select the native gateway");
   }
   static void archive(Path root,Path plugin,Path zipPath) throws Exception {
     try(var zip=new ZipFile(zipPath.toFile())) {

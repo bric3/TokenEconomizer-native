@@ -289,8 +289,21 @@ complete while any runtime component delegates production behaviour to Python.
   Windows hook commands select native executables and preserve UTF-8 input.
   Codex's command uses [PowerShell's UTF-16LE EncodedCommand](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_powershell_exe?view=powershell-5.1#-encodedcommand-base64encodedcommand)
   to pass the same script through cmd.exe and PowerShell quoting.
-  Host SDK adapter policy remains in the pinned host-language files pending its
-  production-conversion audit.
+  Pi and opencode SDK adapter policy remains in the pinned host-language files
+  pending its production-conversion audit.
+- Hermes gateway policy now executes in Rust: read-only session lookup, compression
+  aliases, recorded working directories, bounded ignored/ended caches, per-session
+  serialisation, resumed starts, held redirects, notice delivery and finalisation.
+  The SDK binding exchanges JSON with `te --hermes-bridge`; its Python code handles
+  the Hermes API, process I/O and logging. Profile lookups run in the calling SDK
+  thread so a gateway's concurrent profiles keep their own homes. The gateway
+  launches native hook processes in each session's directory with a 20-second
+  deadline and a five-second limit on contended session locks. Native Windows
+  requests hidden child processes; execution on Windows remains unverified.
+  Cancelled profile lookups release their native waiters. A malformed backend
+  response stops that backend, releases SDK callers and allows a fresh backend
+  on the next callback. The SDK can start it after the gateway's directory has
+  been removed.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Direct module CLI subprocess launches are redirected to the native executable.
@@ -308,6 +321,7 @@ complete while any runtime component delegates production behaviour to Python.
   library rejects Python's `(?a)` flag; this remains a required compatibility fix.
 - Audit JSON numeric edge cases and parser nesting limits, including non-finite
   values accepted by Python.
+  Include the Hermes redirect helper's raw JSON validation in that audit.
   Configuration numeric coercion still needs Unicode decimal digits and integers
   outside the current i64 range. Audit path-normalisation edge cases and typed I/O
   errors from repository identity too.
@@ -329,7 +343,7 @@ complete while any runtime component delegates production behaviour to Python.
   including native Windows behaviour. Current removal uses `remove_dir_all`.
 - Verify native CLI interruption and heartbeat cleanup when packaging the executables.
 - Verify each host integration in its own runtime, including Windows launchers.
-- Audit the remaining Hermes, Pi and opencode SDK adapter policy for native
+- Audit the remaining Pi and opencode SDK adapter policy for native
   conversion, retaining the host-language bindings required by their SDKs.
 - Port experiment production consumers, adapters, runner orchestration and
   supporting tools, preserving their original test contracts.
@@ -831,6 +845,27 @@ complete while any runtime component delegates production behaviour to Python.
   pass. Original tests remain unchanged. Native Windows and live SDK-host
   installation workflows remain unverified; SDK policy and experiment production
   conversion still precede the six improvement passes and final test conversion.
+- Hermes gateway focused run: 67 passed, 6 skipped. Full suite with native
+  gateway policy: 1,558 passed, 33 skipped (54.93 seconds).
+  `validation/hermes-gateway-calls.json` records 176 gateway operations over
+  28 bridge instances, six direct redirect checks and a held-lock check.
+  The original assertions cover session selection, unreadable-row retries,
+  compression aliases, bounded ended-session retention, prompt contexts,
+  once-only notices, held redirects, per-repository concurrency, serial tool
+  callbacks and lock deadlines. Original tests remain unchanged.
+  `HermesGatewayProbe.java` compares the packaged binding with the upstream
+  binding through the same original SQLite schema. Thread-bound profiles retain
+  their homes and repositories, concurrent callbacks persist nine and eight tool
+  calls in the respective turn summaries, compressed IDs reuse their root, and
+  each repository folds once. Gateway snapshots retain no prompt text. The
+  binding works after its gateway directory is removed and after its backend is
+  restarted. Invalid requests, cancelled profile lookups, EOF and malformed
+  backend output release callers; a subsequent SDK request remains usable.
+  The Python fixture only supplies SDK, SQLite and JSON I/O. Rust owns the
+  gateway decisions and invokes native hooks with an empty PATH.
+  Marketplace/Droid regression checks, debug/release builds, Clippy, formatting,
+  all 256 reference files and dependency notices pass. Native Windows, paid
+  sessions and the real Hermes gateway's event scheduler remain unverified.
 
 ## Dependencies
 
@@ -842,9 +877,13 @@ three requested simplification passes.
 
 [Chrono](https://docs.rs/chrono/0.4.45/chrono/) supplies calendar parsing and local
 timezone handling. [Rusqlite](https://docs.rs/rusqlite/0.43.0/rusqlite/) supplies
-SQLite connections opened explicitly with `SQLITE_OPEN_READ_ONLY` and a five-second
-busy timeout. The lockfile pins both libraries and their transitive dependencies.
+SQLite connections opened explicitly with `SQLITE_OPEN_READ_ONLY`. Trace readers
+use a five-second busy timeout; gateway lookups retain the SDK's two-second limit.
+The lockfile pins both libraries and their transitive dependencies.
 `fancy-regex` 0.20.2 preserves the upstream patterns' lookarounds and backreferences.
+The existing `serde_json` dependency enables `raw_value` so Hermes can validate
+tool JSON before copying its existing field text after a redirect. Python's
+non-finite extensions remain in the JSON parity audit.
 `md5` 0.8.1 preserves existing short failure fingerprints.
 `sha2` 0.10.9 preserves the Codex pruning controller's SHA-256 contract fingerprint,
 which decides whether saved evidence can be reused. Its API is verified against the
@@ -957,6 +996,7 @@ jbang validation/GeneratorProbe.java
 jbang validation/HookProbe.java
 jbang validation/NativeHookProbe.java
 jbang validation/PackageProbe.java
+jbang validation/HermesGatewayProbe.java
 jbang validation/CliProbe.java
 jbang validation/LearningCliProbe.java
 jbang validation/ToolpruneCliProbe.java

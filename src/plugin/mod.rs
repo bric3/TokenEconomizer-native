@@ -6,6 +6,7 @@ pub mod context;
 pub mod controller;
 pub mod denylist;
 pub mod fold;
+pub mod hermes;
 pub mod history;
 pub mod hook;
 pub mod hookqueue;

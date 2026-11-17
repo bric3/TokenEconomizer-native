@@ -255,27 +255,7 @@ fn native_payload(plugin: &Path, binaries: &Path, suffix: &str, droid: bool) -> 
         )?;
     }
     let hermes = plugin.join("hermes/__init__.py");
-    replace(
-        &hermes,
-        "BOOTSTRAP = os.path.join(HERE, \"..\", \"scripts\", \"te_bootstrap.py\")",
-        "HOOK = os.path.join(HERE, \"..\", \"scripts\", \"te-hook\" + (\".exe\" if os.name == \"nt\" else \"\"))",
-    )?;
-    replace(&hermes, "import sys\n", "")?;
-    replace(
-        &hermes,
-        "../scripts/te_bootstrap.py hook --host",
-        "../scripts/te-hook --host",
-    )?;
-    replace(
-        &hermes,
-        "[os.environ.get(\"TE_PYTHON\") or sys.executable, BOOTSTRAP, \"hook\",",
-        "[HOOK,",
-    )?;
-    replace(
-        &hermes,
-        "Python is the one running this file,\n    which Hermes needs to be new enough, unless TE_PYTHON names another. It runs in the session's\n    directory: the gateway's own may no longer exist.",
-        "The native hook runs in the session's\n    directory: the gateway's own may no longer exist.",
-    )?;
+    fs::write(hermes, include_str!("plugin/hermes/sdk.py"))?;
     for host in ["codex", "copilot"] {
         let path = plugin.join(format!("hooks/{host}-hooks.json"));
         let mut hooks: Value = serde_json::from_slice(&fs::read(&path)?)?;

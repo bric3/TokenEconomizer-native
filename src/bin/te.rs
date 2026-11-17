@@ -1,6 +1,7 @@
 use std::path::Path;
 use tokeneconomizer::plugin::{
     cli::{Error, Result},
+    hermes,
     runtime::NativeRuntime,
     winspawn,
 };
@@ -13,6 +14,10 @@ fn run() -> Result<i32> {
                 .map_err(|_| Error::from("arguments must be UTF-8"))
         })
         .collect::<Result<Vec<_>>>()?;
+    if args == ["--hermes-bridge"] {
+        hermes::server::run(&std::env::current_exe()?)?;
+        return Ok(0);
+    }
     if args.first().is_some_and(|a| a == "--run-spawn-spec") && args.len() == 2 {
         return Ok(winspawn::run(
             Path::new(&args[1]),
