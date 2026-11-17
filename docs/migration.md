@@ -156,6 +156,10 @@ complete while any runtime component delegates production behaviour to Python.
   fallbacks and npm shim parsing are native; unsupported batch files are refused
   before a prompt can reach `cmd.exe`. PATH lookup crosses the SDK test transport.
   Model-call execution, availability probes and runner orchestration remain pending.
+- Native subprocess capture now accepts UTF-8 prompt input while draining stdout
+  and stderr concurrently. The shared timeout covers blocked input and output;
+  early stdin closure preserves the child's result. Side-call subprocess
+  integration is the next production step.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -425,6 +429,12 @@ complete while any runtime component delegates production behaviour to Python.
   including 2,277 pause reads, 445 local-role checks and six npm shim parses.
   The native controller process probe, Clippy, formatting and all 256 archived
   files pass. Actual agent commands and native Windows execution remain unverified.
+- `ProcessInputProbe.java` sends a large UTF-8 prompt with line breaks to a local
+  Java fixture while it fills both output pipes. It verifies the input digest,
+  complete output, early stdin closure and child removal after a blocked-input
+  timeout. The existing bridge and host export probes pass. Full reference suite
+  after the shared process change: 1,558 passed, 33 skipped (50.53 seconds).
+  Clippy and formatting pass; no real model command runs in these probes.
 
 ## Dependencies
 
@@ -519,6 +529,7 @@ jbang validation/FoldProbe.java
 jbang validation/HostSessionProbe.java
 jbang validation/HostStateProbe.java
 jbang validation/ControllerProbe.java
+jbang validation/ProcessInputProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 

@@ -1,6 +1,6 @@
 use std::{
     fs,
-    io::{self, Read},
+    io::{self, Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{LazyLock, mpsc},
@@ -82,6 +82,20 @@ pub fn run_environment(
     capture(command(argv, cwd, Some(env), 0)?, timeout)
 }
 
+pub fn run_input(
+    argv: &[String],
+    cwd: &Path,
+    env: &Map<String, Value>,
+    input: &str,
+    timeout: f64,
+) -> io::Result<Output> {
+    capture_input(
+        command(argv, cwd, Some(env), 0)?,
+        timeout,
+        Some(input.as_bytes().to_vec()),
+    )
+}
+
 pub fn spawn_logged(
     argv: &[String],
     cwd: &Path,
@@ -150,26 +164,50 @@ fn exit_code(status: std::process::ExitStatus) -> i32 {
         }
     })
 }
-fn capture(mut command: Command, timeout: f64) -> io::Result<Output> {
+fn capture(command: Command, timeout: f64) -> io::Result<Output> {
+    capture_input(command, timeout, None)
+}
+fn capture_input(mut command: Command, timeout: f64, input: Option<Vec<u8>>) -> io::Result<Output> {
+    enum PipeResult {
+        Input(io::Result<()>),
+        Stdout(io::Result<Vec<u8>>),
+        Stderr(io::Result<Vec<u8>>),
+    }
     let timeout = Duration::try_from_secs_f64(timeout).map_err(io::Error::other)?;
     command
-        .stdin(Stdio::null())
+        .stdin(if input.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     let mut child = command.spawn()?;
     let (send, receive) = mpsc::channel();
     let mut stdout = child.stdout.take().unwrap();
     let mut stderr = child.stderr.take().unwrap();
+    let mut input_finished = input.is_none();
+    if let Some(input) = input {
+        let mut stdin = child.stdin.take().unwrap();
+        let input_send = send.clone();
+        thread::spawn(move || {
+            let result = match stdin.write_all(&input) {
+                Err(e) if e.kind() == io::ErrorKind::BrokenPipe => Ok(()),
+                result => result,
+            };
+            let _ = input_send.send(PipeResult::Input(result));
+        });
+    }
     let out_send = send.clone();
     thread::spawn(move || {
         let mut bytes = Vec::new();
         let result = stdout.read_to_end(&mut bytes).map(|_| bytes);
-        let _ = out_send.send((true, result));
+        let _ = out_send.send(PipeResult::Stdout(result));
     });
     thread::spawn(move || {
         let mut bytes = Vec::new();
         let result = stderr.read_to_end(&mut bytes).map(|_| bytes);
-        let _ = send.send((false, result));
+        let _ = send.send(PipeResult::Stderr(result));
     });
     let started = Instant::now();
     let mut status = None;
@@ -181,6 +219,7 @@ fn capture(mut command: Command, timeout: f64) -> io::Result<Output> {
             }
             if let Some(status) = status
                 && let (Some(out), Some(err)) = (&out, &err)
+                && input_finished
             {
                 let text = |bytes: &[u8]| {
                     String::from_utf8_lossy(bytes)
@@ -197,8 +236,12 @@ fn capture(mut command: Command, timeout: f64) -> io::Result<Output> {
                 return Err(io::Error::new(io::ErrorKind::TimedOut, "command timed out"));
             };
             match receive.recv_timeout(remaining.min(Duration::from_millis(10))) {
-                Ok((true, result)) => out = Some(result?),
-                Ok((false, result)) => err = Some(result?),
+                Ok(PipeResult::Stdout(result)) => out = Some(result?),
+                Ok(PipeResult::Stderr(result)) => err = Some(result?),
+                Ok(PipeResult::Input(result)) => {
+                    result?;
+                    input_finished = true;
+                }
                 Err(mpsc::RecvTimeoutError::Timeout) => {}
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
                     thread::sleep(remaining.min(Duration::from_millis(10)))

@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use tokeneconomizer::plugin::{
     history,
     hosts::session::Environment,
+    process,
     sidecall::{self, Runtime},
 };
 
@@ -29,6 +30,26 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value, Str
     let root = environment.path(Path::new(text(args, "root")));
     let host = text(args, "host");
     let value = match op {
+        "sidecall.process_input" => {
+            let argv: Vec<String> =
+                serde_json::from_value(args["argv"].clone()).map_err(|e| e.to_string())?;
+            return Ok(
+                match process::run_input(
+                    &argv,
+                    &environment.cwd,
+                    &environment.env,
+                    text(args, "input"),
+                    args["timeout"].as_f64().unwrap_or(5.0),
+                ) {
+                    Ok(out) => {
+                        json!({"value":{"code":out.code,"stdout":out.stdout,"stderr":out.stderr}})
+                    }
+                    Err(error) => {
+                        json!({"raised":if error.kind() == std::io::ErrorKind::TimedOut { "TimeoutExpired" } else { "OSError" },"message":error.to_string()})
+                    }
+                },
+            );
+        }
         "sidecall._obj" => {
             if args["v"].is_object() {
                 args["v"].clone()
