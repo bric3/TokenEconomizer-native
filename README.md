@@ -42,4 +42,17 @@ target/debug/te-repomap-gen --python /path/to/python /path/to/repo 2048 \
   'Engine,parse_config' --git --cache /path/to/state/tags
 ```
 
-Plugin packaging and the remaining migration gates are still in progress.
+Build a marketplace bundle or a separate Droid bundle for the binaries' platform:
+
+```sh
+cargo build --release --locked
+target/release/te-package --out dist/marketplace --zip
+target/release/te-package --droid --out dist/droid
+```
+
+The bundler reads the pinned host assets from `reference/upstream` and copies
+`te`, `te-hook` and `te-repomap-gen` from beside itself. `--binaries` selects another
+binary directory. The resulting plugin directory can move independently of this
+checkout and carries no Python core package or bootstrap.
+
+Installed host verification and the remaining migration gates are still in progress.

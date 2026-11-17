@@ -278,6 +278,19 @@ complete while any runtime component delegates production behaviour to Python.
   through [Win32_ProcessStartup](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-processstartup).
   Native worker execution has local checks; native Windows execution remains
   unverified.
+- Native bundle assembly now runs through `te-package`: marketplace metadata,
+  pinned host assets, Droid's filtered layout and command rewriting, native
+  executables and optional ZIP archives. `--source` selects the asset checkout;
+  `--binaries` selects the three runtime executables, defaulting to the packager's
+  directory. Bundles carry their platform's runtime, Apache-2.0 licence, locked
+  dependencies' legal texts and native usage instructions. They retain no Python
+  core package or bootstrap. Pi, opencode and Hermes adapters call the bundled
+  executables. Codex and Copilot
+  Windows hook commands select native executables and preserve UTF-8 input.
+  Codex's command uses [PowerShell's UTF-16LE EncodedCommand](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_powershell_exe?view=powershell-5.1#-encodedcommand-base64encodedcommand)
+  to pass the same script through cmd.exe and PowerShell quoting.
+  Host SDK adapter policy remains in the pinned host-language files pending its
+  production-conversion audit.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Direct module CLI subprocess launches are redirected to the native executable.
@@ -315,8 +328,9 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit temporary-directory cleanup against Python's permission-repair retries,
   including native Windows behaviour. Current removal uses `remove_dir_all`.
 - Verify native CLI interruption and heartbeat cleanup when packaging the executables.
-- Package the native executables.
-  Verify each host integration and its launcher and packaging contracts.
+- Verify each host integration in its own runtime, including Windows launchers.
+- Audit the remaining Hermes, Pi and opencode SDK adapter policy for native
+  conversion, retaining the host-language bindings required by their SDKs.
 - Port experiment production consumers, adapters, runner orchestration and
   supporting tools, preserving their original test contracts.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
@@ -793,6 +807,30 @@ complete while any runtime component delegates production behaviour to Python.
   checks, Clippy, formatting and all 256 pinned reference files pass. The original
   tests remain unchanged. Native Windows, paid model sessions, interruption and
   installed plugin workflows remain unverified; packaging is the next gate.
+- Native bundle assembly focused run: 51 passed, 8 skipped. Full suite after
+  timestamp preservation and legal-text integration: 1,558 passed, 33 skipped
+  (236.66 seconds). An earlier packaging run completed in 54.55 seconds; these
+  compatibility runs do not establish application performance.
+  `validation/package-calls.json` records one builder subprocess and one direct
+  Droid builder call reaching Rust. The transport retains the reference Python
+  library as fixture data for the original bundle assertions; production
+  `te-package` supplies native executables.
+  `PackageProbe.java` checks marketplace and Droid layouts, command rewriting,
+  unchanged hook events/deadlines, CLI path forms and abbreviations, invalid
+  arguments, output overlap guards, rebuild boundaries and missing binary inputs.
+  ZIP entries preserve file contents, executable permissions and modification
+  times. Copied assets retain their modification times. The relocated bundle
+  answers status commands for all ten hosts, handles a session-start payload and
+  creates a working native CLI launcher with an empty PATH. The packaged map
+  generator reports a missing interpreter through its native entry point.
+  Windows command generation is checked structurally, including the decoded
+  UTF-16LE command, native `.cmd` files and Git Bash wrappers; Windows binaries
+  are simulated in that check. The bundle includes the upstream licence and
+  legal texts verified against all 81 locked registry crates.
+  Debug/release builds, Clippy, formatting and all 256 pinned reference files
+  pass. Original tests remain unchanged. Native Windows and live SDK-host
+  installation workflows remain unverified; SDK policy and experiment production
+  conversion still precede the six improvement passes and final test conversion.
 
 ## Dependencies
 
@@ -817,6 +855,10 @@ checks for private state and launchers, and POSIX process session detachment.
 `indexmap` 2.14.2 was already present through `serde_json`; it is now declared
 directly with serialization support for typed fact maps. Discovery order determines
 ties in fact selection and rendering.
+[ZIP](https://docs.rs/zip/8.6.0/zip/) 8.6.0 writes plugin archives and executable
+permissions. Only its `deflate-flate2-zlib-rs` feature is enabled; encryption and
+other compression formats remain disabled. The crate supports Rust 1.88, below
+this project's minimum. The lockfile pins the five additional archive dependencies.
 [TOML](https://docs.rs/toml/1.2.1+spec-1.1.0/toml/) 1.2.1 validates the complete
 Codex configuration before writing. The native line editor preserves comments and
 existing keys; parsing checks that the edited document remains valid.
@@ -849,8 +891,9 @@ PYTHONPATH=validation .venv/bin/python -m pytest -p native_plugin \
 `validation/native_plugin.py` only transports calls and adapts Python values to
 JSON. `te-bridge` is the development test transport; `te` and `te-hook` are the
 standalone native entry points. Python is needed for the original test driver
-and the optional external aider installation. The reference packaging launchers
-still invoke Python while native packaging is pending.
+and the optional external aider installation. Reference-payload packaging tests
+retain the Python library and launchers as fixture data; production `te-package`
+bundles the native executables.
 
 The optional `TE_NATIVE_HOOK_TEST_EXEC` route runs selected original hook tests
 through `te-hook`. Use tests whose dependencies require no Python patches; this
@@ -913,12 +956,20 @@ jbang validation/RepoMapProbe.java
 jbang validation/GeneratorProbe.java
 jbang validation/HookProbe.java
 jbang validation/NativeHookProbe.java
+jbang validation/PackageProbe.java
 jbang validation/CliProbe.java
 jbang validation/LearningCliProbe.java
 jbang validation/ToolpruneCliProbe.java
 jbang validation/DoctorProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
+
+After changing Rust dependencies, run `cargo fetch --locked`, then
+`jbang scripts/ThirdPartyNotices.java`. The generator copies the licence, notice
+and copyright files from all 81 locked registry crates, including platform and
+build dependencies. `jbang scripts/ThirdPartyNotices.java --check` verifies the
+committed file against cached crate sources. The native packager checks its
+embedded notices against the compiled lockfile hash before replacing a bundle.
 
 The bridge probe covers malformed-request recovery, pricing validation, Unicode
 character counts, JSON object filtering, all three text line endings and a

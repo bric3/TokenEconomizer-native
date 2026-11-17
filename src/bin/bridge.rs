@@ -29,7 +29,7 @@ use tokeneconomizer::{
     envelope::{self, EnvelopeTracker},
     ledger,
     lifecycle::Lifecycle,
-    names, pricing,
+    names, package, pricing,
     rules::{self, Signals},
     trace::{claude, jsonl},
 };
@@ -62,6 +62,15 @@ fn dispatch(request: &Value) -> Result<Value, String> {
         return Ok(value);
     }
     let result = match request["op"].as_str().unwrap_or("") {
+        "package.build_reference" => json!(
+            package::build(
+                Path::new(args["source"].as_str().ok_or("expected source directory")?),
+                None,
+                Path::new(args["out"].as_str().ok_or("expected output directory")?),
+                args["droid"].as_bool().unwrap_or(false)
+            )
+            .map_err(|error| error.to_string())?
+        ),
         "trace.jsonl.lines" => json!(
             jsonl::lines(Path::new(args["path"].as_str().ok_or("expected path")?))
                 .collect::<Vec<_>>()
@@ -294,6 +303,16 @@ fn dispatch(request: &Value) -> Result<Value, String> {
 }
 
 fn main() -> io::Result<()> {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--package-reference")) {
+        let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("reference/upstream");
+        return package::cli::run(
+            std::env::args_os().skip(2),
+            source.clone(),
+            None,
+            source.join("dist"),
+        )
+        .map_err(io::Error::other);
+    }
     let stdin = io::stdin();
     let mut stdout = io::BufWriter::new(io::stdout().lock());
     for line in stdin.lock().lines() {

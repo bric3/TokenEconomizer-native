@@ -19,6 +19,7 @@ serde_json = { version = "1", features = ["preserve_order"] }
 sha1 = "0.10"
 sha2 = "0.10"
 toml = { version = "1", default-features = false, features = ["parse", "serde"] }
+zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [[bin]]
 name = "te-bridge"
@@ -35,3 +36,7 @@ path = "src/bin/te.rs"
 [[bin]]
 name = "te-hook"
 path = "src/bin/hook.rs"
+
+[[bin]]
+name = "te-package"
+path = "src/bin/package.rs"

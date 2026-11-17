@@ -1,0 +1,2 @@
+# Dependency legal texts retain the published whitespace.
+src/package/THIRD-PARTY-NOTICES.txt -whitespace

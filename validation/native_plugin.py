@@ -9,6 +9,7 @@ import contextlib
 import dataclasses
 import functools
 import importlib
+from importlib.machinery import SourceFileLoader
 import inspect
 import json
 import math
@@ -44,10 +45,21 @@ NATIVE_HOOK_RUN = None
 NATIVE_HOOK_HOSTS = {}
 NATIVE_PROBE_GIT_ENV = {}
 ORIGINAL_SUBPROCESS_RUN = subprocess.run
+ORIGINAL_SOURCE_EXEC_MODULE = SourceFileLoader.exec_module
 
 
 def native_cli_process(*args, **kwargs):
     argv = args[0] if args else kwargs.get("args")
+    if (isinstance(argv, (list, tuple)) and len(argv) >= 2 and argv[0] == sys.executable
+            and str(argv[1]) == str(ROOT / "reference/upstream/scripts/build_plugin.py")):
+        argv = [str(ROOT / "target/debug" / ("te-bridge.exe" if os.name == "nt" else "te-bridge")),
+                "--package-reference", *argv[2:]]
+        if args:
+            args = (argv, *args[1:])
+        else:
+            kwargs["args"] = argv
+        with LOCK:
+            CALLS["package.reference_process"] += 1
     if (isinstance(argv, (list, tuple)) and len(argv) >= 3 and argv[0] == sys.executable
             and list(argv[1:3]) == ["-m", "tokeneconomizer.plugin.cli"]):
         argv = [str(ROOT / "target/debug" / ("te.exe" if os.name == "nt" else "te")), *argv[3:]]
@@ -58,6 +70,15 @@ def native_cli_process(*args, **kwargs):
         with LOCK:
             CALLS["native_cli.process"] += 1
     return ORIGINAL_SUBPROCESS_RUN(*args, **kwargs)
+
+
+def native_package_module(loader, module):
+    ORIGINAL_SOURCE_EXEC_MODULE(loader, module)
+    if str(loader.path) == str(ROOT / "reference/upstream/scripts/build_plugin.py"):
+        module.build = lambda out: invoke("package.build_reference", {
+            "source": module.REPO, "out": str(out), "droid": False})
+        module.build_droid = lambda out: invoke("package.build_reference", {
+            "source": module.REPO, "out": str(out), "droid": True})
 
 
 def invoke(operation, arguments):
@@ -647,6 +668,7 @@ def pytest_configure(config):
     NATIVE_PROBE_GIT_ENV = {key: os.environ[key] for key in ("HOME", "USERPROFILE", "GNUPGHOME")
                             if key in os.environ}
     subprocess.run = native_cli_process
+    SourceFileLoader.exec_module = native_package_module
     sys.path.insert(0, str(ROOT / "reference/upstream"))
     groups = {
         "pricing": ("resolve_model", "weights_for", "has_breakdown", "cache_write_1h_tokens",
