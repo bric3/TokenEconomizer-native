@@ -25,6 +25,7 @@ LOCK = threading.Lock()
 PROCESS = None
 ORIGINAL_REPLACE = os.replace
 LIVE_CONFIG_ENV = []
+LIVE_CONFIG_FIELDS = []
 NATIVE_STORE_WRITE = None
 NATIVE_DENY_FUNCTIONS = {}
 NATIVE_JUDGE_FUNCTIONS = {}
@@ -620,7 +621,7 @@ def pytest_configure(config):
                     "effective_tokens", "approx_tokens", "runner_effective_or_approx"),
         "ledger": ("overhead", "effective_exec"),
         "plugin.accounting": ("effective", "overhead_total", "summarize", "fmt_tokens"),
-        "plugin.sidecall": ("_obj", "_env", "_hermes_env", "_pause_path", "paused", "resume", "_log", "_no_reply", "claude_cli", "hermes_cli", "_shim_argv", "program", "claude_json", "copilot_model", "droid_enabled", "_droid_usage", "local_routes", "call_name", "_claude_help", "claude_flags", "claude_no_mcp", "claude_call", "codex_call", "pi_extension_args", "pi_call", "cursor_call", "grok_call", "opencode_flags", "opencode_call", "copilot_call", "_droid_sessions_root", "_droid_settings_usage", "droid_call", "fm_available", "fm_call", "hermes_home", "_hermes_db", "_hermes_ledger", "_hermes_charge", "_hermes_delete", "_hermes_settle", "_hermes_defer", "_hermes_settle_earlier", "hermes_call", "_noted"),
+        "plugin.sidecall": ("_obj", "_env", "_hermes_env", "_pause_path", "paused", "resume", "_log", "_no_reply", "claude_cli", "hermes_cli", "_shim_argv", "program", "claude_json", "copilot_model", "droid_enabled", "_droid_usage", "local_routes", "call_name", "_claude_help", "claude_flags", "claude_no_mcp", "claude_call", "codex_call", "pi_extension_args", "pi_call", "cursor_call", "grok_call", "opencode_flags", "opencode_call", "copilot_call", "_droid_sessions_root", "_droid_settings_usage", "droid_call", "fm_available", "fm_call", "hermes_home", "_hermes_db", "_hermes_ledger", "_hermes_charge", "_hermes_delete", "_hermes_settle", "_hermes_defer", "_hermes_settle_earlier", "hermes_call", "_noted", "_host_call", "local_runner", "runner_for"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
@@ -714,6 +715,8 @@ def pytest_configure(config):
     from tokeneconomizer.plugin.config import LiveConfig
     defaults = invoke("live_config.new", {"fields": {}})
     assert defaults == vars(LiveConfig())
+    global LIVE_CONFIG_FIELDS
+    LIVE_CONFIG_FIELDS = tuple(defaults)
     global LIVE_CONFIG_ENV
     LIVE_CONFIG_ENV = invoke("live_config.environment", {})
     from tokeneconomizer.plugin import repos, hosts, sidecall
@@ -723,8 +726,10 @@ def pytest_configure(config):
     for name in ("PI_FLAGS", "GROK_DENY_RULES", "COPILOT_TOOLS", "HERMES_FLAGS"):
         assert tuple(constants[name]) == getattr(sidecall, name)
     assert set(constants["NO_SIDE_CALLS"]) == sidecall.NO_SIDE_CALLS
+    assert constants["JUDGE_SCHEMA"] == sidecall.JUDGE_SCHEMA
+    assert constants["ROLE_SCHEMAS"] == sidecall.ROLE_SCHEMAS
     global NATIVE_SIDECALL_FUNCTIONS
-    NATIVE_SIDECALL_FUNCTIONS = {name: getattr(sidecall, name) for name in ("claude_cli", "hermes_cli", "program")}
+    NATIVE_SIDECALL_FUNCTIONS = {name: getattr(sidecall, name) for name in ("claude_cli", "hermes_cli", "program", "claude_call", "codex_call", "copilot_call", "pi_call", "opencode_call", "cursor_call", "grok_call", "hermes_call", "droid_call", "fm_call", "fm_available")}
     NATIVE_SIDECALL_FUNCTIONS["effective"] = sidecall.accounting.effective
     NATIVE_SIDECALL_FUNCTIONS["temporary_directory"] = sidecall.tempfile.TemporaryDirectory
     NATIVE_SIDECALL_FUNCTIONS["access"] = sidecall.os.access
@@ -1023,15 +1028,55 @@ def noted_runner(host, call):
     return run
 
 
+def host_callable(spec):
+    from tokeneconomizer.plugin import sidecall
+    kw = spec["args"]
+    def claude(prompt, _m="agent"): return sidecall.claude_call(prompt, **kw)
+    def codex(prompt, _m="agent"): return sidecall.codex_call(prompt, **kw)
+    def copilot(prompt, _m="agent"): return sidecall.copilot_call(prompt, **kw)
+    def pi(prompt, _m="agent"): return sidecall.pi_call(prompt, **kw)
+    def opencode(prompt, _m="agent"): return sidecall.opencode_call(prompt, **kw)
+    def cursor(prompt, _m="agent"): return sidecall.cursor_call(prompt, **kw)
+    def grok(prompt, _m="agent"): return sidecall.grok_call(prompt, **kw)
+    def hermes(prompt, _m="agent"): return sidecall.hermes_call(prompt, **kw)
+    def droid(prompt, _m="agent"): return sidecall.droid_call(prompt, **kw)
+    return {"claude_call": claude, "codex_call": codex, "copilot_call": copilot, "pi_call": pi,
+            "opencode_call": opencode, "cursor_call": cursor, "grok_call": grok, "hermes_call": hermes, "droid_call": droid}[spec["method"]]
+
+
+def routed_runner(state, fallback):
+    def run(prompt, model="agent"):
+        return sidecall_call("sidecall.runner_run", {"runner": run._native_state, "prompt": prompt,
+                                                    "model": model, "fallback": fallback, "proxy": run})
+    run._native_state = state
+    if state["local"]:
+        run.local, run.answered_locally = "fm", state["answered_locally"]
+    elif state["note"] is not None:
+        run.__wrapped__ = host_callable(state["host"])
+    return run
+
+
+def failure_data(error):
+    if isinstance(error, subprocess.TimeoutExpired):
+        return {"type": "timeout", "timeout": error.timeout}
+    if isinstance(error, subprocess.CalledProcessError):
+        return {"type": "exit", "returncode": error.returncode}
+    return {"type": "exception", "name": type(error).__name__, "message": str(error)}
+
+
 def sidecall_call(operation, arguments):
     from tokeneconomizer.plugin import sidecall, paths
     arguments = dict(arguments)
     if operation == "sidecall._noted":
         return noted_runner(arguments["host"], arguments["call"])
     callback = arguments.pop("call", None)
+    fallback = arguments.pop("fallback", None)
+    proxy = arguments.pop("proxy", None)
+    arguments["has_fallback"] = fallback is not None
     called_value = None
     if "config" in arguments:
-        arguments["config"] = vars(arguments["config"])
+        config = arguments["config"]
+        arguments["config"] = {key: getattr(config, key) for key in LIVE_CONFIG_FIELDS if hasattr(config, key)}
     if "env" not in arguments or arguments["env"] is None:
         arguments["env"] = dict(os.environ)
     if "root" not in arguments or not arguments["root"]:
@@ -1053,6 +1098,8 @@ def sidecall_call(operation, arguments):
                                                        "claude_cli": sidecall.claude_cli is not NATIVE_SIDECALL_FUNCTIONS["claude_cli"]})
     arguments["hermes_limits"] = {"delete_timeout": sidecall.HERMES_DELETE_TIMEOUT_S,
                                   "title_wait": sidecall.HERMES_TITLE_WAIT_S, "abandon": sidecall.HERMES_ABANDON_S}
+    arguments["transport"].update({name: getattr(sidecall, name) is not original for name, original in NATIVE_SIDECALL_FUNCTIONS.items()
+                                  if name.endswith("_call") or name == "fm_available"})
     last_error = None
     temporary = None
     result = invoke(operation, arguments)
@@ -1064,6 +1111,13 @@ def sidecall_call(operation, arguments):
             if result["method"] == "noted":
                 called_value = callback(*result["args"])
                 value = None
+            elif result["method"] == "model_call":
+                name, data = result["args"]
+                value = getattr(sidecall, name)(data["prompt"], **data["kwargs"])
+            elif result["method"] == "fm_available":
+                value = sidecall.fm_available()
+            elif result["method"] == "fallback":
+                value = fallback(*result["args"])
             elif result["method"] == "which":
                 value = sidecall.shutil.which(*result["args"])
             elif result["method"] == "claude_cli":
@@ -1093,15 +1147,7 @@ def sidecall_call(operation, arguments):
             reply = {"value": value}
         except Exception as error:
             last_error = error
-            reply = {"error": str(error), "error_kind": type(error).__name__}
-            if result["method"] == "noted":
-                if isinstance(error, subprocess.TimeoutExpired):
-                    failure = {"type": "timeout", "timeout": error.timeout}
-                elif isinstance(error, subprocess.CalledProcessError):
-                    failure = {"type": "exit", "returncode": error.returncode}
-                else:
-                    failure = {"type": "exception", "name": type(error).__name__, "message": str(error)}
-                reply = {"failure": failure}
+            reply = {"error": str(error), "error_kind": type(error).__name__, "failure": failure_data(error)}
         result = invoke("sidecall.resume_job", {"job": result["job"], "reply": reply})
     if isinstance(result, dict) and "help" in result:
         sidecall._HELP.clear()
@@ -1112,9 +1158,17 @@ def sidecall_call(operation, arguments):
     if isinstance(result, dict) and "fm_ok" in result:
         sidecall._fm_ok.clear()
         sidecall._fm_ok.update(result["fm_ok"])
+    if proxy is not None and isinstance(result, dict) and "runner" in result:
+        proxy._native_state = result["runner"]
+        if result["runner"]["local"]:
+            proxy.answered_locally = result["runner"]["answered_locally"]
     if last_error is not None and isinstance(result, dict) and "raised" in result and result.get("message") == str(last_error):
         raise last_error
+    if last_error is not None and isinstance(result, dict) and "raised" in result and "failure" in result:
+        raise last_error
     value = storage_result(result)
+    if operation in ("sidecall._host_call", "sidecall.local_runner", "sidecall.runner_for"):
+        return routed_runner(result["runner"], fallback) if value else None
     if operation == "sidecall.noted_call":
         if result["failed"]:
             raise last_error
@@ -1122,7 +1176,7 @@ def sidecall_call(operation, arguments):
     if operation == "sidecall._hermes_ledger":
         from tokeneconomizer.plugin.store import Store
         return Store(value)
-    return tuple(value) if operation in ("sidecall.claude_call", "sidecall.codex_call", "sidecall.pi_call", "sidecall.cursor_call", "sidecall.grok_call", "sidecall.opencode_call", "sidecall.copilot_call", "sidecall.droid_call", "sidecall.fm_call", "sidecall.hermes_call", "sidecall._hermes_settle") else value
+    return tuple(value) if operation in ("sidecall.claude_call", "sidecall.codex_call", "sidecall.pi_call", "sidecall.cursor_call", "sidecall.grok_call", "sidecall.opencode_call", "sidecall.copilot_call", "sidecall.droid_call", "sidecall.fm_call", "sidecall.hermes_call", "sidecall._hermes_settle", "sidecall.runner_run") else value
 
 
 def controller_data(ctl):

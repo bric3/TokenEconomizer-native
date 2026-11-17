@@ -23,6 +23,7 @@ use std::{
 
 mod failure;
 pub mod hermes;
+pub mod runner;
 pub use failure::{Failure, noted};
 
 pub const TIMEOUT_S: u64 = 180;
@@ -74,6 +75,22 @@ pub const COPILOT_TOOLS: [&str; 24] = [
 pub const DROID_TOOLS: &str = "Read";
 
 pub trait Runtime {
+    fn override_call(
+        &mut self,
+        _method: &str,
+        _args: &Value,
+    ) -> Result<Option<(Value, Option<f64>)>, Failure> {
+        Ok(None)
+    }
+    fn override_available(&mut self) -> Result<Option<bool>, String> {
+        Ok(None)
+    }
+    fn failure(&self, message: String) -> Failure {
+        Failure::Exception {
+            name: "RuntimeError".into(),
+            message,
+        }
+    }
     fn now(&mut self) -> Result<f64, String> {
         Ok(super::history::now())
     }

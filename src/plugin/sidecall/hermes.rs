@@ -32,6 +32,7 @@ pub const ABANDON_S: f64 = 600.0;
 static ID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^session_id:\s*(\S+)").unwrap());
 type Result<T> = std::result::Result<T, String>;
 
+#[derive(Clone)]
 pub struct Limits {
     pub delete_timeout: f64,
     pub title_wait: f64,

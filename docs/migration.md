@@ -193,6 +193,12 @@ complete while any runtime component delegates production behaviour to Python.
   the caller after logging. Timeout durations follow Python's default
   [general-format rules](https://docs.python.org/3.15/library/string.html#format-specification-mini-language).
   The test transport retains the original callable metadata and exception object.
+- Side-call runner selection and local-model fallback now execute in Rust:
+  per-host models and effort, configured CLI paths, Droid opt-in, role schemas,
+  availability gates and the state recording which runner answered. Local calls
+  fall back to the selected host or an explicit caller-provided runner. The native
+  runner implements the shared runner contract; patched model functions and
+  callable metadata remain SDK transport for the original tests.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -218,8 +224,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit temporary-directory cleanup against Python's permission-repair retries,
   including native Windows behaviour. Current removal uses `remove_dir_all`.
 - Integrate the native controller and host operations into CLI and hooks.
-- Complete side-call runner routing and local-model fallback. Port model probes,
-  tool checks, repository maps, CLI commands and hooks. Verify each host
+- Port model probes, tool checks, repository maps, CLI commands and hooks. Verify each host
   integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
   supporting tools, preserving their original test contracts.
@@ -527,6 +532,15 @@ complete while any runtime component delegates production behaviour to Python.
   that the exception reaches the caller and the wrapped callable stays visible.
   Clippy, formatting and the 256-file reference integrity check pass.
 
+- Runner-focused run: 437 passed, 6 skipped. Full suite with native runner routing
+  and local fallback: 1,558 passed, 33 skipped (49.96 seconds).
+  `validation/runner-routing-calls.json` records native entries.
+  `RunnerProbe.java` checks host selection, model and effort precedence, Droid
+  opt-in, the judge schema, repeated local calls, empty local answers, host and
+  external fallback, native Pi execution, workspace cleanup and private failure
+  notes. Clippy and the 256-file reference integrity check pass. Real model calls
+  and native Windows execution remain unverified.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -626,6 +640,7 @@ jbang validation/AgentCallsProbe.java
 jbang validation/LocalModelProbe.java
 jbang validation/HermesCallProbe.java
 jbang validation/SidecallFailureProbe.java
+jbang validation/RunnerProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 

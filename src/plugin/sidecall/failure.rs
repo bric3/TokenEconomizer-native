@@ -1,14 +1,44 @@
 use super::log;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Failure {
     Timeout { timeout: f64 },
     Exit { returncode: i64 },
     Exception { name: String, message: String },
 }
+impl Failure {
+    pub fn from_io(error: &std::io::Error, timeout: f64) -> Self {
+        use std::io::ErrorKind;
+        if error.kind() == ErrorKind::TimedOut {
+            Self::Timeout { timeout }
+        } else {
+            Self::Exception {
+                name: match error.kind() {
+                    ErrorKind::NotFound => "FileNotFoundError",
+                    ErrorKind::PermissionDenied => "PermissionError",
+                    _ => "OSError",
+                }
+                .into(),
+                message: error.to_string(),
+            }
+        }
+    }
+}
+impl std::fmt::Display for Failure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Timeout { timeout } => {
+                write!(f, "side call timed out after {}s", general(*timeout))
+            }
+            Self::Exit { returncode } => write!(f, "side call exited {returncode}"),
+            Self::Exception { message, .. } => f.write_str(message),
+        }
+    }
+}
+impl std::error::Error for Failure {}
 fn general(value: f64) -> String {
     if !value.is_finite() {
         return value.to_string().to_lowercase();

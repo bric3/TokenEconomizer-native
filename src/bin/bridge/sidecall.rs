@@ -7,12 +7,67 @@ use tokeneconomizer::plugin::{
     paths, process,
     sidecall::{self, Runtime},
 };
+use tokeneconomizer::runner::Runner;
 
+#[derive(Clone)]
 struct Transport {
     channel: Channel,
     flags: Value,
+    last: Option<(String, sidecall::Failure)>,
+}
+impl Transport {
+    fn response_error(&mut self, reply: &Value) -> Result<(), String> {
+        if let Some(message) = reply["error"].as_str() {
+            if let Some(failure) = reply.get("failure") {
+                self.last = Some((
+                    message.into(),
+                    serde_json::from_value(failure.clone()).map_err(|e| e.to_string())?,
+                ));
+            }
+            return Err(message.into());
+        }
+        Ok(())
+    }
 }
 impl Runtime for Transport {
+    fn override_call(
+        &mut self,
+        method: &str,
+        args: &Value,
+    ) -> Result<Option<(Value, Option<f64>)>, sidecall::Failure> {
+        if self.flags[method] != true {
+            return Ok(None);
+        }
+        let reply = self
+            .channel
+            .call("model_call", json!([method, args]))
+            .map_err(|message| self.failure(message))?;
+        if let Some(failure) = reply.get("failure") {
+            return Err(
+                serde_json::from_value(failure.clone()).map_err(|e| self.failure(e.to_string()))?
+            );
+        }
+        let result = &reply["value"];
+        Ok(Some((result[0].clone(), result[1].as_f64())))
+    }
+    fn override_available(&mut self) -> Result<Option<bool>, String> {
+        if self.flags["fm_available"] != true {
+            return Ok(None);
+        }
+        let reply = self.channel.call("fm_available", json!([]))?;
+        self.response_error(&reply)?;
+        Ok(Some(reply["value"] == true))
+    }
+    fn failure(&self, message: String) -> sidecall::Failure {
+        self.last
+            .as_ref()
+            .filter(|(text, _)| *text == message)
+            .map(|(_, failure)| failure.clone())
+            .unwrap_or(sidecall::Failure::Exception {
+                name: "RuntimeError".into(),
+                message,
+            })
+    }
     fn effective(&mut self, usage: &Value) -> Result<Option<f64>, String> {
         if self.flags["effective"] != true {
             return tokeneconomizer::accounting::effective(usage)
@@ -20,9 +75,7 @@ impl Runtime for Transport {
                 .map_err(|e| e.to_string());
         }
         let reply = self.channel.call("effective", json!([usage]))?;
-        if let Some(error) = reply["error"].as_str() {
-            return Err(error.into());
-        }
+        self.response_error(&reply)?;
         Ok(reply["value"][0].as_f64())
     }
     fn hermes_cli(&mut self, environment: &Environment) -> Result<String, String> {
@@ -30,9 +83,7 @@ impl Runtime for Transport {
             return sidecall::installed_cli("hermes", environment, false, self);
         }
         let reply = self.channel.call("hermes_cli", json!([]))?;
-        if let Some(error) = reply["error"].as_str() {
-            return Err(error.into());
-        }
+        self.response_error(&reply)?;
         reply["value"]
             .as_str()
             .map(String::from)
@@ -43,9 +94,7 @@ impl Runtime for Transport {
             return paths::executable(path);
         }
         let reply = self.channel.call("access", json!([path, 1]))?;
-        if let Some(error) = reply["error"].as_str() {
-            return Err(error.into());
-        }
+        self.response_error(&reply)?;
         Ok(reply["value"] == true)
     }
     fn program(
@@ -58,9 +107,7 @@ impl Runtime for Transport {
             return sidecall::program(cli, windows, environment, self);
         }
         let reply = self.channel.call("program", json!([cli]))?;
-        if let Some(error) = reply["error"].as_str() {
-            return Err(error.into());
-        }
+        self.response_error(&reply)?;
         serde_json::from_value(reply["value"].clone()).map_err(|e| e.to_string())
     }
     fn temporary_directory(
@@ -75,9 +122,7 @@ impl Runtime for Transport {
             "temporary_directory",
             json!([prefix, ignore_cleanup_errors]),
         )?;
-        if let Some(error) = reply["error"].as_str() {
-            return Err(error.into());
-        }
+        self.response_error(&reply)?;
         reply["value"]
             .as_str()
             .map(|p| Some(PathBuf::from(p)))
@@ -87,16 +132,12 @@ impl Runtime for Transport {
         let reply = self
             .channel
             .call("remove_temporary_directory", json!([path]))?;
-        if let Some(error) = reply["error"].as_str() {
-            return Err(error.into());
-        }
+        self.response_error(&reply)?;
         Ok(())
     }
     fn which(&mut self, cli: &str) -> Result<Option<String>, String> {
         let response = self.channel.call("which", json!([cli]))?;
-        if let Some(error) = response["error"].as_str() {
-            return Err(error.into());
-        }
+        self.response_error(&response)?;
         Ok(response["value"].as_str().map(String::from))
     }
     fn claude_cli(&mut self, environment: &Environment, windows: bool) -> Result<String, String> {
@@ -104,9 +145,7 @@ impl Runtime for Transport {
             return sidecall::installed_cli("claude", environment, windows, self);
         }
         let reply = self.channel.call("claude_cli", json!([]))?;
-        if let Some(error) = reply["error"].as_str() {
-            return Err(error.into());
-        }
+        self.response_error(&reply)?;
         reply["value"]
             .as_str()
             .map(String::from)
@@ -121,17 +160,24 @@ impl Runtime for Transport {
         timeout: f64,
     ) -> std::io::Result<process::Output> {
         if self.flags["run"] != true {
-            return match input {
+            let result = match input {
                 Some(input) => process::run_input(argv, cwd, env, input, timeout),
                 None => process::run_environment(argv, cwd, env, timeout),
             };
+            self.last = result.as_ref().err().map(|error| {
+                (
+                    error.to_string(),
+                    sidecall::Failure::from_io(error, timeout),
+                )
+            });
+            return result;
         }
         let reply = self
             .channel
             .call("run", json!([argv, cwd, env, input, timeout]))
             .map_err(std::io::Error::other)?;
         if let Some(error) = reply["error"].as_str() {
-            return Err(std::io::Error::new(
+            let error = std::io::Error::new(
                 match reply["error_kind"].as_str() {
                     Some("TimeoutExpired") => std::io::ErrorKind::TimedOut,
                     Some("FileNotFoundError") => std::io::ErrorKind::NotFound,
@@ -139,14 +185,31 @@ impl Runtime for Transport {
                     _ => std::io::ErrorKind::Other,
                 },
                 error.to_string(),
-            ));
+            );
+            let failure = reply
+                .get("failure")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_else(|| sidecall::Failure::from_io(&error, timeout));
+            self.last = Some((error.to_string(), failure));
+            return Err(error);
         }
+        self.last = None;
         let out = &reply["value"];
         Ok(process::Output {
             code: out["code"].as_i64().unwrap_or(0) as i32,
             stdout: text(out, "stdout").into(),
             stderr: text(out, "stderr").into(),
         })
+    }
+}
+struct Fallback(Channel);
+impl Runner for Fallback {
+    fn run(&mut self, prompt: &str, model: &str) -> Result<(String, Option<f64>), String> {
+        let reply = self.0.call("fallback", json!([prompt, model]))?;
+        if let Some(error) = reply["error"].as_str() {
+            return Err(error.into());
+        }
+        serde_json::from_value(reply["value"].clone()).map_err(|e| e.to_string())
     }
 }
 fn text<'a>(args: &'a Value, key: &str) -> &'a str {
@@ -171,6 +234,75 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value, Str
         home: PathBuf::from(text(args, "home")),
     };
     let root = environment.path(Path::new(text(args, "root")));
+    if matches!(
+        op,
+        "sidecall._host_call"
+            | "sidecall.local_runner"
+            | "sidecall.runner_for"
+            | "sidecall.runner_run"
+    ) {
+        use sidecall::runner::{Context, RoutedRunner, State};
+        let mut state: State = if op == "sidecall.runner_run" {
+            serde_json::from_value(args["runner"].clone()).map_err(|e| e.to_string())?
+        } else {
+            State::default()
+        };
+        for (key, target) in [
+            ("help", &mut state.help),
+            ("oc_flags", &mut state.oc_flags),
+            ("fm_ok", &mut state.fm_ok),
+        ] {
+            if let Some(cache) = args[key].as_object() {
+                *target = cache.clone();
+            }
+        }
+        let mut context = Context::new(environment, root);
+        context.windows = args["windows"] == true;
+        context.macos = args["macos"] == true;
+        if let Some(value) = args["hermes_limits"]["delete_timeout"].as_f64() {
+            context.hermes_limits.delete_timeout = value;
+        }
+        if let Some(value) = args["hermes_limits"]["title_wait"].as_f64() {
+            context.hermes_limits.title_wait = value;
+        }
+        if let Some(value) = args["hermes_limits"]["abandon"].as_f64() {
+            context.hermes_limits.abandon = value;
+        }
+        let mut routed = RoutedRunner::new(state, context, runtime.clone());
+        if args["has_fallback"] == true {
+            routed.fallback = Some(Box::new(Fallback(runtime.channel.clone())));
+        }
+        let result = if op == "sidecall.runner_run" {
+            routed
+                .run_raw(text(args, "prompt"), text(args, "model"))
+                .map(|v| json!(v))
+        } else {
+            let present = if op == "sidecall.local_runner" {
+                routed.select_local(text(args, "role"), &args["config"])
+            } else {
+                routed.select(
+                    text(args, "host_name"),
+                    &args["config"],
+                    args["role"].as_str(),
+                    op == "sidecall._host_call",
+                )
+            };
+            present
+                .map(|v| json!(v))
+                .map_err(|message| routed.runtime.failure(message))
+        };
+        let mut out = match result {
+            Ok(value) => json!({"value":value}),
+            Err(failure) => {
+                json!({"raised":"RuntimeError","message":failure.to_string(),"failure":failure})
+            }
+        };
+        out["help"] = json!(routed.state.help);
+        out["oc_flags"] = json!(routed.state.oc_flags);
+        out["fm_ok"] = json!(routed.state.fm_ok);
+        out["runner"] = json!(routed.state);
+        return Ok(out);
+    }
     let host = text(args, "host");
     if op == "sidecall.noted_call" {
         let reply = runtime
@@ -447,9 +579,11 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value, Str
 }
 pub(super) fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
     if op == "sidecall.constants" {
-        return Ok(Some(
-            json!({"TIMEOUT_S":sidecall::TIMEOUT_S,"FM_CLI":sidecall::FM_CLI,"FM_TIMEOUT_S":sidecall::FM_TIMEOUT_S,"NO_SIDE_CALLS":sidecall::NO_SIDE_CALLS,"PI_FLAGS":sidecall::PI_FLAGS,"GROK_TOOLS":sidecall::GROK_TOOLS,"GROK_REMOVED":sidecall::GROK_REMOVED,"GROK_DENY_RULES":sidecall::GROK_DENY_RULES,"OPENCODE_CONFIG":sidecall::OPENCODE_CONFIG,"COPILOT_TOOLS":sidecall::COPILOT_TOOLS,"DROID_TOOLS":sidecall::DROID_TOOLS,"HERMES_SOURCE":sidecall::hermes::SOURCE,"HERMES_FLAGS":sidecall::hermes::FLAGS,"HERMES_DELETE_TIMEOUT_S":sidecall::hermes::DELETE_TIMEOUT_S,"HERMES_TITLE_WAIT_S":sidecall::hermes::TITLE_WAIT_S,"HERMES_ABANDON_S":sidecall::hermes::ABANDON_S}),
-        ));
+        let schema = sidecall::runner::judge_schema();
+        let mut constants = json!({"TIMEOUT_S":sidecall::TIMEOUT_S,"FM_CLI":sidecall::FM_CLI,"FM_TIMEOUT_S":sidecall::FM_TIMEOUT_S,"NO_SIDE_CALLS":sidecall::NO_SIDE_CALLS,"PI_FLAGS":sidecall::PI_FLAGS,"GROK_TOOLS":sidecall::GROK_TOOLS,"GROK_REMOVED":sidecall::GROK_REMOVED,"GROK_DENY_RULES":sidecall::GROK_DENY_RULES,"OPENCODE_CONFIG":sidecall::OPENCODE_CONFIG,"COPILOT_TOOLS":sidecall::COPILOT_TOOLS,"DROID_TOOLS":sidecall::DROID_TOOLS,"HERMES_SOURCE":sidecall::hermes::SOURCE,"HERMES_FLAGS":sidecall::hermes::FLAGS,"HERMES_DELETE_TIMEOUT_S":sidecall::hermes::DELETE_TIMEOUT_S,"HERMES_TITLE_WAIT_S":sidecall::hermes::TITLE_WAIT_S,"HERMES_ABANDON_S":sidecall::hermes::ABANDON_S});
+        constants["JUDGE_SCHEMA"] = schema.clone();
+        constants["ROLE_SCHEMAS"] = json!({"judge":schema});
+        return Ok(Some(constants));
     }
     if op == "sidecall.resume_job" {
         return job::advance(
@@ -466,6 +600,7 @@ pub(super) fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> 
             &mut Transport {
                 channel,
                 flags: args["transport"].clone(),
+                last: None,
             },
         )
         .unwrap_or_else(|message| json!({"raised":"RuntimeError","message":message}))
