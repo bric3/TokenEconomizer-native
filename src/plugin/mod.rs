@@ -16,6 +16,7 @@ pub mod probe;
 pub mod process;
 pub mod repomap;
 pub mod repos;
+pub mod runtime;
 pub mod sidecall;
 pub mod toolcheck;
 pub mod winspawn;

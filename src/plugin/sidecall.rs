@@ -440,29 +440,7 @@ pub fn claude_no_mcp(help: &str, cwd: &Path) -> io::Result<Vec<String>> {
 pub(crate) struct WorkDir(PathBuf);
 impl WorkDir {
     pub(crate) fn new(prefix: &str) -> io::Result<Self> {
-        static SEQUENCE: AtomicU64 = AtomicU64::new(0);
-        loop {
-            let path = std::env::temp_dir().join(format!(
-                "{prefix}{}-{}-{}",
-                std::process::id(),
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_nanos(),
-                SEQUENCE.fetch_add(1, Ordering::Relaxed)
-            ));
-            let mut builder = fs::DirBuilder::new();
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::DirBuilderExt;
-                builder.mode(0o700);
-            }
-            match builder.create(&path) {
-                Ok(()) => return Ok(Self(path)),
-                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
-                Err(e) => return Err(e),
-            }
-        }
+        temporary_directory(prefix, &std::env::temp_dir()).map(Self)
     }
     pub(crate) fn path(&self) -> &Path {
         &self.0
@@ -473,6 +451,31 @@ impl WorkDir {
         match fs::remove_dir_all(path) {
             Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
             result => result,
+        }
+    }
+}
+pub(crate) fn temporary_directory(prefix: &str, base: &Path) -> io::Result<PathBuf> {
+    static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+    loop {
+        let path = base.join(format!(
+            "{prefix}{}-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos(),
+            SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        let mut builder = fs::DirBuilder::new();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
+        }
+        match builder.create(&path) {
+            Ok(()) => return Ok(path),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
         }
     }
 }

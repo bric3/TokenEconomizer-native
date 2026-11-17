@@ -250,28 +250,36 @@ complete while any runtime component delegates production behaviour to Python.
   execute in Rust. Diagnostics reuse native trust, model-selection and repository
   helpers, preserve error-log line boundaries and accept runtime-version metadata
   from the caller. Provider URL display validates bracketed addresses and Unicode
-  authority delimiters. Native executable wiring and runtime reporting remain to
-  be checked through the packaged application. Native service wiring and CLI/hook
-  packaging remain pending.
+  authority delimiters. The standalone CLI reports its native package version.
+  Packaged installation and hook workflows remain pending.
 - Copilot probe orchestration now executes in Rust: the isolated repository and
   missing-pytest fixture, session environment, CLI reply parsing, log inspection,
   fold deadlines, deny-list measurement and restoration, reporting and cleanup.
   Fixture wrappers quote paths for the shell. Fixture commits use the configured
   signing key and a conventional message to follow the user's commit policy.
-  The optional pytest trap still invokes an external Python interpreter. Host and
-  process I/O cross the compatibility adapter until native runtime integration;
-  no paid sessions have been run to verify packaged plugin behaviour.
+  The optional pytest trap still invokes an external Python interpreter. The
+  standalone CLI connects host and process I/O through a native runtime; no paid
+  sessions have been run to verify packaged plugin behaviour.
 - CLI argument declarations, parsing and entry orchestration now execute in Rust.
   This includes aliases, common options before and after the command, defaults,
   repeated sessions, variable argument lists, Unicode integer parsing, required
   arguments, help wrapping, errors and choice suggestions matching Python 3.15.
   The entry path expands slash-command argument lines, selects the default host,
   dispatches the command and secures the state directory after success or failure.
-  The compatibility adapter translates namespaces and exceptions; production
-  command execution still needs the concrete native runtime and executable.
+  The standalone `te` executable connects command execution to Rust context,
+  configuration, state, repository, deny-list, host-session, folding, history,
+  judging, model-runner, map and probe services. Background commands launch `te`
+  directly. The compatibility adapter translates namespaces and exceptions for
+  the original in-process tests.
+- Windows background execution retains the WMI fallback and uses the native CLI
+  to consume its launch specification. The fallback requests a hidden process
+  through [Win32_ProcessStartup](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-processstartup).
+  Native worker execution has local checks; native Windows execution remains
+  unverified.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
-  Other reference code, including Python child processes, still runs in Python.
+  Direct module CLI subprocess launches are redirected to the native executable.
+  Other reference code, including packaging launchers, still runs in Python.
 - Remaining production conversion, six improvement passes and final test conversion
   pending. No performance claim is made from these compatibility runs.
 
@@ -290,6 +298,8 @@ complete while any runtime component delegates production behaviour to Python.
   errors from repository identity too.
 - Complete named-user and Windows tilde expansion for extra history directories
   in the path parity audit.
+- Include native OS arguments, environment values and paths outside UTF-8 in
+  that audit. The CLI currently rejects them with a diagnostic.
 - Include history, folding, controller and host replay counters beyond i64 in the numeric
   parity audit.
 - Include CLI and ledger counts beyond i64 in the numeric parity audit.
@@ -302,9 +312,9 @@ complete while any runtime component delegates production behaviour to Python.
   numeric parity audit.
 - Audit temporary-directory cleanup against Python's permission-repair retries,
   including native Windows behaviour. Current removal uses `remove_dir_all`.
-- Integrate the native controller and host operations into CLI and hooks.
+- Integrate the native controller and host operations into the native hook.
 - Verify native CLI interruption and heartbeat cleanup when packaging the executables.
-- Integrate native CLI and model-probe services, and package the native executables.
+- Complete the native hook runtime and package the native executables.
   Verify each host integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
   supporting tools, preserving their original test contracts.
@@ -745,6 +755,25 @@ complete while any runtime component delegates production behaviour to Python.
   normalisation. Clippy, formatting and all 256 reference files pass.
   The native executables, concrete service runtime and native interruption remain
   unverified; this does not complete the production-integration gate.
+- Native runtime focused run: 107 passed. Original spawn/probe assertions:
+  10 passed. Full suite: 1,558 passed, 33 skipped (54.82 seconds).
+  `validation/native-runtime-calls.json` records three subprocess calls through
+  the standalone Rust `te`; the original CLI repository-selection test checks
+  quoted paths, JSON/explanation output and preservation of pending proposals.
+  In-process calls retain the compatibility transport for patched dependencies.
+  `NativeCliProbe.java` compares standalone command output with upstream and
+  checks native configuration, deny-list application/restoration, kept tools,
+  map-refresh failure, history, folding and repository services. JSON numbers are
+  compared by value, accepting equivalent forms such as `0` and `0.0`.
+  The native workflows run with only Git on PATH; reference comparisons invoke
+  Python by its absolute path. A native fold persists once, and merging previously
+  folded state launches a detached native refold and records its result. Runtime
+  diagnostics report the native package version. The native worker consumes its
+  launch specification, writes the child log and removes the specification.
+  Missing-agent and missing-Python probe failures leave no temporary directory.
+  Context/WMI and offline probe regression checks, Clippy, formatting and all
+  256 reference files pass. Model services were not contacted. Native Windows,
+  interruption handling and installed plugin/hook workflows remain unverified.
 
 ## Dependencies
 

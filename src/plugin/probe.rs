@@ -128,15 +128,27 @@ pub fn plugin_root(environment: &Environment, module: &Path) -> Result<PathBuf> 
         .parent()
         .and_then(Path::parent)
         .unwrap_or(Path::new("."));
+    plugin_root_candidates(
+        environment,
+        &[
+            here.join("plugin"),
+            here.parent().unwrap_or(Path::new(".")).into(),
+        ],
+    )
+}
+pub fn plugin_root_candidates(
+    environment: &Environment,
+    candidates: &[PathBuf],
+) -> Result<PathBuf> {
     let configured = environment
         .env
         .get("TE_PLUGIN_ROOT")
         .and_then(Value::as_str)
         .filter(|s| !s.is_empty());
-    let candidates = configured.map(PathBuf::from).into_iter().chain([
-        here.join("plugin"),
-        here.parent().unwrap_or(Path::new(".")).into(),
-    ]);
+    let candidates = configured
+        .map(PathBuf::from)
+        .into_iter()
+        .chain(candidates.iter().cloned());
     for path in candidates {
         if environment
             .path(&path)

@@ -11,6 +11,17 @@ The Apache-2.0 licence and upstream attribution are preserved.
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite.
 
+The native CLI runs the implemented command services directly:
+
+```sh
+cargo build --locked
+target/debug/te --host claude --cwd /path/to/repo status
+target/debug/te --host claude --cwd /path/to/repo config show
+```
+
+It reads and writes the existing TokenEconomizer state formats. Background folds,
+judges and map refreshes use the same native executable.
+
 The native repository-map generator is available now. It uses an optional aider
 installation in the interpreter selected with `--python`:
 
@@ -20,4 +31,5 @@ target/debug/te-repomap-gen --python /path/to/python /path/to/repo 2048 \
   'Engine,parse_config' --git --cache /path/to/state/tags
 ```
 
-The main CLI and native hook integration remain in progress.
+Native hook integration, plugin packaging and the remaining migration gates are
+still in progress.

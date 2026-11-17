@@ -14,6 +14,18 @@ pub const NO_WINDOW: u32 = 0x08000000;
 static SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 pub trait Runtime {
+    fn worker_argv(
+        &self,
+        executable: &Path,
+        runner: &Path,
+        spec: &Path,
+    ) -> io::Result<Vec<String>> {
+        Ok(vec![
+            windowless_python(executable).to_string_lossy().into_owned(),
+            std::path::absolute(runner)?.to_string_lossy().into_owned(),
+            spec.to_string_lossy().into_owned(),
+        ])
+    }
     fn launch(&mut self, spec: &Launch, flags: u32) -> io::Result<()> {
         process::spawn_logged(&spec.cmd, &spec.cwd, &spec.env, &spec.log, flags, false)
     }
@@ -142,14 +154,15 @@ pub fn spawn_wmi(
     runtime: &mut dyn Runtime,
 ) -> io::Result<bool> {
     let path = write_spec(spec)?;
-    // shortcut: use the migration's runner script, switch to the native CLI worker during packaging.
-    let line = command_line(&[
-        windowless_python(executable).to_string_lossy().into_owned(),
-        std::path::absolute(runner)?.to_string_lossy().into_owned(),
-        path.to_string_lossy().into_owned(),
-    ]);
+    let line = match runtime.worker_argv(executable, runner, &path) {
+        Ok(argv) => command_line(&argv),
+        Err(error) => {
+            let _ = fs::remove_file(path);
+            return Err(error);
+        }
+    };
     let ps = format!(
-        "$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{{ CommandLine = '{}'; CurrentDirectory = '{}' }}; exit $r.ReturnValue",
+        "$startup = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{{ ShowWindow = 0; CreateFlags = {NO_WINDOW} }}; $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{{ CommandLine = '{}'; CurrentDirectory = '{}'; ProcessStartupInformation = $startup }}; exit $r.ReturnValue",
         line.replace('\'', "''"),
         spec.cwd.to_string_lossy().replace('\'', "''")
     );

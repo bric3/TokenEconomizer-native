@@ -43,6 +43,21 @@ NATIVE_TOOLCHECK_FUNCTIONS = {}
 NATIVE_HOOK_RUN = None
 NATIVE_HOOK_HOSTS = {}
 NATIVE_PROBE_GIT_ENV = {}
+ORIGINAL_SUBPROCESS_RUN = subprocess.run
+
+
+def native_cli_process(*args, **kwargs):
+    argv = args[0] if args else kwargs.get("args")
+    if (isinstance(argv, (list, tuple)) and len(argv) >= 3 and argv[0] == sys.executable
+            and list(argv[1:3]) == ["-m", "tokeneconomizer.plugin.cli"]):
+        argv = [str(ROOT / "target/debug" / ("te.exe" if os.name == "nt" else "te")), *argv[3:]]
+        if args:
+            args = (argv, *args[1:])
+        else:
+            kwargs["args"] = argv
+        with LOCK:
+            CALLS["native_cli.process"] += 1
+    return ORIGINAL_SUBPROCESS_RUN(*args, **kwargs)
 
 
 def invoke(operation, arguments):
@@ -631,6 +646,7 @@ def pytest_configure(config):
     global NATIVE_PROBE_GIT_ENV
     NATIVE_PROBE_GIT_ENV = {key: os.environ[key] for key in ("HOME", "USERPROFILE", "GNUPGHOME")
                             if key in os.environ}
+    subprocess.run = native_cli_process
     sys.path.insert(0, str(ROOT / "reference/upstream"))
     groups = {
         "pricing": ("resolve_model", "weights_for", "has_breakdown", "cache_write_1h_tokens",
