@@ -8,6 +8,7 @@ use tokeneconomizer::{
         cli::{self, Error, Result, Runtime},
         context::LiveContext,
         hosts::session::Environment,
+        probe,
     },
 };
 
@@ -54,6 +55,14 @@ impl Runtime for Transport {
     }
     fn say(&mut self, text: &str) -> Result<()> {
         self.request("say", json!(text)).map(|_| ())
+    }
+}
+impl probe::Runtime for Transport {
+    fn call(&mut self, method: &str, args: Value) -> Result<Value> {
+        self.request("probe", json!([method, args]))
+    }
+    fn say(&mut self, text: &str) -> Result<()> {
+        Runtime::say(self, text)
     }
 }
 fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value> {
@@ -137,6 +146,67 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value> {
         )?),
         "cli._wait_and_apply" => json!(cli::wait_and_apply(&args["args"], runtime)?),
         "cli.cmd_doctor" => json!(cli::doctor(&args["args"], &environment, runtime)?),
+        "cli.cmd_probe" => json!(probe::command(&args["args"], runtime)?),
+        "probe.test_commands" => json!(probe::test_commands(&cli::words(&args["cmds"])?)),
+        "probe._write" => {
+            probe::write(
+                &environment.path(Path::new(args["path"].as_str().ok_or("expected path")?)),
+                args["text"].as_str().ok_or("expected text")?,
+                args["mode"].as_u64().ok_or("expected file mode")? as u32,
+            )?;
+            Value::Null
+        }
+        "probe.make_repo" => json!(probe::make_repo(
+            &environment.path(Path::new(
+                args["root"].as_str().ok_or("expected probe root")?
+            )),
+            args["python"]
+                .as_str()
+                .ok_or("expected Python executable")?,
+            runtime
+        )?),
+        "probe._plugin_root" => json!(probe::plugin_root(
+            &environment,
+            Path::new(
+                args["module_file"]
+                    .as_str()
+                    .ok_or("expected package path")?
+            )
+        )?),
+        "probe._session_env" => json!(probe::session_env(
+            args["state"].as_str().ok_or("expected state path")?,
+            args["trap"].as_str().ok_or("expected trap path")?,
+            &environment.env
+        )),
+        "probe.run_session" => probe::run_session(
+            args["repo"].as_str().ok_or("expected repository")?,
+            &args["env"],
+            args["plugin"].as_str().ok_or("expected plugin directory")?,
+            &args["model"],
+            args["cli"].as_str().ok_or("expected CLI")?,
+            &args["timeout"],
+            runtime,
+        )?,
+        "probe.inspect_session" => probe::inspect_session(
+            args["sid"].as_str().ok_or("expected session ID")?,
+            &environment,
+            runtime,
+        )?,
+        "probe._wait_folded" => json!(probe::wait_folded(
+            &context_dispatch::context(&args["ctx"])?.store,
+            args["sid"].as_str().ok_or("expected session ID")?,
+            args["timeout"].as_f64().ok_or("expected timeout")?,
+            runtime
+        )?),
+        "probe._line" => json!(probe::line(&args["r"])?),
+        "probe.run" => json!(probe::run(
+            args["sessions"].as_i64().ok_or("expected session count")?,
+            &args["model"],
+            args["keep"].as_bool().ok_or("expected keep flag")?,
+            args["cli"].as_str().ok_or("expected CLI")?,
+            &environment,
+            runtime
+        )?),
         "cli._recent_host" => cli::recent_host(
             Path::new(args["cwd"].as_str().ok_or("expected working directory")?),
             &environment,

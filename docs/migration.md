@@ -251,8 +251,16 @@ complete while any runtime component delegates production behaviour to Python.
   helpers, preserve error-log line boundaries and accept runtime-version metadata
   from the caller. Provider URL display validates bracketed addresses and Unicode
   authority delimiters. Native executable wiring and runtime reporting remain to
-  be checked through the packaged application. Model probes, parser/service wiring
-  and native CLI/hook packaging remain pending.
+  be checked through the packaged application. Parser/service wiring and native
+  CLI/hook packaging remain pending.
+- Copilot probe orchestration now executes in Rust: the isolated repository and
+  missing-pytest fixture, session environment, CLI reply parsing, log inspection,
+  fold deadlines, deny-list measurement and restoration, reporting and cleanup.
+  Fixture wrappers quote paths for the shell. Fixture commits use the configured
+  signing key and a conventional message to follow the user's commit policy.
+  The optional pytest trap still invokes an external Python interpreter. Host and
+  process I/O cross the compatibility adapter until native runtime integration;
+  no paid sessions have been run to verify packaged plugin behaviour.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -287,7 +295,7 @@ complete while any runtime component delegates production behaviour to Python.
   including native Windows behaviour. Current removal uses `remove_dir_all`.
 - Integrate the native controller and host operations into CLI and hooks.
 - Verify native CLI interruption and heartbeat cleanup when packaging the executables.
-- Port end-to-end model probes and CLI commands, and package the native hook.
+- Integrate the model probe and remaining CLI entry points, and package the native hook.
   Verify each host integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
   supporting tools, preserving their original test contracts.
@@ -698,6 +706,20 @@ complete while any runtime component delegates production behaviour to Python.
   normalises every scalar value and verifies all 19 authority-delimiter guards.
   The status/configuration probe, Clippy, formatting and all 256 reference files
   pass. Packaged native CLI/hook workflows and native Windows remain unverified.
+- Probe-focused run: 5 passed. Full suite with probe substitutions: 1,558 passed,
+  33 skipped (50.52 seconds). `validation/probe-calls.json` records the fixture
+  setup, three command classifications, one session reply and two log inspections
+  reaching Rust. The original fixture checks its pytest traps, passing unittest
+  and clean Git status. Git operations retain the configured signing home while
+  the original tests isolate agent history; the run used GPG agent access.
+  `ProbeProbe.java` compares offline reports with upstream and checks the test
+  adapter's report path, Unicode command boundaries, environment filtering, reply
+  parsing, timeout propagation, log inspection, ties-to-even rounding, plugin
+  discovery, fold deadlines, shell quoting, signed-commit arguments, no-session
+  reporting, deny-list restoration and temporary-directory cleanup on failure.
+  The CLI regression probe, Clippy, formatting and all 256 reference files pass.
+  Paid probe sessions, native runtime integration and packaged workflows remain
+  unverified. The original tests remain unchanged.
 
 ## Dependencies
 

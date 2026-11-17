@@ -42,6 +42,7 @@ NATIVE_SIDECALL_FUNCTIONS = {}
 NATIVE_TOOLCHECK_FUNCTIONS = {}
 NATIVE_HOOK_RUN = None
 NATIVE_HOOK_HOSTS = {}
+NATIVE_PROBE_GIT_ENV = {}
 
 
 def invoke(operation, arguments):
@@ -76,6 +77,8 @@ def wrap(original, operation):
             return hook_call(operation, arguments)
         if operation.startswith("cli."):
             return cli_call(operation, arguments)
+        if operation.startswith("probe."):
+            return probe_call(operation, arguments)
         if operation.startswith("hookqueue."):
             return hookqueue_call(operation, arguments)
         if operation.startswith("history."):
@@ -625,6 +628,9 @@ def wrap(original, operation):
 
 
 def pytest_configure(config):
+    global NATIVE_PROBE_GIT_ENV
+    NATIVE_PROBE_GIT_ENV = {key: os.environ[key] for key in ("HOME", "USERPROFILE", "GNUPGHOME")
+                            if key in os.environ}
     sys.path.insert(0, str(ROOT / "reference/upstream"))
     groups = {
         "pricing": ("resolve_model", "weights_for", "has_breakdown", "cache_write_1h_tokens",
@@ -635,7 +641,8 @@ def pytest_configure(config):
         "plugin.toolcheck": ("_request_tools", "_prompt_tokens", "_codex_prompt_chars", "_copilot_version", "verify_codex", "verify_copilot", "measure", "copilot_capture", "_init_tools", "_kill_tree", "refresh_catalog"),
         "plugin.repomap": ("_repo_dir", "_state_path", "_cache_dir", "read_state", "_write_state", "head_commit", "_has_aider", "_aider_command_python", "find_python", "_gen_env", "generate", "refresh", "stale", "spawn_refresh", "cached_block", "prompt_idents", "for_prompt"),
         "plugin.hook": ("_truthy", "run", "_record_error", "main"),
-        "plugin.cli": ("_split_argline", "_expand_argline", "_unwritable", "_refuse_unwritable", "_config_view", "_status_explanations", "_session_note", "_proposal", "cmd_status", "cmd_config", "cmd_microskills", "_microskills_forget", "_short", "_session_ctx", "cmd_fold", "cmd_judge", "_when", "_print_history", "cmd_history", "cmd_repomap", "cmd_repos", "_print_moves", "cmd_toolprune", "_toolprune_show", "_wait_and_apply", "cmd_doctor", "_recent_host", "_rtk_hook"),
+        "plugin.cli": ("_split_argline", "_expand_argline", "_unwritable", "_refuse_unwritable", "_config_view", "_status_explanations", "_session_note", "_proposal", "cmd_status", "cmd_config", "cmd_microskills", "_microskills_forget", "_short", "_session_ctx", "cmd_fold", "cmd_judge", "_when", "_print_history", "cmd_history", "cmd_repomap", "cmd_repos", "_print_moves", "cmd_toolprune", "_toolprune_show", "_wait_and_apply", "cmd_doctor", "cmd_probe", "_recent_host", "_rtk_hook"),
+        "plugin.probe": ("test_commands", "_write", "make_repo", "_plugin_root", "_session_env", "run_session", "inspect_session", "_wait_folded", "_line", "run"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
@@ -1046,6 +1053,9 @@ def cli_call(operation, arguments):
                 name, params = args
                 if name == "state_root":
                     value = paths.state_root()
+                elif name == "probe_run":
+                    from tokeneconomizer.plugin import probe
+                    value = probe.run(sessions=params[0], model=params[1], keep=params[2])
                 elif name == "runtime":
                     value = {"name": "python", "version": sys.version, "parts": list(sys.version_info[:2]),
                              "minimum": [3, 10], "required": "3.10"}
@@ -1153,6 +1163,96 @@ def cli_call(operation, arguments):
     if operation == "cli._session_ctx":
         restore_context(ctx, value, host)
         return ctx
+    return value
+
+
+def probe_call(operation, arguments):
+    from tokeneconomizer.plugin import probe
+    arguments = dict(arguments)
+    out = arguments.pop("out", print)
+    ctx = arguments.get("ctx")
+    exceptions = {}
+    if ctx is not None:
+        arguments["ctx"] = context_data(ctx)
+    arguments = {key: os.fspath(value) if isinstance(value, os.PathLike) else value
+                 for key, value in arguments.items()}
+    arguments.update(process_env=dict(os.environ), home=os.path.expanduser("~"),
+                     process_cwd=os.getcwd(), python=sys.executable, module_file=probe.__file__)
+    result = invoke(operation, arguments)
+    while isinstance(result, dict) and result.get("callback") == "cli":
+        method, args = result["method"], result["args"]
+        if method == "pending":
+            result = invoke("cli.resume", {"job": result["job"]})
+            continue
+        try:
+            if method == "say":
+                value = out(args)
+            else:
+                if method != "probe":
+                    raise AssertionError("Unknown probe callback: " + method)
+                name, params = args
+                if name == "program":
+                    value = probe.sidecall.program(*params)
+                elif name == "process":
+                    command, repo, env, timeout = params
+                    completed = probe.subprocess.run(command, cwd=repo, env=env, timeout=timeout,
+                        capture_output=True, encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL)
+                    value = {"stdout": completed.stdout, "stderr": completed.stderr}
+                elif name == "git":
+                    # The original fixtures isolate HOME; Git retains its configured signing identity.
+                    git_env = dict(os.environ)
+                    git_env.update(NATIVE_PROBE_GIT_ENV)
+                    probe.subprocess.run(params, check=True, env=git_env)
+                    value = None
+                elif name == "settle":
+                    value = probe.hosts.Copilot().settle(*params)
+                elif name == "time":
+                    value = probe.time.time()
+                elif name == "sleep":
+                    value = probe.time.sleep(*params)
+                elif name == "which":
+                    value = probe.shutil.which(*params)
+                elif name == "copilot_model":
+                    value = probe.sidecall.copilot_model(*params)
+                elif name == "plugin_root":
+                    value = probe._plugin_root()
+                elif name == "trusted_folders":
+                    value = probe.denylist.copilot_trusted_folders()
+                elif name == "writable":
+                    value = probe.os.access(params[0], os.W_OK)
+                elif name == "mkdtemp":
+                    value = probe.tempfile.mkdtemp(prefix=".te-probe-copilot-", dir=params[0])
+                elif name == "make_repo":
+                    value = probe.make_repo(*params)
+                elif name == "refresh_catalog":
+                    value = probe.toolcheck.refresh_catalog(*params, host="copilot")
+                elif name == "context":
+                    ctx = probe.LiveContext.build(probe.hosts.Copilot(), *params)
+                    value = context_data(ctx)
+                elif name == "run_session":
+                    value = probe.run_session(*params[:4], cli=params[4])
+                elif name == "wait_folded":
+                    value = probe._wait_folded(ctx, params[1])
+                elif name == "inspect_session":
+                    value = probe.inspect_session(*params)
+                elif name == "apply":
+                    value = probe.denylist.apply(params[0], params[1], ctx.store, host="copilot")
+                elif name == "restore":
+                    value = probe.denylist.restore(params[0], ctx.store, host="copilot")
+                else:
+                    raise AssertionError("Unknown probe service: " + name)
+            reply = {"value": value}
+        except Exception as error:
+            exceptions[type(error).__name__, str(error)] = error
+            reply = {"error": str(error), "kind": type(error).__name__,
+                     "parents": [base.__name__ for base in type(error).__mro__[1:]]}
+        result = invoke("cli.resume", {"job": result["job"], "reply": reply})
+    exception = exceptions.get((result.get("raised"), result.get("message")))
+    if exception is not None:
+        raise exception
+    value = storage_result(result)
+    if operation in ("probe.test_commands", "probe.make_repo", "probe.run_session"):
+        return tuple(value)
     return value
 
 

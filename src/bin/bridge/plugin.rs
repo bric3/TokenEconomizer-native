@@ -104,7 +104,7 @@ fn paths_dispatch(op: &str, args: &Value) -> Result<Value, String> {
 }
 
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
-    if op.starts_with("cli.") {
+    if op.starts_with("cli.") || op.starts_with("probe.") {
         return cli_dispatch::dispatch(op, args);
     }
     if op.starts_with("hook.") {
