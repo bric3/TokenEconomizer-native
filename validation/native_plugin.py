@@ -903,12 +903,17 @@ def pytest_configure(config):
     assert constants["RESULT_CAP"] == hosts.RESULT_CAP and constants["PROGRESS"] == hosts.PROGRESS
     assert set(constants["HOSTS"]) == set(hosts.HOSTS)
     for cls in (hosts.Host, *hosts.HOSTS.values()):
+        profile = invoke("host_helpers.profile", {"host": cls.name})
+        for name, value in profile.items():
+            assert getattr(cls, name) == value
+            setattr(cls, name, value)
         for name in ("tool_call", "session_id", "turn_key", "env_session_id", "is_subagent", "context", "notice", "relay", "stop_hint", "stopped_normally", "completed_at_end"):
             if name in cls.__dict__:
                 setattr(cls, name, wrap(getattr(cls, name), "host_helpers." + name))
-        for name in ("cwd", "transcript", "headless", "mechanism_trace", "session_usage", "prompt_count", "settle", "complete", "last_active", "session_state", "tool_usage", "history", "log_head", "safe_session_id", "prompt_turns", "turn_calls", "turn_interrupted", "turn_answered", "folder_matches"):
+        for name in ("cwd", "transcript", "headless", "mechanism_trace", "session_usage", "prompt_count", "settle", "complete", "last_active", "session_state", "tool_usage", "history", "log_head", "safe_session_id", "prompt_turns", "turn_calls", "turn_interrupted", "turn_answered", "folder_matches", "prepare", "record_event", "_state_path", "_load", "_save", "_prune", "expand", "_spool", "render"):
             if name in cls.__dict__:
                 setattr(cls, name, wrap(getattr(cls, name), "host_runtime." + name))
+    hosts.Antigravity._fresh = staticmethod(wrap(hosts.Antigravity._fresh, "host_runtime._fresh"))
     global NATIVE_HOST_ANCESTORS
     NATIVE_HOST_ANCESTORS = hosts._ancestor_args
 
@@ -988,11 +993,17 @@ def host_session_call(operation, arguments):
     from tokeneconomizer.plugin import hosts, sidecall
     arguments = dict(arguments)
     host = arguments.pop("self", None)
+    ctx = arguments.pop("ctx", None)
+    original_out = arguments.get("out")
+    arguments["ctx_env"] = dict(getattr(ctx, "env", {}))
     if host is not None:
         arguments["host"] = host.name
         arguments["limits"] = {"export_tries": getattr(host, "EXPORT_TRIES", 3),
                                "export_wait": getattr(host, "EXPORT_WAIT_S", 2.0),
                                "fold_retry": getattr(host, "FOLD_RETRY_S", 7 * 86400)}
+        arguments.update(state_dir=getattr(host, "STATE_DIR", "antigravity-sessions"),
+                         state_keep=getattr(host, "STATE_KEEP_S", 30 * 86400),
+                         context_cap=getattr(host, "CONTEXT_CAP", 10000))
     arguments.update(process_env=dict(os.environ), process_cwd=os.getcwd(), home=os.path.expanduser("~"),
                      parent_pid=os.getppid(), windows=os.name == "nt")
     arguments["transport"] = {"run": subprocess.run is not NATIVE_SPAWN_FUNCTIONS["run"],
@@ -1033,6 +1044,10 @@ def host_session_call(operation, arguments):
     if result.get("raised") == "FoldLater":
         raise hosts.FoldLater(result["message"])
     value = storage_result(result)
+    if operation == "host_runtime.render" and host.name == "grok":
+        original_out.clear()
+        original_out.update(value["out"])
+        return original_out
     if operation == "host_runtime.prompt_turns":
         return iter(value)
     if operation == "host_runtime.turn_calls":

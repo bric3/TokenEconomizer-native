@@ -14,6 +14,7 @@ pub(super) fn dispatch(op: &str, args: &Value) -> Result<Value, String> {
         .map_err(|e| e.to_string())?
         .unwrap_or_else(|| hosts::HOSTS.into_iter().map(String::from).collect());
     Ok(match op {
+        "host_helpers.profile" => json!(hosts::profile(host)),
         "host_helpers.constants" => {
             json!({"RESULT_CAP":hosts::RESULT_CAP,"PROGRESS":hosts::PROGRESS,"HOSTS":hosts::HOSTS})
         }

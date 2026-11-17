@@ -8,7 +8,10 @@ use std::{
     path::{Path, PathBuf},
 };
 use tokeneconomizer::plugin::{
-    hosts::session::{self, Environment, Error, Limits, Runtime},
+    hosts::{
+        session::{self, Environment, Error, Limits, Runtime},
+        state,
+    },
     process,
 };
 
@@ -87,7 +90,71 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> session::Result<V
     let transcript = args["transcript_path"].as_str();
     let parent = args["parent_pid"].as_u64().unwrap_or(0) as u32;
     let windows = args["windows"] == true;
+    let state_dir = args["state_dir"].as_str().unwrap_or(state::STATE_DIR);
+    let keep = args["state_keep"].as_f64().unwrap_or(state::STATE_KEEP_S);
     Ok(match op {
+        "host_runtime.prepare" => {
+            state::prepare(host, &args["payload"], &args["env"], &environment)?
+        }
+        "host_runtime.record_event" => {
+            state::record_event(&args["payload"], &environment)?;
+            Value::Null
+        }
+        "host_runtime._state_path" => json!(state::state_path(
+            &args["env"],
+            text(args, "cid"),
+            state_dir,
+            &environment
+        )?),
+        "host_runtime._load" => json!(state::load(
+            &args["env"],
+            text(args, "cid"),
+            state_dir,
+            &environment
+        )?),
+        "host_runtime._save" => {
+            state::save(
+                &args["env"],
+                text(args, "cid"),
+                &args["st"],
+                state_dir,
+                &environment,
+            )?;
+            Value::Null
+        }
+        "host_runtime._prune" => {
+            state::prune(&args["env"], state_dir, keep, &environment)?;
+            Value::Null
+        }
+        "host_runtime._fresh" => state::fresh(
+            args["path"]
+                .as_str()
+                .map(|p| environment.path(Path::new(p)))
+                .as_deref(),
+        ),
+        "host_runtime.expand" => json!(state::expand(
+            &args["payload"],
+            &args["env"],
+            state_dir,
+            keep,
+            &environment
+        )?),
+        "host_runtime._spool" => json!(state::spool(&args["payload"], &args["env"], &environment)?),
+        "host_runtime.render" => {
+            if host == "grok" {
+                let mut out = args["out"].clone();
+                state::render_grok(
+                    &args["payload"],
+                    &mut out,
+                    &args["ctx_env"],
+                    args["context_cap"].as_i64().unwrap_or(state::CONTEXT_CAP),
+                    &environment,
+                )?;
+                json!({"out":out})
+            } else {
+                state::render_antigravity(&args["payload"], &args["out"])?
+            }
+        }
         "host_runtime.copilot_home" => json!(session::copilot_home(&env, &environment.home)),
         "host_runtime.cwd" => session::cwd(host, &args["p"], &args["env"], &environment.cwd),
         "host_runtime.transcript" => session::transcript(host, &args["p"], &environment)?,

@@ -137,6 +137,12 @@ complete while any runtime component delegates production behaviour to Python.
   and hook environment remain distinct. Command resolution still calls the
   side-call component until it is ported. Stateful event preparation and spooling
   for Cursor, Antigravity and Grok remain pending.
+- Stateful host adapters now execute in Rust. Cursor translates events, filters
+  recorded fields and caps stored text. Antigravity persists private replay
+  cursors, prunes expired state and emits tool results before a new prompt.
+  Grok saves start context, claims it atomically for one hook, preserves the
+  tool's own context within its character budget and removes ended-session state.
+  Host metadata, notice channels and resume behaviour are also native.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -156,8 +162,9 @@ complete while any runtime component delegates production behaviour to Python.
   outside the current i64 range. Audit path-normalisation edge cases too.
 - Complete named-user and Windows tilde expansion for extra history directories
   in the path parity audit.
-- Include history and folding counters beyond i64 in the numeric parity audit.
-- Port host settings and integration, and controller.
+- Include history, folding and host replay counters beyond i64 in the numeric
+  parity audit.
+- Port the live controller and integrate native host operations into CLI and hooks.
 - Port side calls, model probes, tool checks, repository maps, CLI commands and
   hooks. Verify each host integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
@@ -375,6 +382,20 @@ complete while any runtime component delegates production behaviour to Python.
   The context, folding and established bridge probes, Clippy, formatting and all
   256 pinned reference files pass. Real agent commands and native Windows
   execution remain unverified.
+- Stateful-host focused run: 459 passed, 8 skipped. Adapter-only run after the
+  metadata checks: 88 passed, 6 skipped. Full suite with native stateful adapters:
+  1,558 passed, 33 skipped (52.64 seconds). `validation/host-state-calls.json`
+  records 196 event preparations, 47 Cursor recordings, 63 expansions and 160
+  renderings reaching Rust. Startup compares every built-in host's metadata with
+  its original class, including the shared base class.
+- `HostStateProbe.java` checks private spool permissions, dropping unrecorded
+  fields, Unicode text limits, eight races between two native processes claiming
+  the same saved context, malformed replay-state rejection, exact advancement of
+  a large integer string and pruning only expired files. Grok's filename character
+  classes follow the [Python word-character contract](https://docs.python.org/3.15/library/re.html#regular-expression-syntax);
+  the probe includes a combining mark and a Unicode numeric character. The host
+  session probe, Clippy, formatting and all 256 pinned reference files pass.
+  Full native entry points and real-agent integration remain pending.
 
 ## Dependencies
 
@@ -467,6 +488,7 @@ jbang validation/QueueProbe.java
 jbang validation/ContextProbe.java
 jbang validation/FoldProbe.java
 jbang validation/HostSessionProbe.java
+jbang validation/HostStateProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 

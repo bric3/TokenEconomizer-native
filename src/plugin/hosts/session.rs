@@ -161,7 +161,7 @@ pub fn transcript(host: &str, p: &Value, environment: &Environment) -> Result<Va
     let sid = session_id(host, p);
     Ok(match host {
         "cursor" if !sid.is_empty() => {
-            let safe = sid.rsplit(std::path::MAIN_SEPARATOR).next().unwrap_or("");
+            let safe = basename(&sid);
             json!(
                 paths::state_root(&environment.env, &environment.home)?
                     .join("cursor-sessions")
@@ -176,6 +176,13 @@ pub fn transcript(host: &str, p: &Value, environment: &Environment) -> Result<Va
         ),
         _ => json!(""),
     })
+}
+pub(super) fn basename(path: &str) -> &str {
+    if cfg!(windows) {
+        path.rsplit(['\\', '/']).next().unwrap_or("")
+    } else {
+        path.rsplit('/').next().unwrap_or("")
+    }
 }
 pub fn headless(
     host: &str,

@@ -4,6 +4,7 @@ use crate::{
     value::{scalar_text, truthy},
 };
 use regex::Regex;
+use serde::Serialize;
 use serde_json::{Value, json};
 use std::sync::LazyLock;
 
@@ -20,6 +21,47 @@ pub const HOSTS: [&str; 10] = [
     "grok",
     "antigravity",
 ];
+#[derive(Serialize)]
+pub struct HostProfile {
+    pub name: String,
+    pub interrupt: &'static str,
+    pub end_run: &'static str,
+    pub prompt_context: bool,
+    pub relays_notices: bool,
+    pub keeps_start_context: bool,
+    pub keeps_history: bool,
+}
+pub fn profile(name: &str) -> HostProfile {
+    HostProfile {
+        name: name.into(),
+        interrupt: match name {
+            "claude" | "opencode" => "Press Esc to interrupt it.",
+            "codex" => "Press Esc to interrupt it, then /stop to end a command it left running.",
+            "pi" => "Press Esc to abort it.",
+            "cursor" => "Press Esc to stop the Cursor agent.",
+            "hermes" => "Press Ctrl+C to interrupt it.",
+            "antigravity" => "Press Esc to cancel the turn.",
+            "grok" => "Press Ctrl+C to cancel the turn (Esc does not cancel it).",
+            "copilot" => "Press Esc twice to interrupt it.",
+            _ => "Interrupt the agent to stop it.",
+        },
+        end_run: match name {
+            "pi" => "Press Ctrl+C to end the run; a command it started runs on until it finishes.",
+            "cursor" => "Press Ctrl+C to end the Cursor Agent CLI run.",
+            _ => "Press Ctrl+C to end the run.",
+        },
+        prompt_context: matches!(
+            name,
+            "claude" | "pi" | "opencode" | "hermes" | "copilot" | "droid"
+        ),
+        relays_notices: matches!(
+            name,
+            "claude" | "cursor" | "hermes" | "antigravity" | "grok" | "droid"
+        ),
+        keeps_start_context: name != "copilot",
+        keeps_history: matches!(name, "claude" | "droid"),
+    }
+}
 const RESPONSE_KEYS: [&str; 10] = [
     "stdout",
     "stderr",
