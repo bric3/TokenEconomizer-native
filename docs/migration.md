@@ -177,11 +177,17 @@ complete while any runtime component delegates production behaviour to Python.
   log. Droid allows only `Read`, accepts structured and older plain-text replies,
   and reads usage from the response or its session settings. The shared native
   host runtime resolves commands and process ancestry without a test callback.
-  Hermes and runner orchestration remain pending.
+  Runner orchestration remains pending.
 - The on-device `fm` command now executes in Rust: platform and executable checks,
   per-executable availability caching, private JSON schema files, prompt stdin,
   greedy non-streaming arguments, ANSI removal, empty and error replies, timeout
   notes and zero-cost results. Runner routing and fallback still cross callbacks.
+- Hermes side calls now execute in Rust: private query files, gateway-safe
+  environments, usage and title polling, per-model pricing, deletion after
+  charging, deferred records under a host lock, abandoned-session handling and
+  retrying a failed deletion without charging it again. Timed-out sessions are
+  recovered by their source, prompt and start time. The existing read-only
+  Hermes database reader supplies the session and usage rows.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -204,6 +210,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Include history, folding, controller and host replay counters beyond i64 in the numeric
   parity audit.
 - Include side-call usage beyond i128 in the numeric parity audit.
+- Audit temporary-directory cleanup against Python's permission-repair retries,
+  including native Windows behaviour. Current removal uses `remove_dir_all`.
 - Integrate the native controller and host operations into CLI and hooks.
 - Port side calls, model probes, tool checks, repository maps, CLI commands and
   hooks. Verify each host integration and its launcher and packaging contracts.
@@ -492,6 +500,18 @@ complete while any runtime component delegates production behaviour to Python.
   timeout cleanup without recording the prompt in the error log. The seven-host
   probe, Clippy, formatting and all 256 reference files pass. The system's actual
   on-device model and native Windows execution remain unverified.
+- Hermes side-call focused run: 370 passed, 6 skipped. Full suite with native
+  Hermes calls and deferred recovery: 1,558 passed, 33 skipped (51.17 seconds).
+  `validation/hermes-sidecall-calls.json` records native entries, including 13
+  Hermes calls. Patched accounting callbacks retain the original per-model spy;
+  normal pricing runs inside Rust.
+- `HermesCallProbe.java` runs a local CLI fixture against SQLite. It checks
+  private UTF-8 query files, gateway environment filtering, distinct model prices,
+  title usage appended after the CLI exits, charge-before-delete ordering,
+  timed-out-session recovery, failed-delete retries and eight concurrent ledger
+  updates. The seven-host probe, Clippy and formatting pass. All 256 archived
+  files pass the integrity check. No real gateway or model runs in these checks;
+  native Windows execution remains unverified.
 
 ## Dependencies
 
@@ -590,6 +610,7 @@ jbang validation/ProcessInputProbe.java
 jbang validation/ClaudeCallProbe.java
 jbang validation/AgentCallsProbe.java
 jbang validation/LocalModelProbe.java
+jbang validation/HermesCallProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 

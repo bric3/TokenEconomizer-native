@@ -18,8 +18,10 @@ use std::{
         LazyLock,
         atomic::{AtomicU64, Ordering},
     },
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
+
+pub mod hermes;
 
 pub const TIMEOUT_S: u64 = 180;
 pub const FM_CLI: &str = "/usr/bin/fm";
@@ -70,6 +72,18 @@ pub const COPILOT_TOOLS: [&str; 24] = [
 pub const DROID_TOOLS: &str = "Read";
 
 pub trait Runtime {
+    fn now(&mut self) -> Result<f64, String> {
+        Ok(super::history::now())
+    }
+    fn sleep(&mut self, seconds: f64) -> Result<(), String> {
+        std::thread::sleep(Duration::try_from_secs_f64(seconds).map_err(|e| e.to_string())?);
+        Ok(())
+    }
+    fn effective(&mut self, usage: &Value) -> Result<Option<f64>, String> {
+        accounting::effective(usage)
+            .map(|v| v.0)
+            .map_err(|e| e.to_string())
+    }
     fn executable(&mut self, path: &Path) -> Result<bool, String> {
         paths::executable(path)
     }
@@ -96,6 +110,9 @@ pub trait Runtime {
     }
     fn claude_cli(&mut self, environment: &Environment, windows: bool) -> Result<String, String> {
         installed_cli("claude", environment, windows, self)
+    }
+    fn hermes_cli(&mut self, environment: &Environment) -> Result<String, String> {
+        installed_cli("hermes", environment, false, self)
     }
     fn run(
         &mut self,
@@ -428,10 +445,20 @@ impl WorkDir {
             }
         }
     }
+    fn close(mut self) -> io::Result<()> {
+        // shortcut: cleanup omits permission repair, add retries during the filesystem parity audit.
+        let path = std::mem::take(&mut self.0);
+        match fs::remove_dir_all(path) {
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+            result => result,
+        }
+    }
 }
 impl Drop for WorkDir {
     fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
+        if !self.0.as_os_str().is_empty() {
+            let _ = fs::remove_dir_all(&self.0);
+        }
     }
 }
 fn with_work_dir<T>(
@@ -439,7 +466,15 @@ fn with_work_dir<T>(
     runtime: &mut dyn Runtime,
     call: impl FnOnce(&Path, &mut dyn Runtime) -> Result<T, String>,
 ) -> Result<T, String> {
-    let external = runtime.temporary_directory(prefix, true)?;
+    with_directory(prefix, true, runtime, call)
+}
+fn with_directory<T>(
+    prefix: &str,
+    ignore_cleanup_errors: bool,
+    runtime: &mut dyn Runtime,
+    call: impl FnOnce(&Path, &mut dyn Runtime) -> Result<T, String>,
+) -> Result<T, String> {
+    let external = runtime.temporary_directory(prefix, ignore_cleanup_errors)?;
     let owned = if external.is_none() {
         Some(WorkDir::new(prefix).map_err(|e| e.to_string())?)
     } else {
@@ -451,6 +486,8 @@ fn with_work_dir<T>(
     let result = call(path, runtime);
     if external.is_some() {
         runtime.remove_temporary_directory(path)?;
+    } else if !ignore_cleanup_errors {
+        owned.unwrap().close().map_err(|e| e.to_string())?;
     }
     result
 }

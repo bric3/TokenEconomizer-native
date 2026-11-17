@@ -13,6 +13,31 @@ struct Transport {
     flags: Value,
 }
 impl Runtime for Transport {
+    fn effective(&mut self, usage: &Value) -> Result<Option<f64>, String> {
+        if self.flags["effective"] != true {
+            return tokeneconomizer::accounting::effective(usage)
+                .map(|v| v.0)
+                .map_err(|e| e.to_string());
+        }
+        let reply = self.channel.call("effective", json!([usage]))?;
+        if let Some(error) = reply["error"].as_str() {
+            return Err(error.into());
+        }
+        Ok(reply["value"][0].as_f64())
+    }
+    fn hermes_cli(&mut self, environment: &Environment) -> Result<String, String> {
+        if self.flags["hermes_cli"] != true {
+            return sidecall::installed_cli("hermes", environment, false, self);
+        }
+        let reply = self.channel.call("hermes_cli", json!([]))?;
+        if let Some(error) = reply["error"].as_str() {
+            return Err(error.into());
+        }
+        reply["value"]
+            .as_str()
+            .map(String::from)
+            .ok_or("invalid Hermes executable".into())
+    }
     fn executable(&mut self, path: &Path) -> Result<bool, String> {
         if self.flags["access"] != true {
             return paths::executable(path);
@@ -147,6 +172,56 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value, Str
     };
     let root = environment.path(Path::new(text(args, "root")));
     let host = text(args, "host");
+    if op.starts_with("sidecall._hermes_") && op != "sidecall._hermes_env"
+        || matches!(op, "sidecall.hermes_home" | "sidecall.hermes_call")
+    {
+        let defaults = sidecall::hermes::Limits::default();
+        let hermes = sidecall::hermes::Hermes {
+            environment: &environment,
+            root: &root,
+            limits: sidecall::hermes::Limits {
+                delete_timeout: args["hermes_limits"]["delete_timeout"]
+                    .as_f64()
+                    .unwrap_or(defaults.delete_timeout),
+                title_wait: args["hermes_limits"]["title_wait"]
+                    .as_f64()
+                    .unwrap_or(defaults.title_wait),
+                abandon: args["hermes_limits"]["abandon"]
+                    .as_f64()
+                    .unwrap_or(defaults.abandon),
+            },
+        };
+        let sid = text(args, "session_id");
+        let cli = text(args, "cli");
+        let value = match op {
+            "sidecall.hermes_home" => json!(hermes.home()),
+            "sidecall._hermes_db" => json!(hermes.db()),
+            "sidecall._hermes_ledger" => json!(hermes.ledger()?.base),
+            "sidecall._hermes_charge" => json!(hermes.charge(
+                sid,
+                args["wait_s"].as_f64(),
+                args["abandoned"] == true,
+                runtime
+            )?),
+            "sidecall._hermes_delete" => json!(hermes.delete(sid, cli, runtime)),
+            "sidecall._hermes_settle" => json!(hermes.settle(
+                sid,
+                cli,
+                args["charged"] == true,
+                args["wait_s"].as_f64(),
+                args["abandoned"] == true,
+                runtime
+            )?),
+            "sidecall._hermes_defer" => {
+                hermes.defer(sid, &args["left"], runtime)?;
+                Value::Null
+            }
+            "sidecall._hermes_settle_earlier" => json!(hermes.settle_earlier(cli, runtime)?),
+            "sidecall.hermes_call" => json!(hermes.call(&request(args), runtime)?),
+            _ => return Err(format!("unknown Hermes operation: {op}")),
+        };
+        return Ok(json!({"value":value}));
+    }
     if op == "sidecall.fm_available" {
         let mut cache = args["fm_ok"].as_object().cloned().unwrap_or_default();
         let value = sidecall::fm_available(
@@ -361,7 +436,7 @@ fn execute(op: &str, args: &Value, runtime: &mut Transport) -> Result<Value, Str
 pub(super) fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
     if op == "sidecall.constants" {
         return Ok(Some(
-            json!({"TIMEOUT_S":sidecall::TIMEOUT_S,"FM_CLI":sidecall::FM_CLI,"FM_TIMEOUT_S":sidecall::FM_TIMEOUT_S,"NO_SIDE_CALLS":sidecall::NO_SIDE_CALLS,"PI_FLAGS":sidecall::PI_FLAGS,"GROK_TOOLS":sidecall::GROK_TOOLS,"GROK_REMOVED":sidecall::GROK_REMOVED,"GROK_DENY_RULES":sidecall::GROK_DENY_RULES,"OPENCODE_CONFIG":sidecall::OPENCODE_CONFIG,"COPILOT_TOOLS":sidecall::COPILOT_TOOLS,"DROID_TOOLS":sidecall::DROID_TOOLS}),
+            json!({"TIMEOUT_S":sidecall::TIMEOUT_S,"FM_CLI":sidecall::FM_CLI,"FM_TIMEOUT_S":sidecall::FM_TIMEOUT_S,"NO_SIDE_CALLS":sidecall::NO_SIDE_CALLS,"PI_FLAGS":sidecall::PI_FLAGS,"GROK_TOOLS":sidecall::GROK_TOOLS,"GROK_REMOVED":sidecall::GROK_REMOVED,"GROK_DENY_RULES":sidecall::GROK_DENY_RULES,"OPENCODE_CONFIG":sidecall::OPENCODE_CONFIG,"COPILOT_TOOLS":sidecall::COPILOT_TOOLS,"DROID_TOOLS":sidecall::DROID_TOOLS,"HERMES_SOURCE":sidecall::hermes::SOURCE,"HERMES_FLAGS":sidecall::hermes::FLAGS,"HERMES_DELETE_TIMEOUT_S":sidecall::hermes::DELETE_TIMEOUT_S,"HERMES_TITLE_WAIT_S":sidecall::hermes::TITLE_WAIT_S,"HERMES_ABANDON_S":sidecall::hermes::ABANDON_S}),
         ));
     }
     if op == "sidecall.resume_job" {

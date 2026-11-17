@@ -620,7 +620,7 @@ def pytest_configure(config):
                     "effective_tokens", "approx_tokens", "runner_effective_or_approx"),
         "ledger": ("overhead", "effective_exec"),
         "plugin.accounting": ("effective", "overhead_total", "summarize", "fmt_tokens"),
-        "plugin.sidecall": ("_obj", "_env", "_hermes_env", "_pause_path", "paused", "resume", "_log", "_no_reply", "claude_cli", "hermes_cli", "_shim_argv", "program", "claude_json", "copilot_model", "droid_enabled", "_droid_usage", "local_routes", "call_name", "_claude_help", "claude_flags", "claude_no_mcp", "claude_call", "codex_call", "pi_extension_args", "pi_call", "cursor_call", "grok_call", "opencode_flags", "opencode_call", "copilot_call", "_droid_sessions_root", "_droid_settings_usage", "droid_call", "fm_available", "fm_call"),
+        "plugin.sidecall": ("_obj", "_env", "_hermes_env", "_pause_path", "paused", "resume", "_log", "_no_reply", "claude_cli", "hermes_cli", "_shim_argv", "program", "claude_json", "copilot_model", "droid_enabled", "_droid_usage", "local_routes", "call_name", "_claude_help", "claude_flags", "claude_no_mcp", "claude_call", "codex_call", "pi_extension_args", "pi_call", "cursor_call", "grok_call", "opencode_flags", "opencode_call", "copilot_call", "_droid_sessions_root", "_droid_settings_usage", "droid_call", "fm_available", "fm_call", "hermes_home", "_hermes_db", "_hermes_ledger", "_hermes_charge", "_hermes_delete", "_hermes_settle", "_hermes_defer", "_hermes_settle_earlier", "hermes_call"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
@@ -718,13 +718,14 @@ def pytest_configure(config):
     LIVE_CONFIG_ENV = invoke("live_config.environment", {})
     from tokeneconomizer.plugin import repos, hosts, sidecall
     constants = invoke("sidecall.constants", {})
-    for name in ("TIMEOUT_S", "FM_CLI", "FM_TIMEOUT_S", "GROK_TOOLS", "GROK_REMOVED", "OPENCODE_CONFIG", "DROID_TOOLS"):
+    for name in ("TIMEOUT_S", "FM_CLI", "FM_TIMEOUT_S", "GROK_TOOLS", "GROK_REMOVED", "OPENCODE_CONFIG", "DROID_TOOLS", "HERMES_SOURCE", "HERMES_DELETE_TIMEOUT_S", "HERMES_TITLE_WAIT_S", "HERMES_ABANDON_S"):
         assert constants[name] == getattr(sidecall, name)
-    for name in ("PI_FLAGS", "GROK_DENY_RULES", "COPILOT_TOOLS"):
+    for name in ("PI_FLAGS", "GROK_DENY_RULES", "COPILOT_TOOLS", "HERMES_FLAGS"):
         assert tuple(constants[name]) == getattr(sidecall, name)
     assert set(constants["NO_SIDE_CALLS"]) == sidecall.NO_SIDE_CALLS
     global NATIVE_SIDECALL_FUNCTIONS
-    NATIVE_SIDECALL_FUNCTIONS = {name: getattr(sidecall, name) for name in ("claude_cli", "program")}
+    NATIVE_SIDECALL_FUNCTIONS = {name: getattr(sidecall, name) for name in ("claude_cli", "hermes_cli", "program")}
+    NATIVE_SIDECALL_FUNCTIONS["effective"] = sidecall.accounting.effective
     NATIVE_SIDECALL_FUNCTIONS["temporary_directory"] = sidecall.tempfile.TemporaryDirectory
     NATIVE_SIDECALL_FUNCTIONS["access"] = sidecall.os.access
     constants = invoke("repos.constants", {})
@@ -1033,10 +1034,14 @@ def sidecall_call(operation, arguments):
                          code=getattr(out, "returncode", "?"))
     arguments.update(home=os.path.expanduser("~"), process_cwd=os.getcwd(), windows=os.name == "nt", macos=sidecall._macos())
     arguments.update(help=dict(sidecall._HELP), oc_flags=dict(sidecall._OC_FLAGS), fm_ok=dict(sidecall._fm_ok), transport={"run": subprocess.run is not NATIVE_SPAWN_FUNCTIONS["run"],
+                                                       "hermes_cli": sidecall.hermes_cli is not NATIVE_SIDECALL_FUNCTIONS["hermes_cli"],
+                                                       "effective": sidecall.accounting.effective is not NATIVE_SIDECALL_FUNCTIONS["effective"],
                                                        "access": sidecall.os.access is not NATIVE_SIDECALL_FUNCTIONS["access"],
                                                        "program": sidecall.program is not NATIVE_SIDECALL_FUNCTIONS["program"],
                                                        "temporary_directory": sidecall.tempfile.TemporaryDirectory is not NATIVE_SIDECALL_FUNCTIONS["temporary_directory"],
                                                        "claude_cli": sidecall.claude_cli is not NATIVE_SIDECALL_FUNCTIONS["claude_cli"]})
+    arguments["hermes_limits"] = {"delete_timeout": sidecall.HERMES_DELETE_TIMEOUT_S,
+                                  "title_wait": sidecall.HERMES_TITLE_WAIT_S, "abandon": sidecall.HERMES_ABANDON_S}
     last_error = None
     temporary = None
     result = invoke(operation, arguments)
@@ -1049,6 +1054,10 @@ def sidecall_call(operation, arguments):
                 value = sidecall.shutil.which(*result["args"])
             elif result["method"] == "claude_cli":
                 value = sidecall.claude_cli()
+            elif result["method"] == "hermes_cli":
+                value = sidecall.hermes_cli()
+            elif result["method"] == "effective":
+                value = sidecall.accounting.effective(*result["args"])
             elif result["method"] == "program":
                 value = sidecall.program(*result["args"])
             elif result["method"] == "access":
@@ -1084,7 +1093,10 @@ def sidecall_call(operation, arguments):
     if last_error is not None and isinstance(result, dict) and "raised" in result and result.get("message") == str(last_error):
         raise last_error
     value = storage_result(result)
-    return tuple(value) if operation in ("sidecall.claude_call", "sidecall.codex_call", "sidecall.pi_call", "sidecall.cursor_call", "sidecall.grok_call", "sidecall.opencode_call", "sidecall.copilot_call", "sidecall.droid_call", "sidecall.fm_call") else value
+    if operation == "sidecall._hermes_ledger":
+        from tokeneconomizer.plugin.store import Store
+        return Store(value)
+    return tuple(value) if operation in ("sidecall.claude_call", "sidecall.codex_call", "sidecall.pi_call", "sidecall.cursor_call", "sidecall.grok_call", "sidecall.opencode_call", "sidecall.copilot_call", "sidecall.droid_call", "sidecall.fm_call", "sidecall.hermes_call", "sidecall._hermes_settle") else value
 
 
 def controller_data(ctl):
