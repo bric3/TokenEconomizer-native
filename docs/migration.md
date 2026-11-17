@@ -360,6 +360,11 @@ complete while any runtime component delegates production behaviour to Python.
   tracks failed verification scopes, selects deterministic nudges, and continues
   only on a captured thread. Its iterator retains the source's lazy first-thread
   behaviour. The original classes serve as data and callback bindings in tests.
+- The generic experiment nudge controller now executes in Rust. It folds streamed
+  tool calls, samples the judge with productive backoff, records token costs and
+  decisions, and builds continuation prompts. Continuation resets the segment
+  state while retaining cumulative turns, costs and history. Its cumulative
+  backstop aborts immediately, including when nudge budget remains.
 
 ## Remaining production work
 
@@ -374,6 +379,8 @@ complete while any runtime component delegates production behaviour to Python.
   Include the Hermes redirect helper's raw JSON validation in that audit.
   Include dataset IDs outside the documented string schemas and exact JSON error
   diagnostics in that audit.
+  Include malformed judge/writer token totals and partial threshold dictionaries
+  in the exception-diagnostics audit.
   Configuration numeric coercion still needs Unicode decimal digits and integers
   outside the current i64 range. Audit path-normalisation edge cases and typed I/O
   errors from repository identity too.
@@ -397,7 +404,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Verify each host integration in its own runtime, including Windows launchers.
 - Include SDK JSON nesting, environment snapshots and exit-control packet bounds
   in the production-parity audit.
-- Port the experiment facade, generic nudge controller, task runners and
+- Port the experiment facade, task runners and
   supporting tools, preserving their original test contracts.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
@@ -1017,6 +1024,22 @@ complete while any runtime component delegates production behaviour to Python.
   unchanged. Integer-range and project-wide regex audits remain open; no improvement
   pass is counted. The experiment facade, generic nudge controller and task runners
   remain in Python.
+- Generic nudge-controller comparisons pass in 88 cases. They cover judge cadence
+  and productive backoff, callback failures and malformed replies, token costs,
+  targeted and fallback nudges, empty/custom resume headers, continuation resets,
+  batched stream results, cumulative hard backstops and verbose telemetry. The
+  resume header matches the pinned source exactly. Batched callback replay retains
+  the first unanswered request. The focused original tests pass: 52 passed.
+  The full original suite with installed-opencode tests enabled passes with
+  1,561 passed and 30 skipped (68.33 seconds). The original tests exercise the
+  constructor; the differential probe and two Rust checks exercise the controller.
+  `validation/experiment-nudge-calls.json` records the original suite's native
+  entries. All 11 Rust library checks and the callback replay check pass, alongside
+  debug/release builds, Clippy, formatting, the 485-case spiral regression, the
+  127-case adapter regression and the 256-file reference check. Original tests
+  remain unchanged. No improvement pass is counted. The facade and task runners
+  remain in Python; numeric limits and malformed-input diagnostics remain in the
+  production-parity audit.
 
 ## Dependencies
 
@@ -1139,6 +1162,7 @@ Small Java validation tools check the migration infrastructure:
 jbang validation/VerifyReference.java
 jbang validation/AdapterProbe.java
 jbang validation/SpiralProbe.java
+jbang validation/NudgeProbe.java
 jbang validation/BridgeProbe.java
 jbang validation/QueueProbe.java
 jbang validation/ContextProbe.java

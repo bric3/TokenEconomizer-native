@@ -26,7 +26,7 @@ impl CallbackTape {
             }
             return Ok(reply.clone());
         }
-        self.pending = Some(request);
+        self.pending.get_or_insert(request);
         Err("callback pending".into())
     }
 
@@ -74,5 +74,19 @@ impl Runner for RunnerTransport<'_> {
         reply["value"]
             .as_f64()
             .ok_or_else(|| "expected numeric runner estimate".into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_replies_keep_the_first_callback() {
+        let mut tape = CallbackTape::new(&json!({}));
+        let first = json!({"callback":"first"});
+        assert!(tape.call(first.clone()).is_err());
+        assert!(tape.call(json!({"callback":"later"})).is_err());
+        assert_eq!(tape.finish(Value::Null), first);
     }
 }

@@ -2928,6 +2928,9 @@ def install_opencode_sdk(module):
 
 
 def pytest_collection_modifyitems(items):
+    if "te_bench.nudge_guard" in sys.modules:
+        from native_experiment_nudge import install
+        install()
     if "te_bench.adapters" in sys.modules:
         install_experiment_adapters()
     if "te_bench.codex_spiral" in sys.modules or "te_bench.spiral_stage" in sys.modules:

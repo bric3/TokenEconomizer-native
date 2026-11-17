@@ -15,7 +15,7 @@ fn text<'a>(args: &'a Value, key: &str) -> &'a str {
 fn decode<T: serde::de::DeserializeOwned>(value: &Value) -> Result<T, String> {
     serde_json::from_value(value.clone()).map_err(|e| e.to_string())
 }
-fn failure(error: String) -> Value {
+pub(super) fn failure(error: String) -> Value {
     let (kind, message) = error
         .split_once(": ")
         .filter(|(kind, _)| {

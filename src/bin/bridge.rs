@@ -13,6 +13,8 @@ mod hermes_dispatch;
 mod job;
 #[path = "bridge/microskills.rs"]
 mod microskills_dispatch;
+#[path = "bridge/experiment_nudge.rs"]
+mod nudge_dispatch;
 #[path = "bridge/plugin.rs"]
 mod plugin_dispatch;
 #[path = "bridge/prefix.rs"]
@@ -42,6 +44,9 @@ use tokeneconomizer::{
 
 fn dispatch(request: &Value) -> Result<Value, String> {
     let args = &request["args"];
+    if let Some(value) = nudge_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
+        return Ok(value);
+    }
     if let Some(value) = spiral_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
         return Ok(value);
     }
