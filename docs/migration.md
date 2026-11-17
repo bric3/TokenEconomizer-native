@@ -101,8 +101,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Hook queues now execute in Rust: session locks, bounded waits, atomic enqueue,
   ordered drains, removal before replay, session checks, replay error isolation,
   event and time budgets, fallback handling and idle pruning. Taking a lock
-  refreshes its timestamps before pruning. Controller construction and handler
-  calls remain callbacks until the controller is ported.
+  refreshes its timestamps before pruning. The live controller constructs replay
+  controllers and invokes their handlers in Rust.
 - History import orchestration now executes in Rust: repository matching, ordered
   plans, eligibility checks, fold refusal, budgets, checkpoints, crash attempts,
   heartbeats, restart and stop decisions, notices and status summaries. Imported
@@ -143,6 +143,12 @@ complete while any runtime component delegates production behaviour to Python.
   Grok saves start context, claims it atomically for one hook, preserves the
   tool's own context within its character budget and removes ended-session state.
   Host metadata, notice channels and resume behaviour are also native.
+- The live controller now executes in Rust: cached facts and notices, session
+  lifecycle, prompt turns, repository-map injection, envelope updates, sampled
+  judges, redirects and abort notices. Queued decisions remain uncounted until
+  a hook can deliver them. Side-call policy and repository-map generation still
+  cross callbacks; the existing native history, folding and launcher components
+  are connected through the test transport until CLI integration.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -162,9 +168,9 @@ complete while any runtime component delegates production behaviour to Python.
   outside the current i64 range. Audit path-normalisation edge cases too.
 - Complete named-user and Windows tilde expansion for extra history directories
   in the path parity audit.
-- Include history, folding and host replay counters beyond i64 in the numeric
+- Include history, folding, controller and host replay counters beyond i64 in the numeric
   parity audit.
-- Port the live controller and integrate native host operations into CLI and hooks.
+- Integrate the native controller and host operations into CLI and hooks.
 - Port side calls, model probes, tool checks, repository maps, CLI commands and
   hooks. Verify each host integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
@@ -396,6 +402,16 @@ complete while any runtime component delegates production behaviour to Python.
   the probe includes a combining mark and a Unicode numeric character. The host
   session probe, Clippy, formatting and all 256 pinned reference files pass.
   Full native entry points and real-agent integration remain pending.
+- Controller-focused run: 181 passed, 3 skipped. Full suite with the native
+  controller: 1,558 passed, 33 skipped (50.93 seconds).
+  `validation/controller-calls.json` records entries reaching Rust; nested guard,
+  queue and envelope operations stay inside the native controller.
+- `ControllerProbe.java` runs nine concurrent native controller processes against
+  one session, checks envelope learning from the completed turn, holds a redirect
+  reached during replay and delivers it once on the next live hook. The response
+  retains `PostToolUseFailure` and the queued event is removed. No reference hook
+  executable or agent CLI runs in this probe. Clippy, formatting and the integrity
+  check of all 256 archived files pass.
 
 ## Dependencies
 
@@ -489,6 +505,7 @@ jbang validation/ContextProbe.java
 jbang validation/FoldProbe.java
 jbang validation/HostSessionProbe.java
 jbang validation/HostStateProbe.java
+jbang validation/ControllerProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 

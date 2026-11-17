@@ -8,6 +8,7 @@ use crate::{store::Store, value::truthy};
 use serde_json::{Map, Value, json};
 use std::path::{Path, PathBuf};
 
+#[derive(Clone)]
 pub struct LiveContext {
     pub root: PathBuf,
     pub store: Store,
@@ -90,10 +91,16 @@ impl LiveContext {
         transcript: Option<&str>,
         runtime: &mut dyn Runtime,
     ) -> Result<bool, String> {
+        match self.headless_override() {
+            Some(value) => Ok(value),
+            None => runtime.headless(&self.env, transcript),
+        }
+    }
+    pub fn headless_override(&self) -> Option<bool> {
         match self.config["mode"].as_str() {
-            Some("headless") => Ok(true),
-            Some("interactive") => Ok(false),
-            _ => runtime.headless(&self.env, transcript),
+            Some("headless") => Some(true),
+            Some("interactive") => Some(false),
+            _ => None,
         }
     }
     pub fn settle(&mut self) -> Result<(), String> {

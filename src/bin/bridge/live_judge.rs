@@ -28,6 +28,12 @@ struct Model {
     channel: Channel,
     role: String,
 }
+pub(super) fn model(channel: Channel, role: &str) -> Box<dyn Runner> {
+    Box::new(Model {
+        channel,
+        role: role.into(),
+    })
+}
 impl Model {
     fn call(&self, method: &str, args: Value) -> Result<Value, String> {
         let reply = self.channel.call(method, args)?;

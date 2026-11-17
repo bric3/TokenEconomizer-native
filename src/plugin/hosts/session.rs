@@ -48,6 +48,7 @@ impl From<String> for Error {
 }
 pub type Result<T> = std::result::Result<T, Error>;
 
+#[derive(Clone)]
 pub struct Environment {
     pub env: Map<String, Value>,
     pub home: PathBuf,

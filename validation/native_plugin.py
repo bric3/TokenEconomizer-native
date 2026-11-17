@@ -35,6 +35,7 @@ NATIVE_SPAWN_FUNCTIONS = {}
 NATIVE_FOLD_FUNCTIONS = {}
 NATIVE_FOLD_DENY = {}
 NATIVE_HOST_ANCESTORS = None
+NATIVE_CONTROLLER_FUNCTIONS = {}
 
 
 def invoke(operation, arguments):
@@ -75,6 +76,8 @@ def wrap(original, operation):
             return host_call(operation, arguments)
         if operation.startswith("host_runtime."):
             return host_session_call(operation, arguments)
+        if operation.startswith("controller."):
+            return controller_call(operation, arguments)
         if operation.startswith(("context.", "winspawn.")):
             return context_call(operation, arguments)
         if operation == "trace.copilot.copilot_mcp_servers":
@@ -917,6 +920,15 @@ def pytest_configure(config):
     global NATIVE_HOST_ANCESTORS
     NATIVE_HOST_ANCESTORS = hosts._ancestor_args
 
+    from tokeneconomizer.plugin.controller import LiveController
+    constants = invoke("controller.constants", {})
+    assert constants["TURN_HISTORY"] == importlib.import_module("tokeneconomizer.plugin.controller").TURN_HISTORY
+    LiveController.__init__ = controller_constructor
+    for name in ("_sess_name", "_session", "_save", "_cmd", "_log", "handler", "handle", "session_start", "_record_error", "_toolprune_notices", "_inject_map", "_close_turn", "user_prompt", "stop", "_judge", "post_tool", "session_end"):
+        setattr(LiveController, name, wrap(getattr(LiveController, name), "controller." + name))
+    global NATIVE_CONTROLLER_FUNCTIONS
+    NATIVE_CONTROLLER_FUNCTIONS = {name: getattr(LiveController, name) for name in ("session_start", "user_prompt", "post_tool", "stop", "session_end")}
+
     from tokeneconomizer.loopguard.envelope import EnvelopeTracker
     EnvelopeTracker.__init__ = state_constructor(EnvelopeTracker, "envelope.new")
     EnvelopeTracker.update = wrap(EnvelopeTracker.update, "envelope.update")
@@ -987,6 +999,146 @@ def hookqueue_call(operation, arguments):
             reply = {"error": str(error), "error_kind": type(error).__name__}
         result = invoke("hookqueue.resume", {"job": result["job"], "reply": reply})
     return storage_result(result)
+
+
+def controller_data(ctl):
+    return {"ctx": context_data(ctl.ctx), "p": ctl.p, "sid": ctl.sid, "replaying": ctl.replaying}
+
+
+def restore_controller(ctl, data, host):
+    restore_context(ctl.ctx, data["ctx"], host)
+    ctl.p, ctl.sid, ctl.replaying = data["p"], data["sid"], data["replaying"]
+    ctl.host, ctl.store, ctl.cfg = host, ctl.ctx.store, ctl.ctx.config
+
+
+def controller_constructor(self, ctx, payload):
+    self.ctx, self.host = ctx, ctx.host
+    data = controller_call("controller.new", {"ctx": ctx, "payload": payload})
+    restore_controller(self, data, ctx.host)
+
+
+def controller_call(operation, arguments):
+    from tokeneconomizer.plugin import history, fold, repos, sidecall, repomap, paths, hookqueue, hosts, judge
+    arguments = dict(arguments)
+    obj = arguments.pop("self", None)
+    ctx = arguments.pop("ctx", getattr(obj, "ctx", None))
+    host = getattr(obj, "host", getattr(ctx, "host", None))
+    originals = {key: arguments.get(key) for key in ("s", "seen")}
+    if operation == "controller.new":
+        arguments["ctx"] = context_data(ctx)
+    elif operation == "controller._judge":
+        arguments["host"] = host.name
+    elif operation != "controller.handler":
+        arguments["self"] = controller_data(obj)
+    if operation == "controller._record_error":
+        arguments["error"] = traceback.format_exc()
+    arguments.update(process_env=dict(os.environ), process_cwd=os.getcwd(), home=os.path.expanduser("~"),
+                     parent_pid=os.getppid(), windows=os.name == "nt")
+    flags = {name: obj is not None and getattr(getattr(obj, name, None), "__func__", getattr(obj, name, None)) is not native
+             for name, native in NATIVE_CONTROLLER_FUNCTIONS.items()}
+    flags.update(enqueue=hookqueue.enqueue is not NATIVE_QUEUE_ENQUEUE,
+                 process_run=subprocess.run is not NATIVE_SPAWN_FUNCTIONS["run"],
+                 ancestors=hosts._ancestor_args is not NATIVE_HOST_ANCESTORS)
+    arguments["transport"] = flags
+    event = getattr(obj, "p", {}).get("hook_event_name", "")
+    arguments["queue_limits"] = {"wait": hookqueue.WAITS.get(event), "max_events": hookqueue.DRAIN_MAX_EVENTS,
+                                  "budget": hookqueue.DRAIN_BUDGET_S, "idle": hookqueue.IDLE_S}
+    runners = {}
+    result = invoke(operation, arguments)
+    while isinstance(result, dict) and result.get("callback") == "controller":
+        method, args = result["method"], result["args"]
+        if isinstance(args, dict) and "ctx" in args:
+            if args["ctx"] is not None:
+                restore_context(ctx, args["ctx"], host)
+            args = args["args"]
+        if method == "pending":
+            result = invoke("controller.resume", {"job": result["job"]})
+            continue
+        try:
+            if method == "handler":
+                data, name = args
+                if data["replaying"]:
+                    target = type(obj).__new__(type(obj))
+                    target.ctx = ctx
+                else:
+                    target = obj
+                restore_controller(target, data, host)
+                value = getattr(target, name)()
+            elif method in ("paused", "paused_bool"):
+                value = sidecall.paused(host.name, ctx.root)
+                if method == "paused_bool":
+                    value = bool(value)
+            elif method == "call_name":
+                value = sidecall.call_name(host.name)
+            elif method == "local_routes":
+                value = bool(sidecall.local_routes("judge", ctx.config))
+            elif method in ("launcher", "map", "history_notice", "history_start", "migration_start", "pending_sessions", "folds"):
+                data, params = args
+                restore_context(ctx, data, host)
+                if method == "launcher":
+                    value = paths.ensure_launcher(ctx.env)
+                elif method == "map":
+                    name, params = params
+                    value = getattr(repomap, name)(ctx, *params)
+                elif method == "history_notice":
+                    value = history.notice(ctx)
+                elif method == "history_start":
+                    value = history.maybe_start(ctx)
+                elif method == "migration_start":
+                    value = repos.start_migration(ctx)
+                elif method == "pending_sessions":
+                    value = fold.pending_sessions(ctx, exclude=params[0])
+                else:
+                    value = fold.spawn_fold(ctx, params[0])
+            elif method == "enqueue":
+                value = hookqueue.enqueue(*args)
+            elif method == "spawn_job":
+                value = judge.spawn_job(ctx, *args)
+            elif method == "spawn":
+                value = ctx.spawn(*args)
+            elif method == "program":
+                value = list(sidecall.program(*args))
+            elif method == "ancestors":
+                value = list(hosts._ancestor_args())
+            elif method == "process_run":
+                argv, cwd, env, timeout = args
+                out = subprocess.run(argv, capture_output=True, encoding="utf-8", errors="replace", timeout=timeout)
+                value = {"code": out.returncode, "stdout": out.stdout or "", "stderr": out.stderr or ""}
+            elif method == "runner":
+                role, local_only = args
+                runners[role] = sidecall.local_runner(role, ctx.config) if local_only else sidecall.runner_for(host.name, ctx.config, role=role)
+                value = runners[role] is not None
+            elif method == "run":
+                value = runners[args[0]](*args[1:])
+            elif method == "estimate":
+                value = runners[args[0]].estimate_effective(*args[1:])
+            elif method == "local_answer":
+                runner = runners[args[0]]
+                value = {"answered": bool(getattr(runner, "answered_locally", False)), "local": getattr(runner, "local", "local")}
+            else:
+                raise AssertionError("Unknown controller callback: " + method)
+            reply = {"value": value}
+        except Exception:
+            reply = {"error": traceback.format_exc()}
+        result = invoke("controller.resume", {"job": result["job"], "reply": reply})
+    if obj is not None and isinstance(result, dict) and "self" in result:
+        restore_controller(obj, result["self"], host)
+    value = storage_result(result)
+    if operation == "controller.handler":
+        return getattr(obj, value) if value else None
+    if operation == "controller._judge":
+        if value == "none":
+            return None
+        if value == "no_verdict":
+            return judge.NoVerdict()
+        return judge.AsyncJudge(ctx, obj.sid, arguments["thr"].get("judge_confidence"))
+    if operation in ("controller._save", "controller._toolprune_notices", "controller._inject_map", "controller._close_turn"):
+        for key, original in originals.items():
+            if original is not None and key in value:
+                original.clear()
+                original.update(value[key])
+        return value["value"]
+    return value
 
 
 def host_session_call(operation, arguments):

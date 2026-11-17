@@ -2,6 +2,7 @@ pub mod adapter;
 pub mod applied;
 pub mod config;
 pub mod context;
+pub mod controller;
 pub mod denylist;
 pub mod fold;
 pub mod history;

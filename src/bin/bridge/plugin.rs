@@ -9,6 +9,8 @@ use tokeneconomizer::plugin::{
 mod adapter_dispatch;
 #[path = "context.rs"]
 mod context_dispatch;
+#[path = "controller.rs"]
+mod controller_dispatch;
 #[path = "denylist.rs"]
 mod denylist_dispatch;
 #[path = "fold.rs"]
@@ -92,6 +94,9 @@ fn paths_dispatch(op: &str, args: &Value) -> Result<Value, String> {
 }
 
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
+    if op.starts_with("controller.") {
+        return controller_dispatch::dispatch(op, args);
+    }
     if op.starts_with("host_runtime.") {
         return host_session_dispatch::dispatch(op, args);
     }

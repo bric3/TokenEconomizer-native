@@ -41,7 +41,7 @@ pub(super) fn context(raw: &Value) -> Result<LiveContext, String> {
             .map_err(|e| e.to_string())?,
     })
 }
-fn snapshot(ctx: &LiveContext) -> Value {
+pub(super) fn snapshot(ctx: &LiveContext) -> Value {
     json!({"root":ctx.root,"base":ctx.store.base,"repo":ctx.repo,"host":ctx.host,"keeps_history":ctx.keeps_history,"config":ctx.config,"env":ctx.env,"home":ctx.home,"unsettled":ctx.unsettled})
 }
 struct Transport {
