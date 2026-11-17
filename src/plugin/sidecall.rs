@@ -437,9 +437,9 @@ pub fn claude_no_mcp(help: &str, cwd: &Path) -> io::Result<Vec<String>> {
         path.to_string_lossy().into_owned(),
     ])
 }
-struct WorkDir(PathBuf);
+pub(crate) struct WorkDir(PathBuf);
 impl WorkDir {
-    fn new(prefix: &str) -> io::Result<Self> {
+    pub(crate) fn new(prefix: &str) -> io::Result<Self> {
         static SEQUENCE: AtomicU64 = AtomicU64::new(0);
         loop {
             let path = std::env::temp_dir().join(format!(
@@ -463,6 +463,9 @@ impl WorkDir {
                 Err(e) => return Err(e),
             }
         }
+    }
+    pub(crate) fn path(&self) -> &Path {
+        &self.0
     }
     fn close(mut self) -> io::Result<()> {
         // shortcut: cleanup omits permission repair, add retries during the filesystem parity audit.

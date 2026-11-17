@@ -1,20 +1,28 @@
-use super::{denylist, hosts::session::Environment, sidecall};
+mod capture;
+
+use super::{adapter, denylist, hosts::session::Environment, process, sidecall};
 use crate::value::{json_text, number, round_decimal, truthy};
 use serde_json::{Map, Value, json};
-use std::path::Path;
+use std::{
+    path::Path,
+    time::{Duration, Instant},
+};
 
 pub trait Runtime: sidecall::Runtime {
     fn override_probe(&mut self, _method: &str, _args: Value) -> Result<Option<Value>, String> {
         Ok(None)
     }
-    fn capture(
+    fn start_probe(
         &mut self,
-        extra_args: &[String],
-        cwd: Option<&Path>,
-        cli: &str,
-        timeout: f64,
-    ) -> Result<Value, String>;
+        argv: &[String],
+        cwd: &Path,
+        env: &Map<String, Value>,
+        new_session: bool,
+    ) -> Result<Box<dyn process::Probe>, String> {
+        process::start_probe(argv, cwd, env, new_session).map_err(|e| e.to_string())
+    }
 }
+impl Runtime for sidecall::runner::NativeRuntime {}
 
 pub struct Checks {
     pub environment: Environment,
@@ -45,6 +53,191 @@ pub fn request_tools(body: &Value) -> Vec<Value> {
         .collect()
 }
 impl Checks {
+    fn flags<R: Runtime>(&mut self, cli: &str, runtime: &mut R) -> Result<Vec<String>, String> {
+        match runtime.override_probe("claude_flags", json!({"cli":cli}))? {
+            Some(value) => serde_json::from_value(value).map_err(|e| e.to_string()),
+            None => Ok(sidecall::claude_flags(&sidecall::claude_help(
+                cli,
+                &mut self.help,
+                &self.environment,
+                runtime,
+            ))),
+        }
+    }
+    pub fn init_tools<R: Runtime>(
+        &mut self,
+        extra_args: &[String],
+        cli: &str,
+        timeout: f64,
+        runtime: &mut R,
+    ) -> Result<(Value, Value), String> {
+        if let Some(value) = runtime.override_probe(
+            "_init_tools",
+            json!({"extra_args":extra_args,"cli":cli,"timeout":timeout}),
+        )? {
+            return Ok((value[0].clone(), value[1].clone()));
+        }
+        let cli = self.cli(cli, runtime)?;
+        let mut cmd: Vec<String> = [
+            cli.as_str(),
+            "-p",
+            "Reply with OK",
+            "--output-format",
+            "stream-json",
+            "--verbose",
+            "--model",
+            "haiku",
+            "--max-turns",
+            "1",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
+        cmd.extend(self.flags(&cli, runtime)?);
+        cmd.extend_from_slice(extra_args);
+        let env = self.env();
+        sidecall::with_directory("te-probe-", true, runtime, |cwd, runtime| {
+            let mut probe = runtime.start_probe(&cmd, cwd, &env, !self.windows)?;
+            let started = Instant::now();
+            let result = (|| {
+                let deadline =
+                    Duration::try_from_secs_f64(timeout.max(0.)).map_err(|e| e.to_string())?;
+                while let Some(remaining) = deadline.checked_sub(started.elapsed()) {
+                    let Some(line) = probe
+                        .line(remaining.as_secs_f64())
+                        .map_err(|e| e.to_string())?
+                    else {
+                        break;
+                    };
+                    let Ok(event) = serde_json::from_str::<Value>(&line) else {
+                        continue;
+                    };
+                    if event["type"] == "system" && event["subtype"] == "init" {
+                        return Ok((event["tools"].clone(), event["claude_code_version"].clone()));
+                    }
+                }
+                Ok((Value::Null, Value::Null))
+            })();
+            probe.kill_tree().map_err(|e| e.to_string())?;
+            result
+        })
+    }
+    pub fn refresh_catalog<R: Runtime>(
+        &mut self,
+        root: &Path,
+        cli: &str,
+        host: &str,
+        runtime: &mut R,
+    ) -> Result<Value, String> {
+        let (tools, version, version_key) = match host {
+            "copilot" => {
+                let body = self.capture(
+                    &[],
+                    None,
+                    if cli.is_empty() { "copilot" } else { cli },
+                    90.,
+                    runtime,
+                )?;
+                let tools: Vec<_> = request_tools(&body).into_iter().filter(truthy).collect();
+                if tools.is_empty() {
+                    return Err("could not capture the tool list of a `copilot -p` request".into());
+                }
+                let version =
+                    match runtime.override_probe("_copilot_version", json!({"cli":"copilot"}))? {
+                        Some(value) => value,
+                        None => self.copilot_version("copilot", runtime),
+                    };
+                (json!(tools), version, "copilot_version")
+            }
+            "claude" => {
+                let (tools, version) = self.init_tools(&[], cli, 60., runtime)?;
+                if !truthy(&tools) {
+                    return Err("could not read the tool list from a `claude -p` init event".into());
+                }
+                (tools, version, "claude_code_version")
+            }
+            _ => return Err(format!("no catalog probe for {host}")),
+        };
+        let mut tools: Vec<String> = serde_json::from_value(tools).map_err(|e| e.to_string())?;
+        tools.sort();
+        let path = adapter::catalog_path(&self.environment.path(root), host);
+        let mut doc = json!({"tools":tools});
+        doc[version_key] = version;
+        doc["probed_at"] = json!(runtime.now()?);
+        if runtime
+            .override_probe("_write_json", json!({"path":path,"obj":doc}))?
+            .is_none()
+        {
+            denylist::write_json(&path, &doc).map_err(|e| e.to_string())?;
+        }
+        Ok(json!([path, tools]))
+    }
+    pub fn capture<R: Runtime>(
+        &self,
+        extra_args: &[String],
+        cwd: Option<&Path>,
+        cli: &str,
+        timeout: f64,
+        runtime: &mut R,
+    ) -> Result<Value, String> {
+        if let Some(value) = runtime.override_probe(
+            "copilot_capture",
+            json!({"extra_args":extra_args,"cwd":cwd,"cli":cli,"timeout":timeout}),
+        )? {
+            return Ok(value);
+        }
+        let server = capture::Capture::start().map_err(|e| e.to_string())?;
+        let mut model = sidecall::copilot_model("", &self.environment.env);
+        if model.is_empty() {
+            model = "gpt-5.4".into();
+        }
+        let model = model.split_once('/').map(|(_, m)| m).unwrap_or(&model);
+        let mut env: Map<_, _> = self
+            .environment
+            .env
+            .iter()
+            .filter(|(k, _)| !k.starts_with("COPILOT_PROVIDER_") && *k != "COPILOT_MODEL")
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        for (key, value) in [
+            ("TE_SIDECALL", "1".into()),
+            ("COPILOT_PROVIDER_TYPE", "openai".into()),
+            (
+                "COPILOT_PROVIDER_BASE_URL",
+                format!("http://127.0.0.1:{}/v1", server.port),
+            ),
+            ("COPILOT_PROVIDER_API_KEY", "te-local-probe".into()),
+            ("COPILOT_MODEL", model.to_string()),
+            ("COPILOT_PROVIDER_WIRE_API", "completions".into()),
+            ("NO_PROXY", "127.0.0.1,localhost".into()),
+            ("no_proxy", "127.0.0.1,localhost".into()),
+        ] {
+            env.insert(key.into(), json!(value));
+        }
+        let temporary = if cwd.is_none() {
+            Some(sidecall::WorkDir::new("te-probe-").map_err(|e| e.to_string())?)
+        } else {
+            None
+        };
+        let cwd = cwd
+            .map(|p| self.environment.path(p))
+            .unwrap_or_else(|| temporary.as_ref().unwrap().path().into());
+        let _ = (|| -> Result<(), String> {
+            let mut cmd = runtime.program(cli, self.windows, &self.environment)?;
+            cmd.extend([
+                "-p".into(),
+                "Reply with OK".into(),
+                "--no-auto-update".into(),
+                "--no-color".into(),
+            ]);
+            cmd.extend_from_slice(extra_args);
+            runtime
+                .run(&cmd, &cwd, &env, None, timeout)
+                .map_err(|e| e.to_string())?;
+            Ok(())
+        })();
+        Ok(server.finish())
+    }
     fn env(&self) -> Map<String, Value> {
         sidecall::environment(&self.environment.env, false)
     }
@@ -83,16 +276,7 @@ impl Checks {
         .into_iter()
         .map(String::from)
         .collect();
-        let flags = match runtime.override_probe("claude_flags", json!({"cli":cli}))? {
-            Some(value) => serde_json::from_value(value).map_err(|e| e.to_string())?,
-            None => sidecall::claude_flags(&sidecall::claude_help(
-                &cli,
-                &mut self.help,
-                &self.environment,
-                runtime,
-            )),
-        };
-        cmd.extend(flags);
+        cmd.extend(self.flags(&cli, runtime)?);
         cmd.extend_from_slice(extra_args);
         let env = self.env();
         let out = sidecall::with_directory("te-measure-", true, runtime, |cwd, runtime| {
@@ -250,7 +434,7 @@ impl Checks {
         cli: &str,
         runtime: &mut R,
     ) -> Result<Value, String> {
-        let body = runtime.capture(&[], Some(root), cli, 90.)?;
+        let body = self.capture(&[], Some(root), cli, 90., runtime)?;
         if !truthy(&body) {
             return Ok(Value::Null);
         }
@@ -302,8 +486,8 @@ impl Checks {
                 .flat_map(|s| ["--disable-mcp-server".into(), s.clone()])
                 .collect();
             let cli = if cli.is_empty() { "copilot" } else { cli };
-            let full = runtime.capture(&[], None, cli, 90.)?;
-            let lean = runtime.capture(&args, None, cli, 90.)?;
+            let full = self.capture(&[], None, cli, 90., runtime)?;
+            let lean = self.capture(&args, None, cli, 90., runtime)?;
             if !truthy(&full) || !truthy(&lean) {
                 return Err("could not capture a `copilot -p` request".into());
             }

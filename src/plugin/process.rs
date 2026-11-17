@@ -1,8 +1,8 @@
 use std::{
     fs,
-    io::{self, Read, Write},
+    io::{self, BufReader, Read, Write},
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::{Child, Command, Stdio},
     sync::{LazyLock, mpsc},
     thread,
     time::{Duration, Instant},
@@ -25,6 +25,131 @@ pub struct Output {
     pub code: i32,
     pub stdout: String,
     pub stderr: String,
+}
+
+pub trait Probe {
+    fn line(&mut self, timeout: f64) -> io::Result<Option<String>>;
+    fn kill_tree(&mut self) -> io::Result<()>;
+}
+struct NativeProbe {
+    child: Child,
+    lines: mpsc::Receiver<io::Result<String>>,
+    closed: bool,
+}
+pub fn start_probe(
+    argv: &[String],
+    cwd: &Path,
+    env: &Map<String, Value>,
+    new_session: bool,
+) -> io::Result<Box<dyn Probe>> {
+    let mut command = command(argv, cwd, Some(env), 0)?;
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+    #[cfg(unix)]
+    if new_session {
+        use std::os::unix::process::CommandExt;
+        // A separate session lets the probe stop its MCP processes with the CLI.
+        unsafe {
+            command.pre_exec(|| {
+                if libc::setsid() < 0 {
+                    Err(io::Error::last_os_error())
+                } else {
+                    Ok(())
+                }
+            });
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = new_session;
+    let mut child = command.spawn()?;
+    let stdout = child.stdout.take().unwrap();
+    let (send, lines) = mpsc::channel();
+    thread::spawn(move || {
+        let mut bytes = Vec::new();
+        let mut skip_lf = false;
+        for byte in BufReader::new(stdout).bytes() {
+            let byte = match byte {
+                Ok(byte) => byte,
+                Err(error) => {
+                    let _ = send.send(Err(error));
+                    return;
+                }
+            };
+            if skip_lf && byte == b'\n' {
+                skip_lf = false;
+                continue;
+            }
+            skip_lf = byte == b'\r';
+            if matches!(byte, b'\n' | b'\r') {
+                let line = String::from_utf8_lossy(&bytes).into_owned();
+                bytes.clear();
+                if send.send(Ok(line)).is_err() {
+                    return;
+                }
+            } else {
+                bytes.push(byte);
+            }
+        }
+        if !bytes.is_empty() {
+            let _ = send.send(Ok(String::from_utf8_lossy(&bytes).into_owned()));
+        }
+    });
+    Ok(Box::new(NativeProbe {
+        child,
+        lines,
+        closed: false,
+    }))
+}
+pub fn kill_probe_group(pid: u32, windows: bool) -> io::Result<()> {
+    if pid == 0 || (!windows && pid > i32::MAX as u32) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "invalid probe PID",
+        ));
+    }
+    if windows {
+        Command::new("taskkill")
+            .args(["/T", "/F", "/PID", &pid.to_string()])
+            .output()?;
+    } else {
+        #[cfg(unix)]
+        // The process might already have exited; its group can still contain MCP servers.
+        unsafe {
+            libc::kill(-(pid as i32), libc::SIGKILL);
+        }
+    }
+    Ok(())
+}
+impl Probe for NativeProbe {
+    fn line(&mut self, timeout: f64) -> io::Result<Option<String>> {
+        match self
+            .lines
+            .recv_timeout(Duration::try_from_secs_f64(timeout).map_err(io::Error::other)?)
+        {
+            Ok(line) => line.map(Some),
+            Err(mpsc::RecvTimeoutError::Timeout | mpsc::RecvTimeoutError::Disconnected) => Ok(None),
+        }
+    }
+    fn kill_tree(&mut self) -> io::Result<()> {
+        if !self.closed {
+            kill_probe_group(self.child.id(), cfg!(windows))?;
+            if let Err(error) = self.child.kill()
+                && self.child.try_wait()?.is_none()
+            {
+                return Err(error);
+            }
+            self.child.wait()?;
+            self.closed = true;
+        }
+        Ok(())
+    }
+}
+impl Drop for NativeProbe {
+    fn drop(&mut self) {
+        let _ = self.kill_tree();
+    }
 }
 
 pub fn run(argv: &[String], cwd: &Path, timeout: f64, sidecall: bool) -> io::Result<Output> {

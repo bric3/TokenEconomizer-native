@@ -204,8 +204,12 @@ complete while any runtime component delegates production behaviour to Python.
   Copilot request sizes and remaining server tools, and CLI version parsing.
   Token sums preserve integer precision; character counts follow Python's Unicode
   and JSON contracts. Claude and Codex reject failed measurement probes.
-  Copilot's HTTP capture, Claude's streaming discovery and catalog refresh remain
-  pending; captured request bodies still cross that production boundary.
+- Tool discovery and catalog refresh now execute in Rust too. Claude's probe
+  stops at its init event or deadline and terminates its process group. Copilot's
+  probe captures requests on localhost, answers JSON or streaming completions,
+  replaces provider credentials with a local key and keeps the first request.
+  Both hosts save sorted catalogs and version metadata. Patched process fixtures
+  retain their Python pipe handles; parsing, deadlines and stop decisions are native.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -233,8 +237,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit temporary-directory cleanup against Python's permission-repair retries,
   including native Windows behaviour. Current removal uses `remove_dir_all`.
 - Integrate the native controller and host operations into CLI and hooks.
-- Complete Claude's streaming tool-discovery probe, Copilot's local HTTP capture
-  and catalog refresh. Port model probes, repository maps, CLI commands and hooks.
+- Port end-to-end model probes, repository maps, CLI commands and hooks.
   Verify each host integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
   supporting tools, preserving their original test contracts.
@@ -559,6 +562,18 @@ complete while any runtime component delegates production behaviour to Python.
   exit, relative repository paths, Unicode version lines and tool-name precedence.
   Clippy, formatting and all 256 archived reference files pass. The focused suite's
   streaming-discovery tests still exercise the reference implementation.
+- Tool-discovery focused run: 31 passed. Full suite with native discovery,
+  HTTP capture and catalog refresh: 1,558 passed, 33 skipped (49.95 seconds).
+  `validation/toolcheck-discovery-calls.json` records native entries.
+  `DiscoveryProbe.java` checks silent-process deadlines, init-event parsing,
+  descendant termination, private workspaces, provider filtering, local JSON and
+  streaming replies, header limits, first-request retention, timeout recovery,
+  listener shutdown and both hosts' saved catalogs. Delaying request bytes
+  reproduced the accepted-socket race on macOS; the native server now explicitly
+  selects blocking reads after [accepting a connection](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/accept.2.html).
+  The delayed-request fixture passes twice after the fix. The existing measurement
+  probe, Clippy, formatting and all 256 reference files pass. Real host CLIs and
+  native Windows execution remain unverified.
 
 ## Dependencies
 
@@ -661,6 +676,7 @@ jbang validation/HermesCallProbe.java
 jbang validation/SidecallFailureProbe.java
 jbang validation/RunnerProbe.java
 jbang validation/ToolcheckProbe.java
+jbang validation/DiscoveryProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 

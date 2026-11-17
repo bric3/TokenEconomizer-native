@@ -13,6 +13,7 @@ import inspect
 import json
 import math
 import os
+import queue
 from pathlib import Path
 import subprocess
 import sys
@@ -623,7 +624,7 @@ def pytest_configure(config):
         "ledger": ("overhead", "effective_exec"),
         "plugin.accounting": ("effective", "overhead_total", "summarize", "fmt_tokens"),
         "plugin.sidecall": ("_obj", "_env", "_hermes_env", "_pause_path", "paused", "resume", "_log", "_no_reply", "claude_cli", "hermes_cli", "_shim_argv", "program", "claude_json", "copilot_model", "droid_enabled", "_droid_usage", "local_routes", "call_name", "_claude_help", "claude_flags", "claude_no_mcp", "claude_call", "codex_call", "pi_extension_args", "pi_call", "cursor_call", "grok_call", "opencode_flags", "opencode_call", "copilot_call", "_droid_sessions_root", "_droid_settings_usage", "droid_call", "fm_available", "fm_call", "hermes_home", "_hermes_db", "_hermes_ledger", "_hermes_charge", "_hermes_delete", "_hermes_settle", "_hermes_defer", "_hermes_settle_earlier", "hermes_call", "_noted", "_host_call", "local_runner", "runner_for"),
-        "plugin.toolcheck": ("_request_tools", "_prompt_tokens", "_codex_prompt_chars", "_copilot_version", "verify_codex", "verify_copilot", "measure"),
+        "plugin.toolcheck": ("_request_tools", "_prompt_tokens", "_codex_prompt_chars", "_copilot_version", "verify_codex", "verify_copilot", "measure", "copilot_capture", "_init_tools", "_kill_tree", "refresh_catalog"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
@@ -967,7 +968,7 @@ def pytest_configure(config):
     from tokeneconomizer.plugin import toolcheck
     global NATIVE_TOOLCHECK_FUNCTIONS
     NATIVE_TOOLCHECK_FUNCTIONS = {name: getattr(toolcheck, name) for name in (
-        "claude_flags", "claude_cli", "program", "_prompt_tokens", "_codex_prompt_chars")}
+        "claude_flags", "claude_cli", "program", "_prompt_tokens", "_codex_prompt_chars", "copilot_capture", "_init_tools", "_copilot_version", "_write_json")}
 
 
 def config_constructor(cls):
@@ -1084,6 +1085,10 @@ def sidecall_call(operation, arguments):
     proxy = arguments.pop("proxy", None)
     arguments["has_fallback"] = fallback is not None
     called_value = None
+    probe_process = arguments.pop("p", None)
+    if probe_process is not None:
+        arguments["pid"] = probe_process.pid
+    probe_lines = None
     if "config" in arguments:
         config = arguments["config"]
         arguments["config"] = {key: getattr(config, key) for key in LIVE_CONFIG_FIELDS if hasattr(config, key)}
@@ -1111,11 +1116,15 @@ def sidecall_call(operation, arguments):
     arguments["transport"].update({name: getattr(sidecall, name) is not original for name, original in NATIVE_SIDECALL_FUNCTIONS.items()
                                   if name.endswith("_call") or name == "fm_available"})
     if namespace == "toolcheck":
+        arguments["transport"]["popen"] = subprocess.Popen is not NATIVE_SPAWN_FUNCTIONS["popen"]
         arguments["transport"].update({name: getattr(toolcheck, name) is not original
                                       for name, original in NATIVE_TOOLCHECK_FUNCTIONS.items()})
         for name in ("tools", "servers", "capabilities", "extra_args", "overrides"):
             if name in arguments:
                 arguments[name] = list(arguments[name])
+        for name in ("cwd", "state_root", "repo_root"):
+            if name in arguments and arguments[name] is not None:
+                arguments[name] = os.fspath(arguments[name])
     last_error = None
     temporary = None
     result = invoke(operation, arguments)
@@ -1133,6 +1142,34 @@ def sidecall_call(operation, arguments):
             elif result["method"] == "probe":
                 name, data = result["args"]
                 value = getattr(toolcheck, name)(**data)
+            elif result["method"] == "probe_start":
+                argv, cwd, env, new_session = result["args"]
+                probe_process = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
+                                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                                 encoding="utf-8", errors="replace", start_new_session=new_session)
+                probe_lines = queue.Queue()
+                def read_probe():
+                    try:
+                        for line in probe_process.stdout:
+                            probe_lines.put({"value": line})
+                    except Exception as error:
+                        probe_lines.put({"error": str(error)})
+                    finally:
+                        probe_lines.put({"value": None})
+                threading.Thread(target=read_probe, daemon=True).start()
+                value = probe_process.pid
+            elif result["method"] == "probe_line":
+                try:
+                    line = probe_lines.get(timeout=result["args"][0])
+                except queue.Empty:
+                    line = {"value": None}
+                if "error" in line:
+                    raise OSError(line["error"])
+                value = line["value"]
+            elif result["method"] == "probe_stop":
+                probe_process.kill()
+                probe_process.wait()
+                value = None
             elif result["method"] == "fm_available":
                 value = sidecall.fm_available()
             elif result["method"] == "fallback":
@@ -1195,7 +1232,7 @@ def sidecall_call(operation, arguments):
     if operation == "sidecall._hermes_ledger":
         from tokeneconomizer.plugin.store import Store
         return Store(value)
-    return tuple(value) if operation in ("sidecall.claude_call", "sidecall.codex_call", "sidecall.pi_call", "sidecall.cursor_call", "sidecall.grok_call", "sidecall.opencode_call", "sidecall.copilot_call", "sidecall.droid_call", "sidecall.fm_call", "sidecall.hermes_call", "sidecall._hermes_settle", "sidecall.runner_run", "toolcheck._prompt_tokens") else value
+    return tuple(value) if operation in ("sidecall.claude_call", "sidecall.codex_call", "sidecall.pi_call", "sidecall.cursor_call", "sidecall.grok_call", "sidecall.opencode_call", "sidecall.copilot_call", "sidecall.droid_call", "sidecall.fm_call", "sidecall.hermes_call", "sidecall._hermes_settle", "sidecall.runner_run", "toolcheck._prompt_tokens", "toolcheck._init_tools", "toolcheck.refresh_catalog") else value
 
 
 def controller_data(ctl):

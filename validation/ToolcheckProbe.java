@@ -67,13 +67,13 @@ class ToolcheckProbe {
       var tools = "[{\"function\": {\"name\": \"acme-é😀\"}}, {\"name\": \"\"}, {\"type\": \"web_search\"}]";
       var messages = "[{\"role\": \"user\", \"content\": \"é😀\"}]";
       var body = "{\"tools\":" + tools + ",\"messages\":" + messages + "}";
-      pending = client.call("toolcheck.measure", common + ",\"host\":\"copilot\",\"tools\":[\"acme\"]");
+      pending = client.call("toolcheck.measure", common + ",\"host\":\"copilot\",\"tools\":[\"acme\"],\"transport\":{\"copilot_capture\":true}");
       require(pending.contains("copilot_capture"), pending);
       pending = client.resume(pending, "probe", "{\"value\":" + body + "}");
       require(pending.contains("--disable-mcp-server") && pending.contains("acme"), pending);
       var measured = client.resume(pending, "probe", "{\"value\":{\"tools\":[],\"messages\":" + messages + "}}");
       require(measured.contains("\"request_chars_full\":" + (ascii(tools).length() + ascii(messages).length())) && measured.contains("\"saved_chars_per_request\":" + (ascii(tools).length() - 2)) && measured.contains("\"tools_full\":3"), measured);
-      pending = client.call("toolcheck.verify_copilot", common + ",\"repo_root\":" + quote(root) + ",\"servers\":[\"acme\",\"other\"]");
+      pending = client.call("toolcheck.verify_copilot", common + ",\"repo_root\":" + quote(root) + ",\"servers\":[\"acme\",\"other\"],\"transport\":{\"copilot_capture\":true}");
       var cp = client.resume(pending, "probe", "{\"value\":" + body + "}");
       require(cp.contains("\"value\":{\"acme\":1,\"other\":0}"), cp);
       for (var path : Files.readAllLines(root.resolve("workspaces"))) require(!Files.exists(Path.of(path)), "Probe retained its private workspace");
