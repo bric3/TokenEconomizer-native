@@ -11,6 +11,7 @@ pub mod hosts;
 pub mod judge;
 pub mod paths;
 pub mod process;
+pub mod repomap;
 pub mod repos;
 pub mod sidecall;
 pub mod toolcheck;

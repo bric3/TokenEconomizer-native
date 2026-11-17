@@ -210,6 +210,12 @@ complete while any runtime component delegates production behaviour to Python.
   replaces provider credentials with a local key and keeps the first request.
   Both hosts save sorted catalogs and version metadata. Patched process fixtures
   retain their Python pipe handles; parsing, deadlines and stop decisions are native.
+- Repository-map state and orchestration now execute in Rust: shared cache paths,
+  atomic state writes, commit and token-budget freshness, interpreter discovery,
+  first-prompt identifiers, bounded generator calls, cached fallback and refresh
+  scheduling. A failed refresh preserves the prior map and its commit. The
+  configured generator retains its upstream command interface; its file selection
+  and aider bootstrap remain pending.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Other reference code, including Python child processes, still runs in Python.
@@ -237,7 +243,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit temporary-directory cleanup against Python's permission-repair retries,
   including native Windows behaviour. Current removal uses `remove_dir_all`.
 - Integrate the native controller and host operations into CLI and hooks.
-- Port end-to-end model probes, repository maps, CLI commands and hooks.
+- Port the repository-map generator's file selection and aider handoff.
+  Port end-to-end model probes, CLI commands and hooks.
   Verify each host integration and its launcher and packaging contracts.
 - Port experiment production consumers, adapters, runner orchestration and
   supporting tools, preserving their original test contracts.
@@ -574,6 +581,17 @@ complete while any runtime component delegates production behaviour to Python.
   The delayed-request fixture passes twice after the fix. The existing measurement
   probe, Clippy, formatting and all 256 reference files pass. Real host CLIs and
   native Windows execution remain unverified.
+- Repository-map focused run: 24 passed, 1 skipped. Full suite with native map
+  orchestration: 1,558 passed, 33 skipped (52.58 seconds).
+  `validation/repomap-calls.json` records native entries, including seven freshness
+  checks, five refresh requests and five first-prompt lookups. The original hook
+  tests exercise prompt-ranked injection, cached fallback, session-start mode,
+  shadow mode and an explicitly named interpreter without aider.
+  `RepoMapProbe.java` checks state recovery, interpreter precedence, shebangs,
+  Unicode word boundaries and error bounds, the 60-identifier cap, timeout cleanup,
+  preserved caches and refresh scheduling. Clippy, formatting and all 256 reference
+  files pass. The real aider generator is skipped because aider is not installed;
+  its production helper still needs conversion.
 
 ## Dependencies
 
@@ -677,6 +695,7 @@ jbang validation/SidecallFailureProbe.java
 jbang validation/RunnerProbe.java
 jbang validation/ToolcheckProbe.java
 jbang validation/DiscoveryProbe.java
+jbang validation/RepoMapProbe.java
 jbang validation/ExtractProposerPrompts.java
 ```
 

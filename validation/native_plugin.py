@@ -84,6 +84,8 @@ def wrap(original, operation):
             return controller_call(operation, arguments)
         if operation.startswith(("sidecall.", "toolcheck.")):
             return sidecall_call(operation, arguments)
+        if operation.startswith("repomap."):
+            return repomap_call(operation, arguments)
         if operation.startswith(("context.", "winspawn.")):
             return context_call(operation, arguments)
         if operation == "trace.copilot.copilot_mcp_servers":
@@ -625,6 +627,7 @@ def pytest_configure(config):
         "plugin.accounting": ("effective", "overhead_total", "summarize", "fmt_tokens"),
         "plugin.sidecall": ("_obj", "_env", "_hermes_env", "_pause_path", "paused", "resume", "_log", "_no_reply", "claude_cli", "hermes_cli", "_shim_argv", "program", "claude_json", "copilot_model", "droid_enabled", "_droid_usage", "local_routes", "call_name", "_claude_help", "claude_flags", "claude_no_mcp", "claude_call", "codex_call", "pi_extension_args", "pi_call", "cursor_call", "grok_call", "opencode_flags", "opencode_call", "copilot_call", "_droid_sessions_root", "_droid_settings_usage", "droid_call", "fm_available", "fm_call", "hermes_home", "_hermes_db", "_hermes_ledger", "_hermes_charge", "_hermes_delete", "_hermes_settle", "_hermes_defer", "_hermes_settle_earlier", "hermes_call", "_noted", "_host_call", "local_runner", "runner_for"),
         "plugin.toolcheck": ("_request_tools", "_prompt_tokens", "_codex_prompt_chars", "_copilot_version", "verify_codex", "verify_copilot", "measure", "copilot_capture", "_init_tools", "_kill_tree", "refresh_catalog"),
+        "plugin.repomap": ("_repo_dir", "_state_path", "_cache_dir", "read_state", "_write_state", "head_commit", "_has_aider", "_aider_command_python", "find_python", "_gen_env", "generate", "refresh", "stale", "spawn_refresh", "cached_block", "prompt_idents", "for_prompt"),
         "plugin.config": ("canonical", "_threshold_name", "_read", "_old_names_first", "load_config", "_drop_old_names", "write_config", "unset_config", "_write"),
         "plugin.adapter": ("detect_vocabulary", "catalog_path", "load_catalog"),
         "plugin.hookqueue": ("_safe", "_queues", "enqueue", "drain", "_replay", "_prune", "run"),
@@ -731,6 +734,10 @@ def pytest_configure(config):
     assert set(constants["NO_SIDE_CALLS"]) == sidecall.NO_SIDE_CALLS
     assert constants["JUDGE_SCHEMA"] == sidecall.JUDGE_SCHEMA
     assert constants["ROLE_SCHEMAS"] == sidecall.ROLE_SCHEMAS
+    from tokeneconomizer.plugin import repomap
+    constants = invoke("repomap.constants", {})
+    for name, value in constants.items():
+        assert value == getattr(repomap, name)
     global NATIVE_SIDECALL_FUNCTIONS
     NATIVE_SIDECALL_FUNCTIONS = {name: getattr(sidecall, name) for name in ("claude_cli", "hermes_cli", "program", "claude_call", "codex_call", "copilot_call", "pi_call", "opencode_call", "cursor_call", "grok_call", "hermes_call", "droid_call", "fm_call", "fm_available")}
     NATIVE_SIDECALL_FUNCTIONS["effective"] = sidecall.accounting.effective
@@ -1233,6 +1240,49 @@ def sidecall_call(operation, arguments):
         from tokeneconomizer.plugin.store import Store
         return Store(value)
     return tuple(value) if operation in ("sidecall.claude_call", "sidecall.codex_call", "sidecall.pi_call", "sidecall.cursor_call", "sidecall.grok_call", "sidecall.opencode_call", "sidecall.copilot_call", "sidecall.droid_call", "sidecall.fm_call", "sidecall.hermes_call", "sidecall._hermes_settle", "sidecall.runner_run", "toolcheck._prompt_tokens", "toolcheck._init_tools", "toolcheck.refresh_catalog") else value
+
+
+def repomap_call(operation, arguments):
+    from tokeneconomizer.plugin import repomap
+    arguments = dict(arguments)
+    ctx = arguments.pop("ctx", None)
+    if ctx is not None:
+        arguments["ctx"] = context_data(ctx)
+    arguments.update(process_env=dict(os.environ), process_cwd=os.getcwd(), home=os.path.expanduser("~"),
+                     generator=repomap.GEN, interpreter=sys.executable,
+                     transport={"run": subprocess.run is not NATIVE_SPAWN_FUNCTIONS["run"]})
+    for name, value in tuple(arguments.items()):
+        if isinstance(value, os.PathLike):
+            arguments[name] = os.fspath(value)
+    if "idents" in arguments:
+        arguments["idents"] = list(arguments["idents"])
+    last_error = None
+    result = invoke(operation, arguments)
+    while isinstance(result, dict) and result.get("callback") == "repomap":
+        if result["method"] == "pending":
+            result = invoke("repomap.resume", {"job": result["job"]})
+            continue
+        try:
+            if result["method"] == "which":
+                value = repomap.shutil.which(*result["args"])
+            elif result["method"] == "spawn":
+                value = ctx.spawn(*result["args"])
+            elif result["method"] == "run":
+                argv, cwd, env, stdin, timeout = result["args"]
+                out = subprocess.run(argv, cwd=cwd, env=env, capture_output=True, encoding="utf-8",
+                                     errors="replace", timeout=timeout)
+                value = {"code": out.returncode, "stdout": out.stdout or "", "stderr": out.stderr or ""}
+            else:
+                raise AssertionError("Unknown repository map callback: " + result["method"])
+            reply = {"value": value}
+        except Exception as error:
+            last_error = error
+            reply = {"error": str(error), "error_kind": type(error).__name__, "failure": failure_data(error)}
+        result = invoke("repomap.resume", {"job": result["job"], "reply": reply})
+    if last_error is not None and isinstance(result, dict) and result.get("message") == str(last_error):
+        raise last_error
+    value = storage_result(result)
+    return tuple(value) if operation in ("repomap.generate", "repomap.for_prompt") else value
 
 
 def controller_data(ctl):

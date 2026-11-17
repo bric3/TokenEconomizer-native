@@ -25,6 +25,8 @@ mod hosts_dispatch;
 mod judge_dispatch;
 #[path = "hookqueue.rs"]
 mod queue_dispatch;
+#[path = "repomap.rs"]
+mod repomap_dispatch;
 #[path = "repos.rs"]
 mod repos_dispatch;
 #[path = "sidecall.rs"]
@@ -98,6 +100,9 @@ fn paths_dispatch(op: &str, args: &Value) -> Result<Value, String> {
 }
 
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
+    if op.starts_with("repomap.") {
+        return repomap_dispatch::dispatch(op, args);
+    }
     if op.starts_with("toolcheck.") {
         return toolcheck_dispatch::dispatch(op, args);
     }
