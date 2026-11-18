@@ -295,6 +295,23 @@ def install(runner_module=None,scaffold_module=None):
                     elif method == "stream_list_function": values["function"] = getattr(module,"list",builtins.list)
                     elif method == "stream_set": setattr(values["self"],parameters[0],values[parameters[1]])
                     elif method == "stream_item": values[parameters[2]] = values[parameters[0]][parameters[1]]
+                    elif method == "scaffold_item": values[parameters[2]] = values[parameters[0]][values[parameters[1]]]
+                    elif method == "scaffold_pair": values[parameters[1]],values[parameters[2]] = values[parameters[0]]
+                    elif method == "scaffold_bool": value = with_exception(values.get("caught_error"),bool,values[parameters[0]])
+                    elif method == "scaffold_import": __import__(parameters[0],module.__dict__)
+                    elif method == "scaffold_alnum": value = chr(parameters[0]).isalnum()
+                    elif method == "scaffold_text":
+                        item=values[parameters[0]]
+                        if isinstance(item,str): value=list(map(ord,str.__iter__(item)))
+                        else:
+                            # Validate the library argument type; Rust owns the patterns and matches.
+                            re.findall("",item)
+                            raise AssertionError("regex accepted a non-string value")
+                    elif method == "scaffold_raise":
+                        def raise_error():
+                            if parameters[1]: raise values[parameters[0]] from None
+                            raise values[parameters[0]]
+                        with_exception(values.get("caught_error"),raise_error)
                     elif method == "stream_close_function": values["function"] = values["session"].close
                     elif method == "session_get_function": values["function"] = values["queue"].get
                     elif method == "stdout_member": values[parameters[2]] = getattr(values[parameters[0]],parameters[1])
@@ -502,6 +519,26 @@ def install(runner_module=None,scaffold_module=None):
         native._te_provider_operation = agent,name
         return native
     def scaffold_calls(owner):
+        if owner.__name__ == "te_bench.baselines.repomap":
+            for name,operation in (("map_tokens","tokens"),("extract_idents","idents")):
+                original=getattr(owner,name)
+                if getattr(original,"_te_provider_operation",None) == ("scaffold","repomap_"+operation): continue
+                replacements[original]=function(owner,original,"scaffold","repomap_"+operation)
+                setattr(owner,name,replacements[original])
+            cls=owner.RepoMapScaffold
+            for name,operation in (("preflight","preflight"),("fetch_sources","fetch"),("generate","generate"),("setup","setup")):
+                original=getattr(cls,name)
+                if getattr(original,"_te_provider_operation",None) == ("scaffold","repomap_"+operation): continue
+                replacements[original]=function(owner,original,"scaffold","repomap_"+operation)
+                setattr(cls,name,replacements[original])
+            return
+        if owner.__name__ == "te_bench.baselines":
+            for name in ("get","for_arm"):
+                original=getattr(owner,name)
+                if getattr(original,"_te_provider_operation",None) == ("scaffold","registry_"+name): continue
+                replacements[original]=function(owner,original,"scaffold","registry_"+name)
+                setattr(owner,name,replacements[original])
+            return
         if owner.__name__ == "te_bench.baselines.rtk":
             original=owner.cache_dir
             if getattr(original,"_te_provider_operation",None) != ("scaffold","rtk_cache"):
@@ -688,8 +725,11 @@ def install(runner_module=None,scaffold_module=None):
     for owner,domain,classes in ((swebench,"swebench",("ClaudeSwebenchRunner","CopilotSwebenchRunner","CodexSwebenchRunner")),
                                  (webbench,"webbench",("WebBenchRunner","CopilotWebBenchRunner","CodexWebBenchRunner"))):
         runner_calls(owner,domain,classes)
-    from te_bench.baselines import base,serena,rtk
+    from te_bench import baselines
+    from te_bench.baselines import base,serena,rtk,repomap
+    scaffold_calls(baselines)
     scaffold_calls(base)
     scaffold_calls(serena)
     scaffold_calls(rtk)
+    scaffold_calls(repomap)
     return replacements

@@ -7,6 +7,8 @@ use super::swebench::{
 use crate::{python_json::Text, value::truthy};
 use serde_json::{Value, json};
 
+mod registry;
+mod repomap;
 mod rtk;
 
 fn attr(rt: &mut dyn Runtime, object: &str, name: &str, target: &str) -> Result<()> {
@@ -443,6 +445,12 @@ fn serena_setup(rt: &mut dyn Runtime) -> Result<Value> {
     Ok(returned("notes"))
 }
 pub fn dispatch(operation: &str, rt: &mut dyn Runtime) -> Result<Value> {
+    if let Some(operation) = operation.strip_prefix("repomap_") {
+        return repomap::dispatch(operation, rt);
+    }
+    if let Some(operation) = operation.strip_prefix("registry_") {
+        return registry::dispatch(operation, rt);
+    }
     if let Some(operation) = operation.strip_prefix("rtk_") {
         return rtk::dispatch(operation, rt);
     }

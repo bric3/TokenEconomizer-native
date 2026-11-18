@@ -562,8 +562,8 @@ complete while any runtime component delegates production behaviour to Python.
   callbacks with the source signatures and retain their captured objects after
   the creating method returns. Fallback I/O preserves the handled error for
   callbacks and exception chaining. Setup error metadata uses fresh scaffold and
-  exception names and preserves the detail limit of 300 code points. The repo-map
-  backend, scaffold registry and SWE-bench context assembly remain pending.
+  exception names and preserves the detail limit of 300 code points. SWE-bench
+  context assembly remains pending.
 - Shared scaffold profile and context constructors, read/log callbacks, instruction
   writes, MCP configuration and merge-helper staging use native policy. SDK bindings
   retain raw objects, file contexts, JSON encoding and process I/O. The staged merge
@@ -578,6 +578,14 @@ complete while any runtime component delegates production behaviour to Python.
   inlining use native policy. SDK bindings retain object and environment protocols,
   JSON encoding and process I/O. Stage and hook results retain their raw references
   and source evaluation order.
+- Scaffold registry lookup and arm selection use native policy, including
+  constructor failures and handled exception scopes. Repo-map token budgets,
+  identifier selection, aider preflight diagnostics, archive-member filtering,
+  generator orchestration, instruction writes and cleanup use native policy too.
+  SDK bindings supply archive extraction, Unicode character properties, object
+  protocols and process I/O. Native experiment packaging still needs to supply
+  the generator command; the validation suite uses the existing native-generator
+  adapter. Aider remains an external Python dependency.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -714,9 +722,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Container guard binary deployment and registration, the repo-map backend,
-  scaffold registry, native merge-helper deployment, SWE-bench context assembly and agent streaming
-  still need conversion.
+  Container guard binary deployment and registration, native merge-helper
+  deployment, SWE-bench context assembly and agent streaming still need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
@@ -2316,6 +2323,33 @@ complete while any runtime component delegates production behaviour to Python.
   open. Simplification and performance passes remain at 0/3 each; final test
   conversion is pending.
 
+- The scaffold registry passes 134 source comparisons covering falsey names,
+  custom mappings, constructor results and failures, changing registries, arm
+  selection, error formatting and suppressed exception context. Repo-map passes
+  704 comparisons covering token coercion, identifier patterns, Unicode word
+  boundaries, identifier limits, archive filtering, subprocess arguments, raw
+  callbacks, preflight diagnostics, cleanup and failure scopes. Real archive,
+  process and file checks preserve filenames with spaces, reject unsafe members,
+  generate instructions and verify cleanup. Failed fetches retain their partial
+  directory; failed generators remove the assigned source directory. Checks also
+  cover cleanup failures and failures while resolving exception classes.
+  The generator process in these checks is an owned Java fixture; aider execution
+  remains unverified here. Experiment packaging must still select the native
+  generator command, and SDK bindings retain archive extraction and Unicode
+  character properties. The six offline Web-Bench HTTP/process pipelines pass.
+  Focused original tests pass with 36 passed and one skipped. The full original
+  suite, with installed-opencode tests enabled, passes with 1,561 passed and
+  30 skipped (70.51 seconds). Its native call record remains
+  `validation/experiment-task-calls.json`, including 38 registry lookups, ten arm
+  selections, five identifier extractions, four token-budget calls, two repo-map
+  setups and two preflights. All 24 Rust checks, debug/release builds, Clippy,
+  formatting and the 256-file reference check pass. Original tests remain
+  unchanged. IDE inspections remain unavailable because this checkout is not open
+  in the IDE. Native container-helper deployment, SWE-bench integration, host
+  bindings and remaining parity audits stay open. Live agents, Linux namespaces
+  and Windows remain unverified. Simplification and performance passes remain at
+  0/3 each; final test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2448,6 +2482,8 @@ jbang validation/WebScaffoldProbe.java
 jbang validation/ScaffoldBaseProbe.java
 jbang validation/SerenaScaffoldProbe.java
 jbang validation/RtkScaffoldProbe.java
+jbang validation/ScaffoldRegistryProbe.java
+jbang validation/RepoMapScaffoldProbe.java
 jbang validation/InvocationProbe.java
 jbang validation/WebSegmentProcessProbe.java
 jbang validation/WebTaskPipelineProbe.java
