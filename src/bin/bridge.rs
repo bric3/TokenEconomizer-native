@@ -27,6 +27,8 @@ mod proposer_dispatch;
 mod spiral_dispatch;
 #[path = "bridge/storage.rs"]
 mod storage_dispatch;
+#[path = "bridge/experiment_task.rs"]
+mod task_dispatch;
 #[path = "bridge/tooling.rs"]
 mod tooling_dispatch;
 #[path = "bridge/trace.rs"]
@@ -48,6 +50,9 @@ use tokeneconomizer::{
 
 fn dispatch(request: &Value) -> Result<Value, String> {
     let args = &request["args"];
+    if let Some(value) = task_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
+        return Ok(value);
+    }
     if let Some(value) = usage_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
         return Ok(value);
     }

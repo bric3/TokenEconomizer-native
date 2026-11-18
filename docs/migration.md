@@ -377,6 +377,10 @@ complete while any runtime component delegates production behaviour to Python.
   Codex preserves unknown segment totals; Copilot retains known counts and marks
   mixed sources. The original harness functions serve as data bindings in tests.
 
+- The shared SWE-bench task lifecycle is native, including task prompts, container
+  names, resumed segments, artifacts, error rows and cleanup ordering. Host
+  callbacks still supply container, scaffold, grader and stream operations.
+
 ## Remaining production work
 
 - Audit trace-reader edge cases, including the ISO timestamp formats accepted by
@@ -402,6 +406,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Include history, folding, controller, host replay and experiment counters beyond
   i64 in the numeric parity audit.
 - Include harness accounting totals outside JSON's i64/u64 range in that audit.
+- Include task turn caps outside i64 and task filesystem error diagnostics in
+  the numeric and I/O parity audits.
 - Include CLI and ledger counts beyond i64 in the numeric parity audit.
 - Include `probe --sessions` integers outside i64 in that audit.
 - Include displayed tool counters in that audit, and audit CLI errors for malformed
@@ -420,8 +426,9 @@ complete while any runtime component delegates production behaviour to Python.
   original API alongside the remaining production parity checks.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
-  Their usage accounting is native; subprocess, container, grading and stream
-  lifecycle conversion remains open.
+  Their usage accounting and shared SWE-bench task lifecycle are native.
+  Constructors, agent-specific task wrappers, provider configuration, subprocess,
+  container, scaffold, grading and stream operations still need conversion.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
 
@@ -1094,6 +1101,26 @@ complete while any runtime component delegates production behaviour to Python.
   rejects the fixture with `Illegal byte sequence`. The reader matches raw filename
   bytes without discarding such entries.
 
+- The shared SWE-bench task lifecycle matches the source in 166 comparisons.
+  They cover prompt text, container names, repeated and falsey guards, resumes,
+  transcript lifetime, task artifacts, grading failures, all three row schemas,
+  exception inheritance and cleanup ordering. The host retains one transcript
+  handle across segments and closes it before grading or cleanup. Runtime
+  callbacks use the existing worker channel without replaying operations.
+  A Rust check also exercises resumed task execution and container-start failure.
+  The full original suite with installed-opencode tests enabled passes with
+  1,561 passed and 30 skipped (67.37 seconds).
+  `validation/experiment-task-calls.json` records seven native container-name
+  calls. The original grading tests inspect the source through wrapper metadata;
+  they do not execute the native task lifecycle. The differential probe and Rust
+  check provide that runtime evidence.
+  All 17 Rust library checks, the callback replay check, debug/release builds,
+  Clippy, formatting, the 474-case usage regression and 256-file reference check
+  pass. Original tests remain unchanged. Container, scaffold, grader and stream
+  callbacks still use the reference implementation outside the probe's local
+  stand-ins. No Docker, paid model or live grading calls were run. Production
+  conversion and parity audits remain open; no improvement pass is counted.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -1218,6 +1245,7 @@ jbang validation/SpiralProbe.java
 jbang validation/NudgeProbe.java
 jbang validation/FacadeProbe.java
 jbang validation/UsageProbe.java
+jbang validation/TaskProbe.java
 jbang validation/BridgeProbe.java
 jbang validation/QueueProbe.java
 jbang validation/ContextProbe.java

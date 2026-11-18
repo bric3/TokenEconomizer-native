@@ -2929,6 +2929,9 @@ def install_opencode_sdk(module):
 
 def pytest_collection_modifyitems(items):
     if "te_harness.swebench" in sys.modules:
+        from native_experiment_task import install
+        install()
+    if "te_harness.swebench" in sys.modules:
         from native_experiment_usage import install
         replacements = install()
         for module in list(sys.modules.values()):

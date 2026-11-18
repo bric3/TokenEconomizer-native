@@ -1,0 +1,14 @@
+You are working in the repository checked out at /testbed.
+
+Resolve the following issue. Modify the SOURCE code so the described behavior is fixed.
+
+<issue>
+{problem}
+</issue>
+
+Rules:
+- Work only inside /testbed; the repo is already at the right commit and its environment
+  is installed (the `testbed` conda env is active).
+- Do NOT modify test files: the grader resets them and applies its own tests.
+- Do not commit; leaving the fix in the working tree is what gets graded.
+- When you believe the fix is complete, stop.
