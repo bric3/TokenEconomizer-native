@@ -463,6 +463,12 @@ complete while any runtime component delegates production behaviour to Python.
   helper results. Version reporting prefers stdout, falls back to stderr, and
   keeps the first 120 characters of the first stripped line. Installation checks
   include cache and config paths when container seeding is requested.
+- Shared optimizer metadata is native: log-path selection, cell-key derivation,
+  context replacement with only `None` values removed, and classification against
+  the nine prompt signatures within the first 600 Unicode code points. The
+  binding retains the shared context and opaque values. Web-Bench aliases use
+  the same native helpers. Shared JSON log writing and verbosity control remain
+  callbacks.
 - The shared JSON reader supplies syntax messages, Unicode positions and line
   and column information. Catalogue HTTP contexts receive reconstructed
   `JSONDecodeError` objects with the source fields. The grader loader uses those
@@ -536,7 +542,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Web-Bench constructors, shared optimizer logging and context helpers, runner call wrappers,
+  Web-Bench constructors, shared optimizer logging, runner call wrappers,
   factories, global signal cleanup, container guard binary deployment and
   registration, scaffold backends and contexts, agent streaming, and the
   Web-Bench task lifecycle and wrappers still need conversion. Per-task container
@@ -1577,6 +1583,24 @@ complete while any runtime component delegates production behaviour to Python.
   not open in the connected IDE. No external provider or paid model was called.
   Shared optimizer helpers, runner conversion and the remaining parity audits
   stay open. No simplification or performance pass is counted.
+
+- Optimizer metadata passes 211 source comparisons. They cover explicit and
+  derived log paths, cell keys, Web-Bench aliases, context identity and replacement,
+  removal of `None` values while retaining falsey values, all nine prompt
+  signatures, Unicode slicing, malformed collections, foreign protocols and
+  exception propagation. Path checks also verify captured callables when nested
+  path operations replace their neighbouring functions.
+  The 235-case HTTP optimizer regression passes. The full original suite, with
+  installed-opencode tests enabled, passes with 1,561 passed and 30 skipped
+  (69.23 seconds). Its record remains `validation/experiment-task-calls.json`;
+  it includes two context updates, five log-path selections and four prompt
+  classifications. The new probe supplies cell-key coverage.
+  All 24 Rust checks, debug/release builds, Clippy, formatting and the 256-file
+  reference check pass. Original tests remain unchanged. IDE inspections remain
+  unavailable because this checkout is not open in the connected IDE. No external
+  provider or paid model was called. Shared log writing, runner conversion and
+  the remaining parity audits stay open. No simplification or performance pass
+  is counted.
 
 ## Dependencies
 

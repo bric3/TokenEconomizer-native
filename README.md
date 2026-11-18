@@ -109,6 +109,8 @@ supply HTTP I/O, clocks, observers and pricing calls.
 Copilot CLI optimizer coordination also runs in Rust, including tool-isolation
 flags, model selection, cleanup, event parsing and billing order. Copilot host
 binary discovery, version reporting, installation validation and environment
-assembly also run in Rust. Shared optimizer helpers still need conversion.
+assembly also run in Rust. Shared optimizer metadata uses native log-path
+selection, cell keys, context updates and prompt classification, including the
+Web-Bench aliases. Shared log writing and verbosity control still need conversion.
 
 Installed host verification and the remaining migration gates are still in progress.

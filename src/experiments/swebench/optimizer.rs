@@ -24,7 +24,7 @@ fn number(value: String) -> Node {
     let nonzero = value != "0";
     Node::Number(value, nonzero)
 }
-fn parse_wire(value: &Value) -> Result<Node> {
+pub(super) fn parse_wire(value: &Value) -> Result<Node> {
     python_json::parse(value.as_str().unwrap_or("").as_bytes(), 0)
         .ok_or_else(|| Failure::new("ValueError", "invalid optimizer binding JSON"))
 }

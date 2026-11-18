@@ -331,6 +331,9 @@ pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
         "copilot_bin" | "cli_version" | "require_install" | "run_env" if agent == "copilot" => {
             super::copilot_install::run(name, rt)
         }
+        "optimizer_log_path" | "_cell_of" | "set_optimizer_context" | "optimizer_call_kind" => {
+            super::optimizer_context::run(name, rt)
+        }
         "agent_credential_env" => {
             for key in names(rt, "IGNORED_ANTHROPIC_VARS")? {
                 rt.call("provider_env_pop", json!([key]))?;

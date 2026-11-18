@@ -24,6 +24,7 @@ pub mod grading;
 pub mod guard_install;
 pub mod official;
 pub mod optimizer;
+pub mod optimizer_context;
 pub mod preflight;
 pub mod providers;
 pub mod settings;

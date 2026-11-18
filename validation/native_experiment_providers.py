@@ -165,6 +165,24 @@ def install():
                     elif method == "host_first_version": values["version"] = values["lines"][0][:120]
                     elif method == "host_missing": value = json.dumps(", ".join(values[key] for key in parameters[0]),ensure_ascii=True)
                     elif method == "host_update": values[parameters[0]].update(values[parameters[1]])
+                    elif method == "context_log_path": values["path"] = module.os.path.join(values["root"],"logs","optimizer_calls.jsonl")
+                    elif method == "context_capture_path": values[parameters[1]] = getattr(module.os.path,parameters[0])
+                    elif method == "context_apply_path": values[parameters[1]] = values[parameters[0]](*[values[key] for key in parameters[2]])
+                    elif method == "context_clear": module._OPT_CTX.clear()
+                    elif method == "context_capture_update": values["update"] = module._OPT_CTX.update
+                    elif method == "context_fields":
+                        values["fields_items"] = list(values["fields"].items())
+                        value = [item is None for key,item in values["fields_items"]]
+                    elif method == "context_update": values["update"](dict(values["fields_items"][index] for index in parameters[0]))
+                    elif method == "context_slice_head": values["head"] = values["prompt"][:600]
+                    elif method == "context_head": values["head"] = decode(parameters[0])
+                    elif method == "context_kinds": values["kinds"] = iter(module._OPT_KINDS)
+                    elif method == "context_next_kind":
+                        try: item = next(values["kinds"])
+                        except StopIteration: value = [False,None]
+                        else:
+                            values["kind"],values["signature"] = item
+                            value = [True,json.dumps(values["signature"],ensure_ascii=True) if type(values["signature"]) is str else None]
                     elif method == "preflight_format": value = format(values[parameters[0]],parameters[1])
                     elif method == "preflight_log":
                         values["preflight_call_log"](*parameters)
@@ -189,7 +207,7 @@ def install():
             if isinstance(result,dict) and "provider_encoded" in result: result = json.loads(result["provider_encoded"])
             return tuple(result) if name in ("verify_model","anthropic_optimizer_call","optimizer_call") else result
         return native
-    for module,agent,names in ((swebench,"claude",("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call")),
+    for module,agent,names in ((swebench,"claude",("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call","optimizer_log_path","_cell_of","set_optimizer_context","optimizer_call_kind")),
                               (copilot,"copilot",("auth_env","byok_active","provider_base","anthropic_optimizer_endpoint","provider_env","provider_secret_names","normalize_model","effort_applies","validate_priceable","optimizer_call","copilot_bin","cli_version","require_install","run_env")),
                               (codex,"codex",("resolve_codex_routing","validate_priceable","fetch_catalog","verify_model","preflight_optimizer","optimizer_call","_responses_text"))):
         for name in names:
@@ -198,7 +216,7 @@ def install():
             setattr(module,name,replacements[original])
     webbench = sys.modules.get("te_harness.webbench")
     if webbench is not None:
-        for name in ("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call"):
+        for name in ("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call","set_optimizer_context","_cell_of"):
             original = getattr(webbench,name,None)
             if original in replacements: setattr(webbench,name,replacements[original])
     return replacements
