@@ -51,6 +51,8 @@ class WebSetupProbe {
       for(var routing:List.of("null","{}","{\"api_key\":\"fixture\"}","{\"base_url\":\"base\"}"))compare(nativeCode,source,"\"agent\":\"codex\",\"routing\":"+routing);
       for(var agent:List.of("claude","copilot","codex"))for(var model:List.of("",agent.equals("codex")?"gpt-5.6-sol":"claude-sonnet-5","unknown-fixture"))for(var env:List.of("{}","{\"ANTHROPIC_API_KEY\":\"fixture\",\"OPENAI_API_KEY\":\"fixture\"}","{\"ANTHROPIC_API_KEY\":\"fixture\",\"OPENAI_API_KEY\":\"fixture\",\"COPILOT_PROVIDER_BASE_URL\":\"http://fixture\",\"COPILOT_PROVIDER_TYPE\":\"anthropic\",\"COPILOT_PROVIDER_BEARER_TOKEN\":\"fixture\"}"))
         compare(nativeCode,source,"\"real_helpers\":true,\"agent\":"+q(agent)+",\"arguments\":{\"model\":"+q(model)+"},\"env\":"+env);
+      for(var agent:List.of("claude","copilot","codex"))for(int abort:List.of(60,300,800))
+        compare(nativeCode,source,"\"real_host_helpers\":true,\"agent\":"+q(agent)+",\"env\":{\"TE_WEBBENCH_REPO\":\"/fixture/repo\",\"TE_WEBBENCH_UNDICI_ABORT\":"+q(abort)+",\"TE_TASK_TIMEOUT\":\"900\"}");
     }
     System.out.println("Web-Bench setup matches the source in "+cases+" comparisons; three constructors, partial state, stream reset, evaluation order and opaque helper identities passed without paid calls");
   }

@@ -437,8 +437,12 @@ complete while any runtime component delegates production behaviour to Python.
   configuration objects, and supply object protocols and numeric conversions.
   Codex keeps its early scaffold check, separate vendor and binary discovery,
   namespace-probe order, duplicate start-timeout and workspace-flag assignments,
-  and the final stream reset. Host discovery, task-timeout policy and the namespace
-  probe remain helper callbacks.
+  and the final stream reset.
+- Web-Bench repository and Node discovery, evaluator abort and task-timeout
+  policy, preload environment assembly and namespace-probe decisions are native.
+  SDK bindings supply filesystem and process I/O, URI encoding and Python object
+  protocols. Native decimal arithmetic preserves arbitrary-size integer results
+  without introducing an extra Python integer-to-string digit-limit check.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -572,8 +576,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Web-Bench host discovery, timeout and namespace-probe helpers, global signal
-  cleanup, container guard binary deployment and
+  Global signal cleanup, container guard binary deployment and
   registration, scaffold backends and contexts, agent streaming, and the
   Web-Bench task lifecycle and wrappers still need conversion. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
@@ -1696,6 +1699,27 @@ complete while any runtime component delegates production behaviour to Python.
   connected IDE. Web-Bench host/configuration helpers, task lifecycle, signal
   cleanup, host bindings and the remaining parity audits stay open.
   No simplification or performance pass is counted.
+
+- Web-Bench host helpers pass 680 source comparisons covering repository and Node
+  discovery, environment fallback and lookup order, abort and timeout bounds,
+  preload options and URI encoding, namespace return codes and exception handling.
+  Cases include arbitrary-size integers, digit limits, foreign object protocols,
+  captured path callables, real symlinks and PATH lookup. An offline Java process
+  fixture checks the namespace probe's exact arguments and successful and failing
+  exits; it does not execute Linux namespace isolation.
+  The constructor corpus passes 861 comparisons, including nine cases through
+  these helpers. The 914-case runner and 235-case HTTP regressions also pass.
+  The full original suite, with installed-opencode tests enabled, passes with
+  1,561 passed and 30 skipped (71.64 seconds). Its updated call record is
+  `validation/experiment-task-calls.json`: task timeout runs seven times, abort
+  policy thirteen times and evaluator environment assembly four times. The focused
+  probe supplies discovery and namespace coverage. All 24 Rust checks, debug and
+  release builds, Clippy, formatting and the 256-file reference check pass.
+  Original tests remain unchanged. IDE inspections remain unavailable because
+  this checkout is not open in the connected IDE. Live providers, Linux namespace
+  isolation, Web-Bench task lifecycle, signal cleanup, host bindings and the
+  remaining parity audits stay open. Simplification and performance passes
+  remain at 0/3 each; final test conversion is pending.
 
 ## Dependencies
 

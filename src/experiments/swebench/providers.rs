@@ -320,6 +320,16 @@ fn verify(rt: &mut dyn Runtime) -> Result<Value> {
 pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
     let (agent, name) = method.split_once('.').unwrap_or(("", method));
     match name {
+        "webbench_repo"
+        | "node_bin"
+        | "webbench_undici_abort"
+        | "webbench_task_timeout"
+        | "webbench_undici_env"
+        | "_probe_namespace_guard"
+            if agent == "webbench" =>
+        {
+            super::web_host::run(name, rt)
+        }
         "resolve_anthropic_key" => routed_key(rt, true),
         "resolve_codex_routing" => routed_key(rt, false),
         "preflight_optimizer_endpoint" => super::preflight::run(false, rt),

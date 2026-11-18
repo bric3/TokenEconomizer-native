@@ -16,6 +16,7 @@ if "--native" in sys.argv:
 from te_harness import webbench as wb
 if "--native" in sys.argv:
     install(wb)
+    providers(wb)
     original_constructor = wb.CodexWebBenchRunner.__init__
     install(wb)
     assert wb.CodexWebBenchRunner.__init__ is original_constructor,"constructor install is not idempotent"
@@ -23,7 +24,7 @@ if "--native" in sys.argv:
 for line in sys.stdin:
     request = json.loads(line)
     calls,references = [],{}
-    names = ("os","scaffolds_pkg","pricing","codex","copilot","resolve_anthropic_key","claude_bin","cli_version","webbench_repo","node_bin","webbench_task_timeout","_log")
+    names = ("os","shutil","subprocess","scaffolds_pkg","pricing","codex","copilot","resolve_anthropic_key","claude_bin","cli_version","webbench_repo","node_bin","webbench_task_timeout","_log")
     saved = {name:getattr(wb,name) for name in names}
     swebench_os = sw.os
     helper_os = {name:saved[name].os for name in ("copilot","codex")}
@@ -85,7 +86,10 @@ for line in sys.stdin:
         if request.get("mutate_profile"): scaffold.preflight = lambda actual:record("new.preflight",actual)
         return profile
     def preflight(self): record("preflight");return Token("preflight_result")
-    def namespace(self): record("namespace");return request.get("namespace",True)
+    def namespace(self):
+        record("namespace")
+        return base._probe_namespace_guard(self) if request.get("real_host_helpers") else request.get("namespace",True)
+    def namespace_run(*args,**kwargs): record("namespace.run",[args,list(kwargs),kwargs]);return types.SimpleNamespace(returncode=request.get("namespace_returncode",0))
     agent = request.get("agent","claude")
     base = {"claude":wb.WebBenchRunner,"copilot":wb.CopilotWebBenchRunner,"codex":wb.CodexWebBenchRunner}[agent]
     tracked = {"agent","model","api_key","optimizer_model","effort","effort_requested","scaffold","scaffold_name","copilot","claude","agent_bin","cli_version","routing","routing_base","optimizer_endpoint","base_prompt","system_skills","scaffold_profile_for","_init_stream_state","_probe_namespace_guard","_preflight_optimizer_endpoint"}
@@ -113,6 +117,8 @@ for line in sys.stdin:
         wb.scaffolds_pkg = types.SimpleNamespace(get=helper("scaffold.get",lambda name:None if request.get("no_scaffold") else scaffold))
         wb.webbench_repo,wb.node_bin = helper("repo",lambda:repo),helper("node",lambda:node)
         wb.webbench_task_timeout = helper("task_timeout",lambda:request.get("task_timeout",240))
+        wb.shutil = types.SimpleNamespace(which=helper("which",lambda name:node))
+        wb.subprocess = types.SimpleNamespace(run=namespace_run,TimeoutExpired=saved["subprocess"].TimeoutExpired)
         wb._log = lambda message:record("log",message)
         wb.copilot = types.SimpleNamespace(EFFORT_LEVELS=saved["copilot"].EFFORT_LEVELS,PROTECTED_TOOLS=saved["copilot"].PROTECTED_TOOLS,
             normalize_model=helper("normalize",normalize),validate_priceable=helper("priceable",lambda *args:None),effort_applies=helper("effort_applies",lambda model:request.get("effort_applies",model is not None)),
@@ -130,6 +136,10 @@ for line in sys.stdin:
                 setattr(wb.copilot,name,helper(label,getattr(saved["copilot"],name)))
             for name,label in (("resolve_codex_routing","routing"),("validate_priceable","priceable")):
                 setattr(wb.codex,name,helper(label,getattr(saved["codex"],name)))
+        if request.get("real_host_helpers"):
+            wb.webbench_repo = saved["webbench_repo"]
+            wb.node_bin = saved["node_bin"]
+            wb.webbench_task_timeout = saved["webbench_task_timeout"]
         if request.get("stream_only"):
             base._init_stream_state(runner)
             assert runner._stream is not previous_stream,"stream state reused a previous list"

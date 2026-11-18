@@ -2,6 +2,7 @@
 import functools
 import builtins
 import inspect
+import operator
 import json
 import sys
 from decimal import Decimal
@@ -20,7 +21,7 @@ def install(runner_module=None):
             bound = signature.bind(*args,**kwargs)
             bound.apply_defaults()
             values = dict(bound.arguments)
-            deferred_errors = name in ("_log_optimizer_call","_log") or name.startswith("runner_")
+            deferred_errors = name in ("_log_optimizer_call","_log") or name.startswith("runner_") or agent == "webbench"
             if agent == "codex" and name == "optimizer_call":
                 from te_harness.swebench import _log, _log_optimizer_call
                 values["optimizer_log"] = _log
@@ -240,6 +241,18 @@ def install(runner_module=None):
                     elif method == "runner_supported": value = values["scaffold"] in module.WEBBENCH_SCAFFOLDS
                     elif method == "runner_raise": raise RuntimeError("".join(map(chr,parameters[0])))
                     elif method == "runner_construct": values["called"] = module.RUNNERS[values["agent"]](agent=values["agent"],scaffold=values["scaffold"],**values["kwargs"])
+                    elif method == "web_compare": values["comparison"] = getattr(operator,parameters[0])(values[parameters[1]],values[parameters[2]])
+                    elif method == "web_integer": values[parameters[1]] = int(values[parameters[0]])
+                    # The wire codec must not add an int-to-string digit-limit check to arithmetic.
+                    elif method == "web_decimal": value = str(Decimal(values[parameters[0]])) if type(values[parameters[0]]) is int else None
+                    elif method == "web_integer_literal": values[parameters[0]] = int(Decimal(parameters[1]))
+                    elif method == "web_binary": values[parameters[3]] = getattr(operator,parameters[0])(values[parameters[1]],values[parameters[2]])
+                    elif method == "web_which": values[parameters[0]] = module.shutil.which(parameters[1])
+                    elif method == "web_abort": values["abort"] = module.webbench_undici_abort(values["env"])
+                    elif method == "web_uri": values["uri"] = module.Path(module.UNDICI_PRELOAD).as_uri()
+                    elif method == "web_stringify": values[parameters[1]] = str(values[parameters[0]])
+                    elif method == "web_run": values["completed"] = module.subprocess.run(parameters[0],**parameters[1])
+                    elif method == "web_returncode": values["returncode"] = values["completed"].returncode
                     elif method == "preflight_format": value = format(values[parameters[0]],parameters[1])
                     elif method == "preflight_log":
                         values["preflight_call_log"](*parameters)
@@ -286,6 +299,16 @@ def install(runner_module=None):
         if getattr(original,"_te_provider_operation",None) != ("claude",operation):
             replacements[original] = function(owner,original,"claude",operation)
             owner.make_runner = replacements[original]
+        if domain == "webbench":
+            for name in ("webbench_repo","node_bin","webbench_undici_abort","webbench_task_timeout","webbench_undici_env"):
+                original = getattr(owner,name)
+                if getattr(original,"_te_provider_operation",None) == ("webbench",name): continue
+                replacements[original] = function(owner,original,"webbench",name)
+                setattr(owner,name,replacements[original])
+            original = owner.CodexWebBenchRunner._probe_namespace_guard
+            if getattr(original,"_te_provider_operation",None) != ("webbench","_probe_namespace_guard"):
+                replacements[original] = function(owner,original,"webbench","_probe_namespace_guard")
+                owner.CodexWebBenchRunner._probe_namespace_guard = replacements[original]
     if runner_module is not None:
         runner_calls(runner_module,"webbench",("WebBenchRunner","CopilotWebBenchRunner","CodexWebBenchRunner"))
         return replacements

@@ -97,6 +97,9 @@ and temporary-directory retries. SDK bindings supply filesystem and process I/O.
 Constructor coordination also runs in Rust for Claude, Copilot and Codex in both
 domains, including validation order, scaffold setup and configuration preflights.
 Web-Bench's shared stream-state initialisation also runs in Rust.
+Web-Bench repository and Node discovery, evaluator abort and task-timeout policy,
+preload environment assembly and namespace-probe decisions also run in Rust.
+SDK bindings supply paths, process I/O and Python object protocols.
 Scaffold backends and Web-Bench task calls still cross migration callbacks.
 Provider routing, credential filtering, Copilot model normalisation and effort
 selection also run in Rust. Codex catalogue parsing, caching and model verification

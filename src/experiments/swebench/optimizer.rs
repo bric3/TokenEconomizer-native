@@ -438,7 +438,7 @@ fn magnitude(a: &str, b: &str, add: bool) -> String {
     result.reverse();
     String::from_utf8(result).unwrap()
 }
-fn nonnegative_difference(total: &str, cached: &str) -> String {
+pub(super) fn nonnegative_difference(total: &str, cached: &str) -> String {
     let (t, c) = (
         total.trim_start_matches('-'),
         cached.trim_start_matches('-'),
