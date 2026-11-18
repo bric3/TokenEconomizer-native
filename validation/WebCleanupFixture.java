@@ -9,6 +9,10 @@ import java.nio.file.Path;
 /** Owned long-lived processes for process-group and interrupted-RPC cleanup checks. */
 class WebCleanupFixture {
   public static void main(String[] args) throws Exception {
+    if(args[0].equals("docker")) {
+      Files.writeString(Path.of(args[1]),"removed\n");
+      System.exit(39);
+    }
     if(args[0].equals("rpc")) {
       var input=new BufferedReader(new InputStreamReader(System.in));
       if(input.readLine()==null)throw new AssertionError("missing RPC request");

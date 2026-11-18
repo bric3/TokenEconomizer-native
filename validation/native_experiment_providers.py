@@ -28,7 +28,7 @@ def install(runner_module=None):
                 return original(*args,**kwargs)
             bound.apply_defaults()
             values = dict(bound.arguments)
-            deferred_errors = name in ("_log_optimizer_call","_log") or name.startswith("runner_") or agent == "webbench"
+            deferred_errors = name in ("_log_optimizer_call","_log") or name.startswith("runner_") or agent in ("webbench","swebench")
             if agent == "codex" and name == "optimizer_call":
                 from te_harness.swebench import _log, _log_optimizer_call
                 values["optimizer_log"] = _log
@@ -329,7 +329,7 @@ def install(runner_module=None):
                         value = list(map(ord,str.__iter__(formatted)))
                     elif method == "cleanup_iter": values["iterator"] = iter(values["snapshot"])
                     elif method == "cleanup_next":
-                        try: values["session"] = next(values["iterator"])
+                        try: values["entry"] = next(values["iterator"])
                         except StopIteration: value = False
                         else: value = True
                     elif method == "cleanup_handler":
@@ -369,7 +369,7 @@ def install(runner_module=None):
         @functools.wraps(original)
         def native(*args,**kwargs):
             # Signal cleanup can interrupt a call holding the shared bridge lock.
-            if agent == "webbench" and name in ("eval_close","cleanup_sessions","signal_install","signal_handler"):
+            if agent in ("webbench","swebench") and name in ("eval_close","cleanup_sessions","cleanup_containers","signal_install","signal_handler"):
                 with isolated_invoke() as rpc: return drive(rpc,*args,**kwargs)
             return drive(invoke,*args,**kwargs)
         native._te_provider_operation = agent,name
@@ -389,12 +389,13 @@ def install(runner_module=None):
         if getattr(original,"_te_provider_operation",None) != ("claude",operation):
             replacements[original] = function(owner,original,"claude",operation)
             owner.make_runner = replacements[original]
+        cleanup = "_cleanup_sessions" if domain == "webbench" else "_cleanup_containers"
+        for name,operation in ((cleanup,cleanup.removeprefix("_")),("_install_signal_cleanup","signal_install")):
+            original = getattr(owner,name)
+            if getattr(original,"_te_provider_operation",None) == (domain,operation): continue
+            replacements[original] = function(owner,original,domain,operation)
+            setattr(owner,name,replacements[original])
         if domain == "webbench":
-            for name,operation in (("_cleanup_sessions","cleanup_sessions"),("_install_signal_cleanup","signal_install")):
-                original = getattr(owner,name)
-                if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
-                replacements[original] = function(owner,original,"webbench",operation)
-                setattr(owner,name,replacements[original])
             for name,operation in (("do_POST","http_post"),("log_message","http_log_message")):
                 original = getattr(owner._AgentHandler,name)
                 if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue

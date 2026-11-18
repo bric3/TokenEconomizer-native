@@ -14,6 +14,7 @@ use std::{
 #[cfg(unix)]
 use crate::value::python_repr;
 
+pub mod cleanup;
 pub mod codex_config;
 pub mod codex_install;
 pub mod codex_trace;

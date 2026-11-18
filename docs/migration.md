@@ -488,6 +488,11 @@ complete while any runtime component delegates production behaviour to Python.
   Rust, including resetting and repeating the received signal. SDK bindings supply
   process, signal and object APIs through a separate bridge connection so cleanup
   can interrupt a call holding the main RPC lock.
+- SWE-bench live-container sweeping uses native snapshot iteration, forced Docker
+  removal and registry updates. Names retain their references, command results are
+  ignored and subprocess or registry errors propagate in source order. Both domains
+  share native signal registration and signal exit-status handling. SDK bindings
+  supply subprocess and signal I/O through independent cleanup connections.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -624,8 +629,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  SWE-bench global signal cleanup, container guard binary deployment and
-  registration, scaffold backends and contexts, agent streaming, and the
+  Container guard binary deployment and registration, scaffold backends and
+  contexts, agent streaming, and the
   Web-Bench task calls and
   wrappers still need conversion.
   Stream start and session close coordination are native. Per-task container
@@ -1921,6 +1926,26 @@ complete while any runtime component delegates production behaviour to Python.
   SWE-bench global cleanup, Web-Bench task calls, host bindings and remaining parity
   audits stay open. Simplification and performance passes remain at 0/3 each;
   final test conversion is pending.
+
+- SWE-bench global cleanup and signal policy passes 272 source comparisons covering
+  snapshot order, opaque container names, ignored command results, registry removal,
+  mutation during cleanup, getter failures, error propagation and handler captures.
+  Eight real signal cases compare source and native TERM, INT, HUP and process-group
+  TERM while the shared RPC lock is held. An owned Java subprocess replaces Docker
+  I/O and returns status 39; cleanup waits for it, discards the tracked name and
+  preserves the parent's signal exit status. No Docker daemon or paid model is used.
+  Shared signal and snapshot policy now lives in `swebench/cleanup.rs`; evaluator
+  resource cleanup remains in `swebench/web_close.rs`.
+  The 214-case Web-Bench registry corpus, its eight real signal cases and the
+  914-case runner corpus pass. The full original suite, with installed-opencode
+  tests enabled, passes with 1,561 passed and 30 skipped (70.05 seconds). Its record
+  remains `validation/experiment-task-calls.json`; it does not exercise the new
+  SWE-bench cleanup operations. All 24 Rust checks, debug/release builds, Clippy,
+  formatting and the 256-file reference check pass. Original tests remain unchanged.
+  IDE inspections remain unavailable because this checkout is not open in the IDE.
+  Web-Bench task calls, scaffold backends, streaming, host bindings and remaining
+  parity audits stay open. Simplification and performance passes remain at 0/3
+  each; final test conversion is pending.
 
 ## Dependencies
 

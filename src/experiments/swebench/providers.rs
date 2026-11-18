@@ -321,9 +321,15 @@ pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
     let (agent, name) = method.split_once('.').unwrap_or(("", method));
     match name {
         "eval_close" if agent == "webbench" => super::web_close::close(rt),
-        "cleanup_sessions" if agent == "webbench" => super::web_close::sessions(rt),
-        "signal_install" if agent == "webbench" => super::web_close::install_signals(rt),
-        "signal_handler" if agent == "webbench" => super::web_close::signal(rt),
+        "cleanup_sessions" if agent == "webbench" => super::cleanup::sessions(rt),
+        "cleanup_containers" if agent == "swebench" => super::cleanup::containers(rt),
+        "signal_install" if matches!(agent, "webbench" | "swebench") => {
+            super::cleanup::install_signals(rt)
+        }
+        "signal_handler" if agent == "webbench" => super::cleanup::signal(rt, "_cleanup_sessions"),
+        "signal_handler" if agent == "swebench" => {
+            super::cleanup::signal(rt, "_cleanup_containers")
+        }
         "http_post" if agent == "webbench" => super::web_http::post(rt),
         "http_log_message" if agent == "webbench" => Ok(Value::Null),
         "eval_start" if agent == "webbench" => super::web_start::start(rt),
