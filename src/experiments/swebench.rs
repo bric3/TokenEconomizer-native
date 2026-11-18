@@ -11,6 +11,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+pub mod grading;
 #[cfg(test)]
 mod tests;
 
@@ -22,6 +23,8 @@ pub struct Failure {
     pub message: String,
     #[serde(default)]
     pub bases: Vec<String>,
+    #[serde(default)]
+    pub stdout: Option<Box<Value>>,
 }
 impl Failure {
     fn accounting(error: String) -> Self {
@@ -35,18 +38,23 @@ impl Failure {
             kind: kind.into(),
             message: message.into(),
             bases: Vec::new(),
+            stdout: None,
         }
     }
     fn recoverable(&self) -> bool {
-        if self.bases.is_empty() {
-            return matches!(self.kind.as_str(), "RuntimeError" | "TimeoutExpired");
+        self.is_a("builtins.RuntimeError") || self.is_a("subprocess.TimeoutExpired")
+    }
+    fn is_a(&self, name: &str) -> bool {
+        if !self.bases.is_empty() {
+            return self.bases.iter().any(|base| base == name);
         }
-        self.bases.iter().any(|s| {
-            matches!(
-                s.as_str(),
-                "builtins.RuntimeError" | "subprocess.TimeoutExpired"
-            )
-        })
+        if name == "builtins.Exception" {
+            return !matches!(
+                self.kind.as_str(),
+                "BaseException" | "KeyboardInterrupt" | "SystemExit" | "GeneratorExit"
+            );
+        }
+        name.rsplit('.').next() == Some(self.kind.as_str())
     }
 }
 impl From<std::io::Error> for Failure {

@@ -376,10 +376,12 @@ complete while any runtime component delegates production behaviour to Python.
   degradation only when the session log accounts for every observed message.
   Codex preserves unknown segment totals; Copilot retains known counts and marks
   mixed sources. The original harness functions serve as data bindings in tests.
-
 - The shared SWE-bench task lifecycle is native, including task prompts, container
   names, resumed segments, artifacts, error rows and cleanup ordering. Host
   callbacks still supply container, scaffold, grader and stream operations.
+- Grading orchestration is native too, including eval-script execution order,
+  partial timeout logs, failed-execution reports and recovery from grader errors.
+  Container commands and the official-grader integration remain host callbacks.
 
 ## Remaining production work
 
@@ -428,7 +430,8 @@ complete while any runtime component delegates production behaviour to Python.
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   Constructors, agent-specific task wrappers, provider configuration, subprocess,
-  container, scaffold, grading and stream operations still need conversion.
+  container, scaffold, official-grader integration and stream operations still
+  need conversion. Grading orchestration is native.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
 
@@ -1120,6 +1123,24 @@ complete while any runtime component delegates production behaviour to Python.
   callbacks still use the reference implementation outside the probe's local
   stand-ins. No Docker, paid model or live grading calls were run. Production
   conversion and parity audits remain open; no improvement pass is counted.
+
+- Grading orchestration extends the task probe to 262 source comparisons. They
+  cover empty patches, zero and nonzero command exits, empty and partial output,
+  timeout subclasses, malformed UTF-8 bytes, stderr truncation by character,
+  failed diagnostic writes, grader exceptions, `KeyboardInterrupt` and `SystemExit`.
+  Combined task cases exercise native grading inside resumed execution, including
+  nested callbacks and cleanup. Relative paths are checked after changing the working
+  directory. A Rust check verifies retained timeout output and score recovery.
+  All 18 Rust library checks, the callback replay check, debug/release builds,
+  Clippy, formatting, the 474-case usage regression and 256-file reference check
+  pass. The full original suite with installed-opencode tests enabled passes with
+  1,561 passed and 30 skipped (66.73 seconds). Its native task entries still cover
+  container naming; grading runtime coverage comes from the task probe and Rust
+  check. The call record remains `validation/experiment-task-calls.json`.
+  Original tests remain unchanged. Container commands and the official-grader
+  integration still use reference callbacks outside the probe's local stand-ins.
+  No live Docker or official grading run was performed. The production-parity
+  audits and remaining runner conversion stay open; no improvement pass is counted.
 
 ## Dependencies
 

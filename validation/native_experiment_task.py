@@ -8,6 +8,7 @@ from native_experiment_spiral import checked
 
 
 def data(value):
+    if isinstance(value, bytes): return {"bytes":list(value)}
     if dataclasses.is_dataclass(value): return dataclasses.asdict(value)
     if isinstance(value, os.PathLike): return os.fspath(value)
     if isinstance(value, dict): return {key: data(item) for key, item in value.items()}
@@ -19,16 +20,10 @@ def data(value):
 def install():
     from te_harness import swebench as module
     cls = module.ClaudeSwebenchRunner
-    original = cls.run_task
-    @functools.wraps(original)
-    def run_task(self, task, *, arm, injected, exclude_tools, run_dir_path, **run_kwargs):
+    def drive(self, result, run_kwargs):
         errors = []
         guard = None
         transcript = None
-        result = invoke("experiment.swebench.run_task", {"task":data(task), "arm":arm, "injected":injected,
-                        "exclude_tools":exclude_tools, "run_dir":os.fspath(run_dir_path), "kwargs":data(run_kwargs),
-                        "metadata":{key:getattr(self,key) for key in ("agent","model","effort","cli_version")},
-                        "environment":{key:os.environ[key] for key in ("TE_MAX_TURNS",) if key in os.environ}, "process_cwd":os.getcwd()})
         while "callback" in result:
             method, args = result["method"], result["args"]
             try:
@@ -59,20 +54,47 @@ def install():
                 elif method == "_segment":
                     name, prompt, path, excluded, turns, mcp = args
                     value = self._segment(name,prompt,transcript,excluded,turns,guard,mcp_config=mcp)
+                elif method == "_exec":
+                    process = self._exec(args[0],args[1],**args[2])
+                    value = {key:getattr(process,key) for key in ("returncode","stdout","stderr")}
+                elif method == "eval_script": value = self.grader.eval_script(*args)
+                elif method == "score": value = self.grader.score(*args)
                 elif method == "scaffold_info": value = {"name":self.scaffold.name} if self.scaffold is not None else None
                 else: value = getattr(self,method)(*args)
                 reply = {"value":data(value)}
             except BaseException as error:
                 errors.append(error)
-                reply = {"error":{"kind":type(error).__name__,"message":str(error),"bases":[base.__module__ + "." + base.__qualname__ for base in type(error).__mro__]}}
+                reply = {"error":{"kind":type(error).__name__,"message":str(error),"bases":[base.__module__ + "." + base.__qualname__ for base in type(error).__mro__],"stdout":data(getattr(error,"stdout",None))}}
             result = invoke("experiment.swebench.resume", {"job":result["job"],"reply":reply})
         if isinstance(result,dict) and "raised" in result:
             for error in reversed(errors):
                 if type(error).__name__ == result["raised"] and str(error) == result["message"]:
                     raise error
             checked(result)
-        return result, run_dir_path
+        return result
+    original = cls.run_task
+    @functools.wraps(original)
+    def run_task(self, task, *, arm, injected, exclude_tools, run_dir_path, **run_kwargs):
+        result = invoke("experiment.swebench.run_task", {"task":data(task), "arm":arm, "injected":injected,
+                        "exclude_tools":exclude_tools, "run_dir":os.fspath(run_dir_path), "kwargs":data(run_kwargs),
+                        "metadata":{key:getattr(self,key) for key in ("agent","model","effort","cli_version")},
+                        "environment":{key:os.environ[key] for key in ("TE_MAX_TURNS",) if key in os.environ}, "process_cwd":os.getcwd()})
+        return drive(self,result,run_kwargs), run_dir_path
     cls.run_task = run_task
+    original_grade = cls._grade
+    @functools.wraps(original_grade)
+    def grade(self, name, instance_id, patch, run_dir_path):
+        result = invoke("experiment.swebench.grade", {"name":name,"instance_id":instance_id,"patch":patch,
+                        "run_dir":os.fspath(run_dir_path),"eval_timeout":self.eval_timeout,"process_cwd":os.getcwd()})
+        return tuple(drive(self,result,{}))
+    cls._grade = grade
+    original_failed = cls._eval_exec_failed
+    @functools.wraps(original_failed)
+    def failed(self, instance_id, host_log, out, rc, stderr, phase):
+        result = invoke("experiment.swebench.eval_exec_failed", {"instance_id":instance_id,"host_log":os.fspath(host_log),
+                        "out":out,"rc":rc,"stderr":stderr,"phase":phase,"process_cwd":os.getcwd()})
+        return drive(self,result,{})
+    cls._eval_exec_failed = failed
     original_name = cls._container_name
     @functools.wraps(original_name)
     def container_name(self, instance_id, arm, run_dir_path):

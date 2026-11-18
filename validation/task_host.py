@@ -30,7 +30,11 @@ def data(value):
 class TransientFailure(RuntimeError):
     pass
 
+class EvalTimeout(subprocess.TimeoutExpired):
+    pass
+
 ShadowRuntimeError = type("RuntimeError", (Exception,), {})
+ShadowTimeoutExpired = type("TimeoutExpired", (Exception,), {})
 
 
 for line in sys.stdin:
@@ -45,9 +49,13 @@ for line in sys.stdin:
         if request.get("fail") == method:
             kind = request.get("error_kind","RuntimeError")
             message = request.get("error_message","fixture failure")
-            if kind == "TimeoutExpired": raise subprocess.TimeoutExpired(message,3)
+            if kind in ("TimeoutExpired","EvalTimeout"):
+                output = bytes(request["stdout_bytes"]) if "stdout_bytes" in request else request.get("partial_output")
+                klass = EvalTimeout if kind == "EvalTimeout" else subprocess.TimeoutExpired
+                raise klass(message,3,output=output)
             if kind == "TransientFailure": raise TransientFailure(message)
             if kind == "ShadowRuntimeError": raise ShadowRuntimeError(message)
+            if kind == "ShadowTimeoutExpired": raise ShadowTimeoutExpired(message)
             raise getattr(builtins,kind)(message)
     def clock():
         value = request.get("clock",[100.0,101.25])
@@ -109,6 +117,33 @@ for line in sys.stdin:
         def _answer_key_attempts(self,*args): record("_answer_key_attempts",args); return {"attempts":1}
         def _patch_excludes(self): record("_patch_excludes"); return ["fixture.txt"]
         def _guard_row(self,guard): record("_guard_row"); return {"aborted":False,"spiral_nudges":guard.segment}
+    class GradeRunner(sw.ClaudeSwebenchRunner):
+        def __init__(self):
+            self.eval_timeout = request.get("eval_timeout",90)
+            def script(iid):
+                record("eval_script",[iid])
+                return request.get("script","#!/bin/sh\necho é😀")
+            def score(*args):
+                record("score",args)
+                return request.get("score",[True,{"resolved":True}])
+            self.grader = types.SimpleNamespace(eval_script=script,score=score)
+            self.executions = 0
+        def _exec(self,name,script,**kwargs):
+            method = "exec_write" if self.executions == 0 else "exec_eval"
+            self.executions += 1
+            record(method,[name,script,kwargs])
+            values = request.get(method,{"returncode":0,"stdout":"EVAL PASSED\né😀\n","stderr":""})
+            return types.SimpleNamespace(**values)
+        def _eval_exec_failed(self,*args):
+            record("_eval_exec_failed",args)
+            return super()._eval_exec_failed(*args)
+    class GradedTaskRunner(Runner,GradeRunner):
+        def __init__(self):
+            Runner.__init__(self)
+            GradeRunner.__init__(self)
+        def _grade(self,*args):
+            record("_grade",args)
+            return sw.ClaudeSwebenchRunner._grade(self,*args)
     try:
         sw.time.time, sw._log = clock, logs.append
         if "max_turns_env" in request: os.environ["TE_MAX_TURNS"] = request["max_turns_env"]
@@ -122,9 +157,20 @@ for line in sys.stdin:
             elif kind == "row":
                 klass = {"claude":sw.ClaudeSwebenchRunner,"codex":sw.CodexSwebenchRunner,"copilot":sw.CopilotSwebenchRunner}[request["agent"]]
                 value = klass._row_from_segment(None,request["result"])
+            elif kind in ("grade","eval_exec_failed"):
+                root = Path(request["root"])
+                if not request.get("missing_run_dir"): root.mkdir(parents=True,exist_ok=True)
+                if request.get("log_is_directory"): (root/"eval.log").mkdir()
+                run_dir = os.path.relpath(root) if request.get("run_dir_relative") else str(root)
+                if kind == "grade":
+                    value = GradeRunner()._grade("fixture-container","acme__widget-1",request.get("patch","fix é😀\n"),run_dir)
+                else:
+                    value = GradeRunner()._eval_exec_failed("acme__widget-1",str(root/"eval.log"),request.get("out",""),request.get("rc",1),request.get("stderr",""),request.get("phase","running eval.sh"))
             else:
                 task = request.get("task",{"instance_id":"acme__widget-1","repo":"acme/widget","problem_statement":"Fix this task"})
-                row,path = Runner().run_task(task,arm="trimech",injected=request.get("injected"),exclude_tools=request.get("excluded"),run_dir_path=request["root"],**request.get("kwargs",{}))
+                runner = GradedTaskRunner() if request.get("with_grading") else Runner()
+                run_dir = os.path.relpath(request["root"]) if request.get("run_dir_relative") else request["root"]
+                row,path = runner.run_task(task,arm="trimech",injected=request.get("injected"),exclude_tools=request.get("excluded"),run_dir_path=run_dir,**request.get("kwargs",{}))
                 value = {"row":row,"path":path}
         response = {"value":data(value)}
     except BaseException as error:

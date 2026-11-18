@@ -43,7 +43,26 @@ class TaskProbe {
       for(var agent:List.of("claude","codex","copilot"))for(var result:List.of("{}","null","{\"tokens_source\":\"no_turn_event\",\"output_tokens\":null}","{\"tokens_source\":\"debug_log\",\"output_tokens\":5}","{\"tokens_source\":\"stream_usage\",\"output_tokens\":5}"))compare(nativeCode,source,"\"kind\":\"row\",\"agent\":"+q(agent)+",\"result\":"+result);
       for(var injected:List.of("null","\"\"",q(" é😀 manual \u001f\n")))compare(nativeCode,source,"\"kind\":\"prompt\",\"arguments\":{\"task\":{\"problem_statement\":\"Fix é😀\"},\"injected\":"+injected+"}");
       for(var path:List.of("/r/a/b/../c/","//r/a/b","relative/./run","/tmp/é😀/run"))compare(nativeCode,source,"\"kind\":\"name\",\"arguments\":{\"instance_id\":\"acme__widget-1\",\"arm\":\"TRIMECH-é😀\",\"run_dir_path\":"+q(path)+"}");
-      System.out.println("SWE-bench lifecycle matches the source in "+cases+" cases; prompt, naming, resumes, artifacts, grading failures and cleanup order passed without Docker or model calls");passed=true;
+      for(var patch:List.of("", " \u001c\u001f\u0085\n", "fix é😀\n"))compare(nativeCode,source,"\"kind\":\"grade\",\"patch\":"+q(patch));
+      for(int rc:List.of(0,1,-9))for(var output:List.of("", " \u001f\n", "tests passed\né😀\n"))
+        compare(nativeCode,source,"\"kind\":\"grade\",\"exec_eval\":{\"returncode\":"+rc+",\"stdout\":"+q(output)+",\"stderr\":\"daemon failure\"}");
+      compare(nativeCode,source,"\"kind\":\"grade\",\"exec_write\":{\"returncode\":1,\"stdout\":\"ignored\",\"stderr\":\"no container\"}");
+      for(var method:List.of("eval_script","exec_write","exec_eval","_eval_exec_failed","score"))
+        for(var kind:List.of("RuntimeError","TimeoutExpired","EvalTimeout","OSError","ValueError","KeyboardInterrupt","SystemExit","TransientFailure","ShadowRuntimeError","ShadowTimeoutExpired"))
+          compare(nativeCode,source,"\"kind\":\"grade\",\"fail\":"+q(method)+",\"error_kind\":"+q(kind)+(method.equals("_eval_exec_failed")?",\"exec_write\":{\"returncode\":1,\"stdout\":\"\",\"stderr\":\"exec failed\"}":""));
+      for(var method:List.of("exec_write","exec_eval"))for(var output:List.of("null",q("partial é😀\n"),"false","\"\""))
+        compare(nativeCode,source,"\"kind\":\"grade\",\"fail\":"+q(method)+",\"error_kind\":\"TimeoutExpired\",\"partial_output\":"+output);
+      for(var bytes:List.of("[]","[195,169,240,159,152,128,10]","[255,237,160,128,226,130,13,10]"))
+        compare(nativeCode,source,"\"kind\":\"grade\",\"fail\":\"exec_eval\",\"error_kind\":\"EvalTimeout\",\"stdout_bytes\":"+bytes);
+      for(boolean missing:List.of(false,true))for(var stderr:List.of("", " \u001f daemon failure é😀 \n", "é😀".repeat(400)))
+        compare(nativeCode,source,"\"kind\":\"eval_exec_failed\",\"missing_run_dir\":"+missing+",\"out\":\"partial output\\n\",\"stderr\":"+q(stderr));
+      for(var patch:List.of("", "fix é😀\n"))compare(nativeCode,source,"\"with_grading\":true,\"guard\":true,\"patch\":"+q(patch));
+      for(var method:List.of("exec_write","exec_eval","score"))for(var kind:List.of("RuntimeError","TimeoutExpired","KeyboardInterrupt"))
+        compare(nativeCode,source,"\"with_grading\":true,\"guard\":true,\"fail\":"+q(method)+",\"error_kind\":"+q(kind)+",\"partial_output\":\"partial é😀\\n\"");
+      for(var rc:List.of(0,1))compare(nativeCode,source,"\"with_grading\":true,\"exec_eval\":{\"returncode\":"+rc+",\"stdout\":\"\",\"stderr\":\"container unavailable\"}");
+      compare(nativeCode,source,"\"kind\":\"eval_exec_failed\",\"log_is_directory\":true,\"stderr\":\"write failed\"");
+      for(var kind:List.of("task","grade"))compare(nativeCode,source,"\"kind\":"+q(kind)+",\"cwd\":"+q(artifacts)+",\"run_dir_relative\":true,\"with_grading\":true");
+      System.out.println("SWE-bench task lifecycle and grading match the source in "+cases+" cases; prompts, names, resumes, artifacts, partial timeout output, failure reports and cleanup passed without Docker or model calls");passed=true;
     } finally {if(passed)clear(artifacts);else System.err.println("Probe artifacts: "+artifacts);}
   }
 }

@@ -1,7 +1,7 @@
 use super::job::{self, Channel};
 use serde_json::{Value, json};
 use std::path::Path;
-use tokeneconomizer::experiments::swebench::{self, Failure, Runtime, Task};
+use tokeneconomizer::experiments::swebench::{self, Failure, Runtime, Task, grading};
 
 struct Transport(Channel);
 impl Runtime for Transport {
@@ -32,12 +32,22 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
         )
         .map(Some);
     }
-    if method == "run_task" {
+    if matches!(method, "run_task" | "grade" | "eval_exec_failed") {
         let args = args.clone();
+        let method = method.to_owned();
         return job::start("swebench_task", move |channel| {
-            let result = serde_json::from_value::<Task>(args)
-                .map_err(|e| Failure::new("ValueError", e.to_string()))
-                .and_then(|input| swebench::run_task(&input, &mut Transport(channel)));
+            let mut runtime = Transport(channel);
+            let result = match method.as_str() {
+                "grade" => serde_json::from_value::<grading::Grade>(args)
+                    .map_err(|e| Failure::new("ValueError", e.to_string()))
+                    .and_then(|input| grading::grade(&input, &mut runtime)),
+                "eval_exec_failed" => serde_json::from_value::<grading::ExecFailure>(args)
+                    .map_err(|e| Failure::new("ValueError", e.to_string()))
+                    .and_then(|input| grading::eval_exec_failed(&input, &mut runtime)),
+                _ => serde_json::from_value::<Task>(args)
+                    .map_err(|e| Failure::new("ValueError", e.to_string()))
+                    .and_then(|input| swebench::run_task(&input, &mut runtime)),
+            };
             result.unwrap_or_else(failure)
         })
         .map(Some);

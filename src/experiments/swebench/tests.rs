@@ -27,6 +27,7 @@ impl Runtime for Host {
                     kind: "PoolUnavailable".into(),
                     message: "fixture start error".into(),
                     bases: vec!["builtins.RuntimeError".into()],
+                    stdout: None,
                 });
             }
             "_record_env_activation" => args[2].clone(),
@@ -137,5 +138,79 @@ fn resumes_keep_the_transcript_and_cleanup_runs_once() {
     assert!(!root.join("transcript.jsonl").exists());
     assert_eq!(host.calls.iter().filter(|s| *s == "_stop").count(), 1);
     assert!(!host.calls.iter().any(|s| s == "_apply_scaffold"));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn grading_retains_timeout_output_and_recovers_score_errors() {
+    struct Grader {
+        executions: u32,
+        timeout: bool,
+        scored: bool,
+    }
+    impl Runtime for Grader {
+        fn call(&mut self, method: &str, _: Value) -> Result<Value> {
+            match method {
+                "eval_script" => Ok(json!("echo result")),
+                "_exec" => {
+                    self.executions += 1;
+                    if self.timeout && self.executions == 2 {
+                        let mut error = Failure::new("EvalTimeout", "eval exceeded its cap");
+                        error.bases = vec!["subprocess.TimeoutExpired".into()];
+                        error.stdout = Some(Box::new(json!({"bytes":[195,169,255,10]})));
+                        return Err(error);
+                    }
+                    Ok(json!({"returncode":0,"stdout":"test output\n","stderr":""}))
+                }
+                "score" => {
+                    self.scored = true;
+                    Err(Failure::new("ValueError", "invalid grader result"))
+                }
+                "log" => Ok(Value::Null),
+                _ => panic!("unexpected grading operation: {method}"),
+            }
+        }
+    }
+    let root = std::env::temp_dir().join(format!(
+        "te-grade-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&root).unwrap();
+    let input = grading::Grade {
+        name: "fixture-container".into(),
+        instance_id: json!("fixture-task"),
+        patch: "fix\n".into(),
+        run_dir: root.clone(),
+        eval_timeout: json!(90),
+        process_cwd: std::env::current_dir().unwrap(),
+    };
+    for timeout in [true, false] {
+        let mut host = Grader {
+            executions: 0,
+            timeout,
+            scored: false,
+        };
+        let row = grading::grade(&input, &mut host).unwrap();
+        assert_eq!(row[0], false);
+        assert_eq!(host.scored, !timeout);
+        assert_eq!(host.executions, 2);
+        if timeout {
+            assert_eq!(row[1], json!({"eval_timeout":90}));
+            assert_eq!(
+                fs::read_to_string(root.join("eval.log")).unwrap(),
+                "é\u{fffd}\n"
+            );
+        } else {
+            assert_eq!(row[1], json!({"grading_error":"invalid grader result"}));
+            assert_eq!(
+                fs::read_to_string(root.join("eval.log")).unwrap(),
+                "test output\n"
+            );
+        }
+    }
     fs::remove_dir_all(root).unwrap();
 }

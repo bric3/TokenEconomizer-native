@@ -66,7 +66,7 @@ tooling interface. The experiment facade, spiral stage, generic nudge controller
 and Codex continuation controller also run in Rust.
 Task-runner usage accounting and interrupted-session recovery run in Rust for
 Claude, Codex and Copilot.
-The shared SWE-bench task lifecycle also runs in Rust, with host callbacks for
-container, scaffold, grader and stream operations.
+The shared SWE-bench task lifecycle and grading flow also run in Rust, with host
+callbacks for container commands, scaffolds, streams and the external grader.
 
 Installed host verification and the remaining migration gates are still in progress.
