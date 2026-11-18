@@ -429,6 +429,16 @@ complete while any runtime component delegates production behaviour to Python.
   retains argument, scaffold, profile, routing and configuration objects.
   Web-Bench task calls and scaffold backends remain
   callbacks until their implementations are ported.
+- Web-Bench constructor coordination is native for Claude, Copilot and Codex,
+  including model and effort selection, scaffold validation, dependency calls,
+  timeout fields, preflights and initial stream state. The shared stream-state
+  method also runs in Rust and preserves subclass overrides when called by a
+  constructor. SDK bindings retain arguments, helper results, profiles and
+  configuration objects, and supply object protocols and numeric conversions.
+  Codex keeps its early scaffold check, separate vendor and binary discovery,
+  namespace-probe order, duplicate start-timeout and workspace-flag assignments,
+  and the final stream reset. Host discovery, task-timeout policy and the namespace
+  probe remain helper callbacks.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -562,7 +572,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Web-Bench constructors, global signal cleanup, container guard binary deployment and
+  Web-Bench host discovery, timeout and namespace-probe helpers, global signal
+  cleanup, container guard binary deployment and
   registration, scaffold backends and contexts, agent streaming, and the
   Web-Bench task lifecycle and wrappers still need conversion. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
@@ -1664,6 +1675,27 @@ complete while any runtime component delegates production behaviour to Python.
   Web-Bench constructors and task calls, signal cleanup, host bindings and the
   remaining parity audits stay open. No simplification or performance pass is
   counted.
+
+- Web-Bench setup passes 852 source comparisons across three constructors and
+  the shared stream-state method. They cover partial state, getter and setter
+  order, dependency failures, early scaffold rejection, profile/preflight
+  callable capture, effort differences, API/CLI endpoint selection, timeout
+  defaults, retry clamping, arbitrary-size integers, digit limits, non-finite
+  and malformed values, foreign numeric protocols, subclass stream overrides,
+  fresh stream lists and ignored helper results. Twenty-seven comparisons use
+  the actual credential, provider, normalisation and pricing helpers with fixture
+  environments. No provider or paid model is called.
+  The full original suite, with installed-opencode tests enabled, passes with
+  1,561 passed and 30 skipped (68.83 seconds). Its record remains
+  `validation/experiment-task-calls.json`; it includes four Codex Web-Bench
+  constructor calls. The new probe supplies the other constructor paths and
+  stream-state coverage. The 483-case SWE-bench constructor and 914-case runner
+  call regressions, all 24 Rust checks, debug/release builds, Clippy, formatting
+  and the 256-file reference check pass. Original tests remain unchanged. IDE
+  inspections remain unavailable because this checkout is not open in the
+  connected IDE. Web-Bench host/configuration helpers, task lifecycle, signal
+  cleanup, host bindings and the remaining parity audits stay open.
+  No simplification or performance pass is counted.
 
 ## Dependencies
 

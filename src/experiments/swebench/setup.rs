@@ -2,6 +2,8 @@ use super::{Failure, Result, Runtime, codex_config::integer_with_limit};
 use crate::value::{python_repr, scalar_text, truthy};
 use serde_json::{Value, json};
 
+mod web;
+
 const OPTIMIZER_MODEL_ERROR: &str = "TE_OPTIMIZER_MODEL is no longer honoured: the between-task optimizer runs on the agent's own model so mechanism overhead is priced on the same basis as the task rows. Unset it.";
 
 fn field(name: &str) -> Value {
@@ -476,6 +478,9 @@ fn codex(rt: &mut dyn Runtime) -> Result<()> {
     )
 }
 pub fn construct(agent: &str, rt: &mut dyn Runtime) -> Result<Value> {
+    if let Some(agent) = agent.strip_prefix("web.") {
+        return web::construct(agent, rt);
+    }
     assign(rt, "agent", arg("agent"))?;
     match agent {
         "claude" => claude(rt)?,

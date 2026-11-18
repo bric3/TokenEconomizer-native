@@ -94,8 +94,9 @@ callback and telemetry objects across the native calls.
 Codex installation discovery, captured-prompt loading, offline skills discovery
 and configuration validation also run in Rust, including process-group cleanup
 and temporary-directory retries. SDK bindings supply filesystem and process I/O.
-SWE-bench constructor coordination also runs in Rust for Claude, Copilot and Codex,
-including validation order, scaffold setup and configuration preflights.
+Constructor coordination also runs in Rust for Claude, Copilot and Codex in both
+domains, including validation order, scaffold setup and configuration preflights.
+Web-Bench's shared stream-state initialisation also runs in Rust.
 Scaffold backends and Web-Bench task calls still cross migration callbacks.
 Provider routing, credential filtering, Copilot model normalisation and effort
 selection also run in Rust. Codex catalogue parsing, caching and model verification
