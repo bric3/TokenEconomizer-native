@@ -88,5 +88,8 @@ host-list generation and transcript attempt counting also run in Rust.
 Copilot while preserving existing hooks. Unreadable or malformed JSON starts from
 an empty object. SWE-bench DNS checks, refusal probes, refusal counts and patch
 exclusion commands also run in Rust.
+SWE-bench controller selection, constructor parameters, continuation dispatch and
+telemetry fields run in Rust for all three agents. SDK bindings retain controller,
+callback and telemetry objects across the native calls.
 
 Installed host verification and the remaining migration gates are still in progress.

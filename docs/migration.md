@@ -415,6 +415,10 @@ complete while any runtime component delegates production behaviour to Python.
   through `te-net-guard --install-hook` for all three agents. It preserves existing
   hooks and recognises an identical native entry when the executable name uses
   hyphens. Container binary deployment and runner registration still need conversion.
+- SWE-bench controller integration is native for all three agents: controller
+  selection, constructor parameters, optional-parameter compatibility, continuation
+  dispatch and telemetry fields. The SDK binding retains policies, callbacks,
+  controller results and telemetry objects by reference.
 
 ## Remaining production work
 
@@ -471,6 +475,8 @@ complete while any runtime component delegates production behaviour to Python.
   Include Codex capability collections with non-string elements and custom mappings.
   Include guard refusal counts outside JSON's native integer range in complete
   task rows; the direct method binding transports normalised decimal strings.
+  Include custom parameter objects in `guard_accepts` and controller budget
+  conversion outside the tested numeric and string cases.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
@@ -480,6 +486,8 @@ complete while any runtime component delegates production behaviour to Python.
   Web-Bench task lifecycle and wrappers still need conversion. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
+  SWE-bench controller construction parameters, continuation and telemetry are
+  native too.
   Process and SDK calls retain Python I/O bindings.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
@@ -1344,6 +1352,26 @@ complete while any runtime component delegates production behaviour to Python.
   remain unchanged. Linux guard binary packaging, actual agent hook invocation,
   native Windows and the remaining production-parity audits are still pending.
   No simplification or performance pass is counted.
+
+- Runner controller integration passes 196 source comparisons, including 18 flows
+  through the real controllers. They cover all three SWE-bench agents, constructor
+  keyword order, eager default evaluation, budget conversion and configured integer
+  limits, optional parameters, exception classes, continuation arguments and
+  telemetry access order. Identity assertions cover policies, callbacks,
+  constructor results, continuation results and telemetry events. The real-controller
+  comparisons normalise integral floating-point JSON spelling; they do not prove
+  numeric type parity.
+  Focused original tests pass with 73 passed and two skipped. The full original
+  suite, with installed-opencode tests enabled, passes with 1,561 passed and 30
+  skipped (69.36 seconds). `validation/experiment-task-calls.json` records four
+  native `guard_accepts` calls; the new probe supplies runtime coverage of runner
+  construction, continuation and telemetry.
+  The 282-case task, 178-case wrapper and 88-case nudge regressions, all 24 Rust
+  checks, debug/release builds, Clippy, formatting and the 256-file reference check
+  pass. IDE inspections are unavailable because this checkout is not open in the
+  connected IDE. Original tests remain unchanged. No paid model, live agent or
+  container run was performed for this change. Production conversion and parity
+  audits remain open; no simplification or performance pass is counted.
 
 ## Dependencies
 

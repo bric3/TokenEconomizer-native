@@ -17,6 +17,7 @@ use crate::value::python_repr;
 pub mod codex_config;
 pub mod codex_trace;
 pub mod containers;
+pub mod controls;
 pub mod grading;
 pub mod guard_install;
 pub mod official;

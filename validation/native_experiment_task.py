@@ -6,6 +6,7 @@ import os
 import inspect
 import sys
 import subprocess
+import math
 
 from native_plugin import invoke
 from native_experiment_spiral import checked as checked_value
@@ -64,7 +65,7 @@ def install():
         if representation == "list": return list(value)
         # shortcut: object strings are captured per callback; audit conversion side effects before release.
         return json.loads(json.dumps(value,default=str))
-    def drive(self, result, run_kwargs, guard=None, process_cmd=NO_COMMAND, record_row=None, task_call=None):
+    def drive(self, result, run_kwargs, guard=None, process_cmd=NO_COMMAND, record_row=None, task_call=None, control_prompt=NO_COMMAND):
         errors = []
         processes = {}
         transcript = None
@@ -73,6 +74,9 @@ def install():
         popped = None
         task_result = None
         diff_excludes = None
+        control_values = {"prompt":control_prompt}
+        control_result,control_telemetry,control_snapshot = None,None,None
+        control_row = {}
         while isinstance(result,dict) and "callback" in result:
             method, args = result["method"], result["args"]
             try:
@@ -86,6 +90,47 @@ def install():
                     guard = self._build_guard(run_kwargs)
                     value = guard is not None
                 elif method == "guard_segment": value = guard.segment
+                elif method == "control_capture":
+                    control_values[args[0]] = run_kwargs.get(*args)
+                    value = None
+                elif method == "control_bool": value = bool(control_values[args[0]])
+                elif method == "control_env": value = module.os.environ.get(*args)
+                elif method == "control_present": value = control_values[args[0]] is not None
+                elif method == "control_integer_input":
+                    item = control_values[args[0]]
+                    kind = type(item).__name__
+                    external = type(item) not in (type(None),bool,int,float,str,list,dict,tuple) or type(item) is float and not math.isfinite(item)
+                    value = {"kind":"external" if external else kind,"value":None if external or type(item) is int else data(item)}
+                elif method == "control_external_int":
+                    control_values[args[0]] = int(control_values[args[0]])
+                    value = None
+                elif method == "control_signature": value = list(module.inspect.signature(module.NudgeGuard.__init__).parameters)
+                elif method == "control_new":
+                    parameters = {name:control_values[item] if representation == "ref" else int(item) if representation == "integer" else item for name,representation,item in args[1]}
+                    constructor = module.NudgeGuard if args[0] == "nudge" else module.codex_spiral.CodexResumeGuard
+                    control_result = constructor(**parameters)
+                    value = None
+                elif method == "control_continue":
+                    control_result = guard.continuation(*[control_values[key] for key in args])
+                    value = None
+                elif method == "control_telemetry":
+                    control_telemetry = guard.telemetry()
+                    value = None
+                elif method == "control_snapshot":
+                    control_snapshot = control_telemetry.get(*args)
+                    value = bool(control_snapshot)
+                elif method == "control_snapshot_get":
+                    control_row[args[0]] = control_snapshot.get(args[1])
+                    value = None
+                elif method == "control_row_value":
+                    control_row[args[0]] = args[1]
+                    value = None
+                elif method == "control_row_items":
+                    for name,key in args: control_row[name] = control_telemetry[key]
+                    value = None
+                elif method == "control_row_attributes":
+                    for name,attribute,*default in args: control_row[name] = getattr(guard,attribute,*default)
+                    value = None
                 elif method == "_guard_continuation": value = self._guard_continuation(guard,*args)
                 elif method == "_guard_row": value = self._guard_row(guard)
                 elif method == "_write_run_config": value = self._write_run_config(*args,run_kwargs,guard)
@@ -201,6 +246,8 @@ def install():
         if isinstance(result,dict) and "_process_ref" in result: return processes[result["_process_ref"]]
         if isinstance(result,dict) and result.get("_scaffold_result"): return scaffold_result
         if isinstance(result,dict) and result.get("_runner_result"): return task_result[0],task_result[1]
+        if isinstance(result,dict) and result.get("_control_result"): return control_result
+        if isinstance(result,dict) and result.get("_control_row"): return control_row
         return result
     def codex_function(original,operation):
         signature = inspect.signature(original)
@@ -294,6 +341,29 @@ def install():
                         "environment":{key:os.environ[key] for key in ("TE_MAX_TURNS",) if key in os.environ}, "process_cwd":os.getcwd()})
         return drive(self,result,run_kwargs), run_dir_path
     cls.run_task = run_task
+    original_accepts = module.guard_accepts
+    @functools.wraps(original_accepts)
+    def guard_accepts(param):
+        return drive(None,invoke("experiment.swebench.control.accepts",{"param":data(param)}),{})
+    module.guard_accepts = guard_accepts
+    replacements[original_accepts] = guard_accepts
+    webbench = sys.modules.get("te_harness.webbench")
+    if webbench is not None and getattr(webbench,"guard_accepts",None) is original_accepts:
+        webbench.guard_accepts = guard_accepts
+    def control_methods(klass,agent):
+        original_build,original_row,original_continuation = klass._build_guard,klass._guard_row,klass._guard_continuation
+        @functools.wraps(original_build)
+        def build(self,run_kwargs):
+            return drive(self,invoke("experiment.swebench.control.build",{"agent":agent,"int_max_digits":getattr(sys,"get_int_max_str_digits",lambda:0)()}),run_kwargs)
+        @functools.wraps(original_row)
+        def row(self,guard):
+            return drive(self,invoke("experiment.swebench.control.row",{"agent":agent}),{},guard)
+        @functools.wraps(original_continuation)
+        def continuation(self,guard,prompt):
+            return drive(self,invoke("experiment.swebench.control.continuation",{"agent":agent}),{},guard,control_prompt=prompt)
+        klass._build_guard,klass._guard_row,klass._guard_continuation = build,row,continuation
+    control_methods(cls,"claude")
+    control_methods(module.CodexSwebenchRunner,"codex")
     def guard_method(original,operation):
         signature = inspect.signature(original)
         @functools.wraps(original)
