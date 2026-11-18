@@ -6,7 +6,12 @@ use crate::{
 use serde_json::{Value, json};
 use std::collections::HashSet;
 
-fn capture(rt: &mut dyn Runtime, slot: &str, key: &str, default: Option<&str>) -> Result<()> {
+pub(super) fn capture(
+    rt: &mut dyn Runtime,
+    slot: &str,
+    key: &str,
+    default: Option<&str>,
+) -> Result<()> {
     let args = if let Some(default) = default {
         json!([slot, key, default])
     } else {
@@ -14,10 +19,10 @@ fn capture(rt: &mut dyn Runtime, slot: &str, key: &str, default: Option<&str>) -
     };
     rt.call("provider_env_get", args).map(|_| ())
 }
-fn boolean(rt: &mut dyn Runtime, slot: &str) -> Result<bool> {
+pub(super) fn boolean(rt: &mut dyn Runtime, slot: &str) -> Result<bool> {
     rt.call("provider_bool", json!([slot])).map(|v| truthy(&v))
 }
-fn literal(rt: &mut dyn Runtime, slot: &str, value: Value) -> Result<()> {
+pub(super) fn literal(rt: &mut dyn Runtime, slot: &str, value: Value) -> Result<()> {
     rt.call("provider_literal", json!([slot, value]))
         .map(|_| ())
 }
@@ -28,7 +33,7 @@ fn copy(rt: &mut dyn Runtime, target: &str, source: &str) -> Result<()> {
 fn returned(slot: &str) -> Value {
     json!({"provider_ref":slot})
 }
-fn equal(rt: &mut dyn Runtime, slot: &str, value: &str) -> Result<bool> {
+pub(super) fn equal(rt: &mut dyn Runtime, slot: &str, value: &str) -> Result<bool> {
     rt.call("provider_equal", json!([slot, value]))
         .map(|v| truthy(&v))
 }
@@ -36,7 +41,7 @@ fn string(rt: &mut dyn Runtime, slot: &str) -> Result<Option<String>> {
     rt.call("provider_string", json!([slot]))
         .map(|v| v.as_str().map(str::to_owned))
 }
-fn trim(rt: &mut dyn Runtime, slot: &str, slash: bool) -> Result<()> {
+pub(super) fn trim(rt: &mut dyn Runtime, slot: &str, slash: bool) -> Result<()> {
     if let Some(text) = string(rt, slot)? {
         let trimmed = if slash {
             text.trim_end_matches('/')
@@ -213,9 +218,20 @@ fn catalogue(rt: &mut dyn Runtime) -> Result<Value> {
                 document["text"].as_str().unwrap_or("").as_bytes(),
                 document["int_max_digits"].as_u64().unwrap_or(0) as usize,
             )
-            .map_err(|error|match error {
-                python_json::ParseError::Syntax => Failure::new("JSONDecodeError","invalid catalogue JSON"),
-                python_json::ParseError::IntegerLimit { limit, digits } => Failure::new("ValueError",format!("Exceeds the limit ({limit} digits) for integer string conversion: value has {digits} digits; use sys.set_int_max_str_digits() to increase the limit")),
+            .map_err(|error| match error {
+                python_json::ParseError::Syntax { message, position } => {
+                    let mut failure = Failure::new(
+                        "JSONDecodeError",
+                        error.message(document["text"].as_str().unwrap_or("")),
+                    );
+                    failure.details = Some(Box::new(
+                        json!({"msg":message,"doc":document["text"],"pos":position}),
+                    ));
+                    failure
+                }
+                python_json::ParseError::IntegerLimit { .. } => {
+                    Failure::new("ValueError", error.message(""))
+                }
             })
         })();
         let suppressed = rt.call("provider_http_exit", json!([parsed.as_ref().err()]))?;
@@ -309,6 +325,8 @@ pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
     match name {
         "resolve_anthropic_key" => routed_key(rt, true),
         "resolve_codex_routing" => routed_key(rt, false),
+        "preflight_optimizer_endpoint" => super::preflight::run(false, rt),
+        "preflight_optimizer" if agent == "codex" => super::preflight::run(true, rt),
         "agent_credential_env" => {
             for key in names(rt, "IGNORED_ANTHROPIC_VARS")? {
                 rt.call("provider_env_pop", json!([key]))?;

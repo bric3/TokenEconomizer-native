@@ -55,13 +55,19 @@ for line in sys.stdin:
     def make_request(*args,**kwargs): record("request",[args,kwargs]);return args
     class Response:
         def __enter__(self): record("enter");return self
-        def __exit__(self,kind,error,tb): record("exit",kind.__name__ if kind else None);return request.get("suppress",False)
+        def __exit__(self,kind,error,tb):
+            details = {"kind":kind.__name__,"message":str(error),"msg":getattr(error,"msg",None),"pos":getattr(error,"pos",None)} if kind else None
+            record("exit",details if request.get("exit_details") else kind.__name__ if kind else None)
+            return request.get("suppress",False)
         def read(self):
             record("read")
             if "bytes" in request: return bytes(request["bytes"])
             return request.get("body",'{"data":[{"id":"a"},{"id":"b"}]}').encode()
     def urlopen(*args,**kwargs): record("urlopen",[args,kwargs]);return Response()
     def pricing(value): record("pricing",value)
+    def logger(text):
+        record("log",text)
+        return Token("log_result") if request.get("opaque_log_result") else None
     agent,name = request.get("agent","claude"),request.get("name","resolve_anthropic_key")
     module = {"claude":swebench,"copilot":copilot,"codex":codex}[agent]
     arguments = dict(request.get("arguments",{}))
@@ -73,7 +79,7 @@ for line in sys.stdin:
         for item in saved:
             item.os = types.SimpleNamespace(environ=environment)
             if hasattr(item,"pricing"): item.pricing = types.SimpleNamespace(weights_for=pricing)
-        swebench._log = lambda text:record("log",text)
+        swebench._log = logger
         if not request.get("real_http"):
             codex.urllib = types.SimpleNamespace(request=types.SimpleNamespace(Request=make_request,urlopen=urlopen),error=urllib.error)
         codex._CATALOG = catalogue_cache

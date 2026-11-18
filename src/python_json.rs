@@ -351,6 +351,10 @@ struct Parser {
     error: Option<ParseError>,
 }
 impl Parser {
+    fn fail<T>(&mut self, message: &'static str, position: usize) -> Option<T> {
+        self.error = Some(ParseError::Syntax { message, position });
+        None
+    }
     fn ws(&mut self) {
         while self
             .text
@@ -390,17 +394,22 @@ impl Parser {
         Some(value)
     }
     fn string(&mut self) -> Option<Text> {
+        let start = self.at;
         if !self.take(b'"') {
             return None;
         }
         let mut points = Vec::new();
         loop {
-            let c = *self.text.get(self.at)?;
+            let Some(&c) = self.text.get(self.at) else {
+                return self.fail("Unterminated string starting at", start);
+            };
             self.at += 1;
             match c {
                 34 => return Some(Text(points)),
                 92 => {
-                    let escape = *self.text.get(self.at)?;
+                    let Some(&escape) = self.text.get(self.at) else {
+                        return self.fail("Unterminated string starting at", start);
+                    };
                     self.at += 1;
                     let value = match escape {
                         34 | 47 | 92 => escape,
@@ -410,7 +419,10 @@ impl Parser {
                         114 => 13,
                         116 => 9,
                         117 => {
-                            let high = self.hex()?;
+                            let unicode_position = self.at - 1;
+                            let Some(high) = self.hex() else {
+                                return self.fail("Invalid \\uXXXX escape", unicode_position);
+                            };
                             if (0xd800..=0xdbff).contains(&high) {
                                 let saved = self.at;
                                 if self.literal("\\u")
@@ -426,20 +438,26 @@ impl Parser {
                                 high
                             }
                         }
-                        _ => return None,
+                        _ => return self.fail("Invalid \\escape", self.at - 2),
                     };
                     points.push(value);
                 }
-                0..=31 => return None,
+                0..=31 => return self.fail("Invalid control character at", self.at - 1),
                 _ => points.push(c),
             }
         }
     }
     fn key(&mut self) -> Option<Text> {
         self.ws();
+        if self.text.get(self.at) != Some(&34) {
+            return self.fail("Expecting property name enclosed in double quotes", self.at);
+        }
         let key = self.string()?;
         self.ws();
-        self.take(b':').then_some(key)
+        if !self.take(b':') {
+            return self.fail("Expecting ':' delimiter", self.at);
+        }
+        Some(key)
     }
     fn value(&mut self) -> Option<Node> {
         enum Frame {
@@ -482,7 +500,12 @@ impl Parser {
                             continue;
                         }
                         if !self.take(b',') {
-                            return None;
+                            return self.fail("Expecting ',' delimiter", self.at);
+                        }
+                        let comma = self.at - 1;
+                        self.ws();
+                        if self.text.get(self.at) == Some(&93) {
+                            return self.fail("Illegal trailing comma before end of array", comma);
                         }
                         break;
                     }
@@ -497,7 +520,12 @@ impl Parser {
                             continue;
                         }
                         if !self.take(b',') {
-                            return None;
+                            return self.fail("Expecting ',' delimiter", self.at);
+                        }
+                        let comma = self.at - 1;
+                        self.ws();
+                        if self.text.get(self.at) == Some(&125) {
+                            return self.fail("Illegal trailing comma before end of object", comma);
                         }
                         *key = self.key()?;
                         break;
@@ -507,7 +535,9 @@ impl Parser {
         }
     }
     fn atom(&mut self) -> Option<Node> {
-        let c = *self.text.get(self.at)?;
+        let Some(&c) = self.text.get(self.at) else {
+            return self.fail("Expecting value", self.at);
+        };
         match c {
             34 => self.string().map(Node::String),
             110 if self.literal("null") => Some(Node::Null),
@@ -519,9 +549,11 @@ impl Parser {
             45 | 48..=57 => {
                 let start = self.at;
                 self.take(b'-');
-                let first = *self.text.get(self.at)?;
+                let Some(&first) = self.text.get(self.at) else {
+                    return self.fail("Expecting value", start);
+                };
                 if !matches!(first, 48..=57) {
-                    return None;
+                    return self.fail("Expecting value", start);
                 }
                 self.at += 1;
                 if first != 48 {
@@ -530,18 +562,20 @@ impl Parser {
                     }
                 }
                 let mut fractional = false;
+                let decimal_position = self.at;
                 if self.take(b'.') {
-                    fractional = true;
                     let from = self.at;
                     while self.text.get(self.at).is_some_and(|v| matches!(v, 48..=57)) {
                         self.at += 1;
                     }
                     if from == self.at {
-                        return None;
+                        self.at = decimal_position;
+                    } else {
+                        fractional = true;
                     }
                 }
+                let exponent_position = self.at;
                 if self.take(b'e') || self.take(b'E') {
-                    fractional = true;
                     if !self.take(b'+') {
                         self.take(b'-');
                     }
@@ -550,7 +584,9 @@ impl Parser {
                         self.at += 1;
                     }
                     if from == self.at {
-                        return None;
+                        self.at = exponent_position;
+                    } else {
+                        fractional = true;
                     }
                 }
                 let raw: String = self.text[start..self.at]
@@ -574,13 +610,42 @@ impl Parser {
                     Some(Node::Number(repr, nonzero))
                 }
             }
-            _ => None,
+            _ => self.fail("Expecting value", self.at),
         }
     }
 }
+#[derive(Clone, Copy, Debug)]
 pub(super) enum ParseError {
-    Syntax,
-    IntegerLimit { limit: usize, digits: usize },
+    Syntax {
+        message: &'static str,
+        position: usize,
+    },
+    IntegerLimit {
+        limit: usize,
+        digits: usize,
+    },
+}
+impl ParseError {
+    pub(super) fn message(self, document: &str) -> String {
+        match self {
+            Self::Syntax { message, position } => {
+                let mut line = 1_usize;
+                let mut column = 1_usize;
+                for point in document.chars().take(position) {
+                    if point == '\n' {
+                        line += 1;
+                        column = 1;
+                    } else {
+                        column += 1;
+                    }
+                }
+                format!("{message}: line {line} column {column} (char {position})")
+            }
+            Self::IntegerLimit { limit, digits } => format!(
+                "Exceeds the limit ({limit} digits) for integer string conversion: value has {digits} digits; use sys.set_int_max_str_digits() to increase the limit"
+            ),
+        }
+    }
 }
 pub(super) fn parse(bytes: &[u8], int_max_digits: usize) -> Option<Node> {
     parse_result(bytes, int_max_digits).ok()
@@ -614,12 +679,24 @@ pub(super) fn parse_result(bytes: &[u8], int_max_digits: usize) -> Result<Node, 
         int_max_digits,
         error: None,
     };
-    let value = parser
-        .value()
-        .ok_or_else(|| parser.error.take().unwrap_or(ParseError::Syntax))?;
+    if parser.text.first() == Some(&0xfeff) {
+        return Err(ParseError::Syntax {
+            message: "Unexpected UTF-8 BOM (decode using utf-8-sig)",
+            position: 0,
+        });
+    }
+    let value = parser.value().ok_or_else(|| {
+        parser.error.take().unwrap_or(ParseError::Syntax {
+            message: "Expecting value",
+            position: parser.at,
+        })
+    })?;
     parser.ws();
     if parser.at != parser.text.len() {
-        return Err(ParseError::Syntax);
+        return Err(ParseError::Syntax {
+            message: "Extra data",
+            position: parser.at,
+        });
     }
     Ok(value)
 }

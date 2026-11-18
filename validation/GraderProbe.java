@@ -1,17 +1,15 @@
 //JAVA 25
-//SOURCES AdapterProbe.java ExtractProposerPrompts.java ParserProbe.java CliProbe.java ContextProbe.java
+//SOURCES AdapterProbe.java ExtractProposerPrompts.java ParserProbe.java CliProbe.java ContextProbe.java JsonDiagnosticProbe.java ProviderProbe.java
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
-import java.util.ArrayList;
 
 /** Compares the official-grader wrapper using local SDK stand-ins. */
 class GraderProbe {
   static int cases;
   static int jsonErrors;
-  static List<String> diagnosticDifferences = new ArrayList<>();
   static Path artifacts;
   static String q(Object value) { return ParserProbe.q(value); }
   static void clear(Path root) throws Exception {
@@ -30,7 +28,7 @@ class GraderProbe {
     if(jsonDocument != null) {
       for(var result:List.of(expected,actual)) if(!result.contains("\"raised\":\"JSONDecodeError\"") || !result.contains("\"doc\":"+q(jsonDocument))) throw new AssertionError("JSON failure lost its type or document: "+result);
       jsonErrors++;
-      if(!actual.equals(expected))diagnosticDifferences.add("{\"request\":"+request+",\"source\":"+expected+",\"native\":"+actual+"}");
+      if(!actual.equals(expected))throw new AssertionError("JSON diagnostics differ\nNative: "+actual+"\nSource: "+expected);
       cases++;return;
     }
     if (cases == 0 && (!expected.contains("\"value\":") || expected.contains("\"raised\":"))) throw new AssertionError("Source fixture did not complete: " + expected);
@@ -77,11 +75,11 @@ class GraderProbe {
       compare(nativeCode,source,"\"table_text\":\"{\"","{");
       compare(nativeCode,source,"\"table\":{\"acme__widget-1\":{\"FAIL_TO_PASS\":\"[1,\"}}","[1,");
       compare(nativeCode,source,"\"table\":{\"acme__widget-1\":{\"PASS_TO_PASS\":\"x\"}}","x");
+      for(var document:JsonDiagnosticProbe.syntaxExamples())compare(nativeCode,source,"\"table_text\":"+q(document),document);
       var diagnosticLog=Path.of("validation/results/grader-json-diagnostics.json");
       Files.createDirectories(diagnosticLog.getParent());
-      Files.writeString(diagnosticLog,"["+String.join(",",diagnosticDifferences)+"]\n");
-      System.out.println("Official-grader wrapper matches the source in "+(cases-jsonErrors)+" cases; table loading, normalisation, SDK arguments, report selection and nested task execution passed with local SDK stand-ins");
-      System.out.println(jsonErrors+" JSON exception type/document checks passed; "+diagnosticDifferences.size()+" diagnostic differences remain in "+diagnosticLog);
+      Files.writeString(diagnosticLog,"[]\n");
+      System.out.println("Official-grader wrapper matches the source in "+cases+" cases, including "+jsonErrors+" exact JSON diagnostics; table loading, normalisation, SDK arguments, report selection and nested task execution passed with local SDK stand-ins");
       passed=true;
     } finally { if(passed)clear(artifacts);else System.err.println("Probe artifacts: "+artifacts); }
   }

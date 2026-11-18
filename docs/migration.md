@@ -427,7 +427,7 @@ complete while any runtime component delegates production behaviour to Python.
   model and effort selection, optimizer-override rejection, scaffold setup,
   configuration probes, initial state and validation order. The SDK binding
   retains argument, scaffold, profile, routing and configuration objects.
-  Endpoint preflights, optimizer calls and scaffold backends remain callbacks
+  Optimizer calls and scaffold backends remain callbacks
   until their implementations are ported.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
@@ -437,6 +437,15 @@ complete while any runtime component delegates production behaviour to Python.
   catalogue objects and HTTP response handles.
   The guard and catalogue now share the Python-compatible JSON reader; guard
   command search and refusal-log formatting remain with the guard.
+- Both shared endpoint preflight functions use native control flow: the
+  `TE_OPTIMIZER_PREFLIGHT` gate, sixteen-token probe arguments, response checks,
+  rejection messages and Codex success logging. The binding retains credentials,
+  routing and model objects, and captures the Codex logger before invoking the
+  optimizer. Optimizer transport implementations remain callbacks.
+- The shared JSON reader supplies syntax messages, Unicode positions and line
+  and column information. Catalogue HTTP contexts receive reconstructed
+  `JSONDecodeError` objects with the source fields. The grader loader uses those
+  diagnostics for invalid JSON; its three recorded syntax differences are fixed.
 
 ## Remaining production work
 
@@ -455,9 +464,9 @@ complete while any runtime component delegates production behaviour to Python.
   Include dataset IDs outside the documented string schemas and exact JSON error
   diagnostics in that audit.
   Include grading-table string keys and JSON error wording and positions.
-  Include catalogue syntax-error messages and positions supplied to custom HTTP
-  context managers. The catalogue API catches those errors, while its binding
-  currently supplies placeholder diagnostics to the context manager.
+  Extend JSON syntax diagnostic coverage beyond the current source corpus.
+  Grading-table values accepted by Python but unsupported by serde still need
+  numeric, Unicode and nesting checks.
   Include non-string protected tool names and scaffold paths in the schema audit.
   Include malformed judge/writer token totals and partial threshold dictionaries
   in the exception-diagnostics audit.
@@ -506,7 +515,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Web-Bench constructors, provider preflight and optimizer-call helpers, runner
+  Web-Bench constructors, optimizer-call transports, runner call wrappers,
   factories, global signal cleanup, container guard binary deployment and
   registration, scaffold backends and contexts, agent streaming, and the
   Web-Bench task lifecycle and wrappers still need conversion. Per-task container
@@ -514,9 +523,9 @@ complete while any runtime component delegates production behaviour to Python.
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
   SWE-bench controller construction parameters, continuation and telemetry are
   native too, along with constructor coordination for all three agents.
-  Provider routing, credential filtering, model normalisation, catalogue reads and
-  model verification are native. Endpoint preflight and optimizer-call helpers
-  still need conversion.
+  Provider routing, credential filtering, model normalisation, catalogue reads,
+  model verification and shared endpoint preflight control flow are native.
+  Optimizer-call transports still need conversion.
   Codex installation discovery, captured-prompt loading and offline probes are
   native. Experiment asset packaging and host bindings still need to replace the
   validation binding's reference-data paths.
@@ -1471,6 +1480,30 @@ complete while any runtime component delegates production behaviour to Python.
   the connected IDE. Exact syntax-error diagnostics for custom HTTP contexts,
   remaining provider calls, runner conversion and the parity audits stay open.
   No simplification or performance pass is counted.
+
+- Shared endpoint preflights pass 241 source comparisons. They cover exact gate
+  values, opaque argument identity, keyword order, sixteen-token calls, response
+  truthiness and stripping, malformed results, ordinary and fatal errors, deferred
+  logger capture, callback replacement, ignored logger results and cost formatting.
+  Optimizer requests use stand-ins; no provider or paid model is called.
+  JSON HTTP-context checks pass 392 source comparisons on CPython 3.15.2, covering
+  valid values, incomplete numbers, delimiters, trailing commas, escapes, control
+  characters, BOMs and Unicode positions. The grader passes 127 comparisons,
+  including 35 strict JSON diagnostic comparisons. The three earlier differences
+  are now failures if they recur; `validation/results/grader-json-diagnostics.json`
+  contains an empty list after the passing run.
+  Focused original tests pass with 72 passed and two skipped. The full original
+  suite, with installed-opencode tests enabled, passes with 1,561 passed and 30
+  skipped (63.89 seconds). Its record remains
+  `validation/experiment-task-calls.json`. The original suite does not enter the
+  new native preflight branches; the new probe supplies their runtime coverage.
+  The 267-case provider and 417-case guard regressions, 289 guard-integration
+  comparisons and two native checks, all 24 Rust checks, debug/release builds,
+  Clippy, formatting and the
+  256-file reference check pass. Original tests remain unchanged. IDE inspections
+  remain unavailable because this checkout is not open in the connected IDE.
+  Live provider checks, optimizer transports, runner conversion and the remaining
+  parity audits stay open. No simplification or performance pass is counted.
 
 ## Dependencies
 

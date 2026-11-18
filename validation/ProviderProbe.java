@@ -43,6 +43,7 @@ class ProviderProbe {
       for(var truth:List.of(false,true))for(var agent:List.of("claude","codex"))
         compare(nativeCode,source,method(agent,agent.equals("claude")?"resolve_anthropic_key":"resolve_codex_routing")+",\"truth\":"+truth+",\"objects\":["+q(agent.equals("claude")?"ANTHROPIC_API_KEY":"OPENAI_API_KEY")+"]");
       compare(nativeCode,source,method("claude","agent_credential_env")+",\"opaque_key\":true,\"env\":{\"ANTHROPIC_BASE_URL\":\"base\",\"ANTHROPIC_AUTH_TOKEN\":\"token\",\"ANTHROPIC_DEFAULT_SONNET_MODEL\":\"model\",\"keep\":\"fixture\"}");
+      compare(nativeCode,source,method("claude","resolve_anthropic_key")+",\"opaque_log_result\":true,\"env\":{\"ANTHROPIC_BASE_URL\":\"base\",\"ANTHROPIC_API_KEY\":\"key\"}");
       for(var fail:List.of("get","pop","set","log"))for(var error:List.of("KeyError","RuntimeError","KeyboardInterrupt","ShadowValueError")) {
         boolean resolving=fail.equals("get")||fail.equals("log");
         compare(nativeCode,source,method("claude",resolving?"resolve_anthropic_key":"agent_credential_env")+(resolving?"":",\"arguments\":{\"api_key\":\"fixture\"}")+",\"env\":{\"ANTHROPIC_BASE_URL\":\"base\",\"ANTHROPIC_API_KEY\":\"key\"},\"fail\":"+q(fail)+",\"error\":"+q(error));

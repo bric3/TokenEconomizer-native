@@ -19,6 +19,9 @@ def install():
             bound = signature.bind(*args,**kwargs)
             bound.apply_defaults()
             values = dict(bound.arguments)
+            if agent == "codex" and name == "preflight_optimizer":
+                from te_harness.swebench import _log
+                values["preflight_log"] = _log
             local_env = "env" in values
             if local_env and values["env"] is None and signature.parameters["env"].default is None:
                 values["env"] = module.os.environ
@@ -49,7 +52,7 @@ def install():
                     elif method == "provider_collect": values["output"][parameters[0]] = values[parameters[1]]
                     elif method == "provider_tuple": values["tuple"] = tuple(values[key] for key in parameters)
                     elif method == "provider_data": value = data(values[parameters[0]])
-                    elif method == "provider_log": value = module._log(*parameters)
+                    elif method == "provider_log": module._log(*parameters)
                     elif method == "provider_function": values["called"] = getattr(module,parameters[0])(*[values[key] for key in parameters[1]])
                     elif method == "provider_pricing": module.pricing.weights_for({"model":values["model"],"agent":values["agent"]})
                     elif method == "provider_format": value = format(values[parameters[0]],"")
@@ -78,9 +81,19 @@ def install():
                         else:
                             error = next((error for error in reversed(errors) if type(error).__name__ == info["kind"] and str(error) == info["message"]),None)
                             if error is None:
-                                # shortcut: catalogue parse errors are caught; exact context-manager diagnostics need the JSON parity audit.
-                                error = json.JSONDecodeError(info["message"],document,0) if info["kind"] == "JSONDecodeError" else getattr(builtins,info["kind"])(info["message"])
+                                if info["kind"] == "JSONDecodeError":
+                                    details = info["details"]
+                                    error = json.JSONDecodeError(details["msg"],details["doc"],details["pos"])
+                                else: error = getattr(builtins,info["kind"])(info["message"])
                             value = bool(context.__exit__(type(error),error,error.__traceback__))
+                    elif method == "preflight_format": value = format(values[parameters[0]],parameters[1])
+                    elif method == "preflight_log":
+                        values["preflight_call_log"](*parameters)
+                    elif method == "preflight_capture_log": values["preflight_call_log"] = values["preflight_log"] if "preflight_log" in values else module._log
+                    elif method == "preflight_invoke":
+                        function = getattr(module,parameters[0])
+                        keywords = {key:values[item] if kind == "ref" else item for key,(kind,item) in parameters[2].items()}
+                        values["probe"],values["effective"] = function(parameters[1],**keywords)
                     else: raise AssertionError("unknown provider callback: "+method)
                     reply = {"value":data(value)}
                 except BaseException as error:
@@ -95,16 +108,16 @@ def install():
             if isinstance(result,dict) and "provider_encoded" in result: result = json.loads(result["provider_encoded"])
             return tuple(result) if name == "verify_model" else result
         return native
-    for module,agent,names in ((swebench,"claude",("resolve_anthropic_key","agent_credential_env")),
+    for module,agent,names in ((swebench,"claude",("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint")),
                               (copilot,"copilot",("auth_env","byok_active","provider_base","anthropic_optimizer_endpoint","provider_env","provider_secret_names","normalize_model","effort_applies","validate_priceable")),
-                              (codex,"codex",("resolve_codex_routing","validate_priceable","fetch_catalog","verify_model"))):
+                              (codex,"codex",("resolve_codex_routing","validate_priceable","fetch_catalog","verify_model","preflight_optimizer"))):
         for name in names:
             original = getattr(module,name)
             replacements[original] = function(module,original,agent,name)
             setattr(module,name,replacements[original])
     webbench = sys.modules.get("te_harness.webbench")
     if webbench is not None:
-        for name in ("resolve_anthropic_key","agent_credential_env"):
+        for name in ("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint"):
             original = getattr(webbench,name,None)
             if original in replacements: setattr(webbench,name,replacements[original])
     return replacements

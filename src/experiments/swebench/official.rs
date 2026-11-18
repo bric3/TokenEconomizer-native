@@ -48,7 +48,14 @@ pub fn swebench_repo(env: &Map<String, Value>, cwd: &Path) -> Result<String> {
 
 fn parse(text: &str) -> Result<Value> {
     serde_json::from_str(text).map_err(|error| {
-        // shortcut: JSON error text and positions use serde; complete diagnostic parity before release.
+        if let Err(crate::python_json::ParseError::Syntax { message, position }) =
+            crate::python_json::parse_result(text.as_bytes(), 0)
+        {
+            let mut failure = Failure::new("JSONDecodeError", message);
+            failure.details = Some(Box::new(json!({"doc":text,"pos":position})));
+            return failure;
+        }
+        // shortcut: audit Python-valid numeric and Unicode values that serde cannot represent.
         let display = error.to_string();
         let message = display
             .rsplit_once(" at line ")

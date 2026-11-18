@@ -95,10 +95,13 @@ Codex installation discovery, captured-prompt loading, offline skills discovery
 and configuration validation also run in Rust, including process-group cleanup
 and temporary-directory retries. SDK bindings supply filesystem and process I/O.
 SWE-bench constructor coordination also runs in Rust for Claude, Copilot and Codex,
-including validation order, scaffold setup and configuration preflights. Provider
-preflights, optimizer calls and scaffold backends still cross migration callbacks.
+including validation order, scaffold setup and configuration preflights.
+Optimizer calls and scaffold backends still cross migration callbacks.
 Provider routing, credential filtering, Copilot model normalisation and effort
 selection also run in Rust. Codex catalogue parsing, caching and model verification
 use native policy with mapping and HTTP bindings.
+Both shared endpoint preflight functions also run in Rust, including their gate,
+probe arguments, rejection messages and Codex success log. The JSON reader reports
+syntax messages and positions that match the source for catalogue and grader errors.
 
 Installed host verification and the remaining migration gates are still in progress.
