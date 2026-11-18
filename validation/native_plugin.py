@@ -123,6 +123,9 @@ def native_package_module(loader, module):
             "source": module.REPO, "out": str(out), "droid": True})
     elif str(loader.path) == str(ROOT / "reference/upstream/plugin/hermes/__init__.py"):
         install_hermes_gateway(module)
+    elif str(loader.path) == str(ROOT / "reference/upstream/experiments/scripts/run_experiment.py"):
+        from native_experiment_providers import install
+        install(driver_module=module)
     elif module.__name__ in ("te_bench.baselines","te_bench.baselines.base","te_bench.baselines.serena","te_bench.baselines.rtk","te_bench.baselines.repomap"):
         from native_experiment_providers import install
         install(scaffold_module=module)

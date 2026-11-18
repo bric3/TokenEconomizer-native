@@ -324,6 +324,7 @@ fn verify(rt: &mut dyn Runtime) -> Result<Value> {
 pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
     let (agent, name) = method.split_once('.').unwrap_or(("", method));
     match name {
+        name if agent == "driver" => crate::experiments::driver::dispatch(name, rt),
         name if agent == "scaffold" => crate::experiments::scaffolds::dispatch(name, rt),
         name if agent == "webbench" && name.starts_with("scaffold_") => {
             super::web_scaffold::dispatch(&name[9..], rt)

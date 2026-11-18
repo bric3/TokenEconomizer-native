@@ -20,8 +20,8 @@ FNMATCH_COMPILE = fnmatch._compile_pattern
 FNMATCH_TRANSLATE = fnmatch.translate
 
 
-def install(runner_module=None,scaffold_module=None):
-    if scaffold_module is None:
+def install(runner_module=None,scaffold_module=None,driver_module=None):
+    if scaffold_module is None and driver_module is None:
         from te_harness import swebench, copilot, codex
     replacements = {}
     def function(module,original,agent,name,captures=None):
@@ -36,7 +36,7 @@ def install(runner_module=None,scaffold_module=None):
             bound.apply_defaults()
             values = dict(bound.arguments)
             if captures: values.update(captures)
-            deferred_errors = name in ("_log_optimizer_call","_log") or name.startswith(("runner_","invocation_")) or agent in ("webbench","swebench","scaffold")
+            deferred_errors = name in ("_log_optimizer_call","_log") or name.startswith(("runner_","invocation_")) or agent in ("webbench","swebench","scaffold","driver")
             if agent == "codex" and name == "optimizer_call":
                 from te_harness.swebench import _log, _log_optimizer_call
                 values["optimizer_log"] = _log
@@ -267,6 +267,9 @@ def install(runner_module=None,scaffold_module=None):
                         called = module
                         for part in parameters[0].split("."): called = getattr(called,part)
                         values["function"] = called
+                    elif method == "driver_adapters":
+                        from te_bench.adapters import SwebenchAdapter, WebBenchAdapter, CredDataAdapter, ReposVulAdapter
+                        values.update(SwebenchAdapter=SwebenchAdapter,WebBenchAdapter=WebBenchAdapter,CredDataAdapter=CredDataAdapter,ReposVulAdapter=ReposVulAdapter)
                     elif method == "runner_member": values[parameters[1]] = getattr(values["self"],parameters[0])
                     elif method == "runner_invoke": values["called"] = values["function"](*[values[key] for key in parameters[0]],**{key:values[slot] for key,slot in parameters[1]})
                     elif method == "runner_label": value = values["model"] in tuple(parameters[0])
@@ -538,6 +541,13 @@ def install(runner_module=None,scaffold_module=None):
             return drive(invoke,*args,**kwargs)
         native._te_provider_operation = agent,name
         return native
+    if driver_module is not None:
+        for name in ("load_runner","load_adapter","workload_ids","_same_group","load_tasks","lift_overhead"):
+            original = getattr(driver_module,name)
+            if getattr(original,"_te_provider_operation",None) == ("driver",name): continue
+            replacements[original] = function(driver_module,original,"driver",name)
+            setattr(driver_module,name,replacements[original])
+        return replacements
     def scaffold_calls(owner):
         if owner.__name__ == "te_bench.baselines.repomap":
             for name,operation in (("map_tokens","tokens"),("extract_idents","idents")):

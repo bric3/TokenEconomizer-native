@@ -2,6 +2,7 @@ pub mod adapters;
 mod assets;
 pub mod bundle;
 pub mod codex_spiral;
+pub mod driver;
 pub mod facade;
 pub mod net_guard;
 pub mod nudge_guard;

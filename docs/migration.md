@@ -755,6 +755,10 @@ complete while any runtime component delegates production behaviour to Python.
   native. Codex captures and the WebBench preload use native runtime asset paths.
   Standalone host bindings still need to replace the validation bindings.
   Process and SDK calls retain Python I/O bindings.
+- Benchmark driver runner and dataset selection, workload and task filtering,
+  group matching and overhead-field copying are native. The driver command,
+  main stream loop, arm registry, environment-file loader and offline stub runner
+  remain open alongside standalone host bindings.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
 
@@ -2638,6 +2642,32 @@ complete while any runtime component delegates production behaviour to Python.
   stay open. Formal simplification and performance passes remain at 0/3 each;
   final test conversion is pending.
 
+- Benchmark driver selection now executes in Rust: `load_runner`, `load_adapter`,
+  `workload_ids`, `_same_group`, `load_tasks` and `lift_overhead`. It reuses the
+  existing object callback protocol. Imports, signature inspection, object calls,
+  mappings and file handles remain with the host binding; Rust owns the selection,
+  filtering, environment precedence, fallback and copying decisions.
+  Driver selection and overhead copying pass 427 source comparisons covering factory
+  signatures, agent/model/scaffold forwarding, inherited environment values,
+  missing factories, stub diagnostics, exception identity and active signature
+  errors. Overhead copying preserves the original row and nested value references,
+  honours existing fields and uses the ledger's declared keys.
+  Task selection passes 1,099 source comparisons covering workload groups,
+  duplicate IDs across projects, legacy prefix matching, positive/negative/large
+  limits, task labels, actual JSON/UTF-8/filesystem errors and context-manager
+  suppression and cleanup. No agent or external dataset is used by these probes.
+  The 48 focused original tests pass. The full unchanged upstream suite passes
+  with 1,561 passed and 30 skipped (76.09 seconds), including installed-opencode
+  tests against the loopback model fixture. Its native call record demonstrates
+  `lift_overhead`; the dedicated probes exercise the other five driver operations.
+  All 24 Rust checks, debug/release builds, Clippy, formatting and the 256-file
+  reference check pass. IDE inspections remain unavailable because this checkout
+  is not open in the IDE. Windows execution and live agents remain unverified.
+  The driver command, main stream loop, arm registry, environment-file loader,
+  offline stub runner, standalone host bindings and remaining parity audits stay
+  open. Formal simplification and performance passes remain at 0/3 each; final
+  test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2816,6 +2846,8 @@ jbang validation/PackageProbe.java
 jbang validation/ExperimentBundleProbe.java
 jbang validation/ExperimentAssetsProbe.java
 jbang validation/WebPreloadProbe.java
+jbang validation/DriverSelectionProbe.java
+jbang validation/DriverTasksProbe.java
 jbang validation/HermesGatewayProbe.java
 jbang validation/PiSdkProbe.java
 jbang validation/OpencodeSdkProbe.java

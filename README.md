@@ -134,6 +134,11 @@ and a benchmark command remain pending. WebBench selects the bundled Node
 preload; unbundled development engines use `src/experiments/assets` in the build
 checkout.
 
+Benchmark runner selection, dataset adapter selection, workload filtering and
+overhead-field copying also run in Rust. Factory imports, signature inspection
+and file I/O retain host bindings. The driver command and main stream loop still
+need conversion.
+
 SWE-bench controller selection, constructor parameters, continuation dispatch and
 telemetry fields run in Rust for all three agents. SDK bindings retain controller,
 callback and telemetry objects across the native calls.
