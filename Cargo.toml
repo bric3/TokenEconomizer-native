@@ -38,6 +38,10 @@ name = "te-hook"
 path = "src/bin/hook.rs"
 
 [[bin]]
+name = "te-net-guard"
+path = "src/bin/net_guard.rs"
+
+[[bin]]
 name = "te-package"
 path = "src/bin/package.rs"
 

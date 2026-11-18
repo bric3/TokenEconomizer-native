@@ -90,22 +90,7 @@ const INTERACTIVE: &[&str] = &[
 fn space(c: char) -> bool {
     c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}')
 }
-pub(super) fn kind(value: &Value) -> &'static str {
-    match value {
-        Value::Null => "NoneType",
-        Value::Bool(_) => "bool",
-        Value::String(_) => "str",
-        Value::Array(_) => "list",
-        Value::Object(_) => "dict",
-        Value::Number(n) => {
-            if n.is_i64() || n.is_u64() {
-                "int"
-            } else {
-                "float"
-            }
-        }
-    }
-}
+pub(super) use crate::value::python_type as kind;
 pub(super) fn sequence(value: &Value) -> Result<Vec<Value>> {
     match value {
         Value::Array(v) => Ok(v.clone()),

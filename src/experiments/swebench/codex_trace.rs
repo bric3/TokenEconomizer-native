@@ -46,26 +46,11 @@ pub fn rtk_compliance(value: &Value, cwd: &Path) -> Result<Value> {
     let Some((path, _)) = path(value, cwd)? else {
         return Ok(fields);
     };
-    let read = || -> std::io::Result<Vec<String>> {
-        let mut reader = TextReader::open(&path)?;
-        let mut lines = Vec::new();
-        loop {
-            let line = reader.readline(usize::MAX)?;
-            if line.is_empty() {
-                break;
-            }
-            let line = strip(&line);
-            if !line.is_empty() {
-                lines.push(line.into());
-            }
-        }
-        Ok(lines)
-    };
-    let Ok(lines) = read() else {
+    let Ok(calls) = read_trajectory(&path) else {
         return Ok(fields);
     };
     let (mut total, mut prefixed) = (0, 0);
-    for (_, args, _, _) in trajectory_from_lines(&lines) {
+    for (_, args, _, _) in calls {
         let Some(args) = args.as_object() else {
             continue;
         };
@@ -101,6 +86,52 @@ pub fn rtk_compliance(value: &Value, cwd: &Path) -> Result<Value> {
         json!(round_decimal(f64::from(prefixed) / f64::from(total), 3))
     };
     Ok(fields)
+}
+pub(super) fn read_trajectory(path: &Path) -> std::io::Result<Vec<crate::trace::Call>> {
+    let mut reader = TextReader::open(path)?;
+    let mut lines = Vec::new();
+    loop {
+        let line = reader.readline(usize::MAX)?;
+        if line.is_empty() {
+            break;
+        }
+        let line = strip(&line);
+        if !line.is_empty() {
+            lines.push(line.into());
+        }
+    }
+    Ok(trajectory_from_lines(&lines))
+}
+
+pub fn answer_key_attempts(run_dir: &Path, cwd: &Path) -> Value {
+    let path = cwd.join(run_dir).join("transcript.jsonl");
+    if !path.exists() {
+        return Value::Null;
+    }
+    let Ok(calls) = read_trajectory(&path) else {
+        return Value::Null;
+    };
+    let mut count = 0;
+    for (_, args, _, _) in calls {
+        let Some(args) = args.as_object() else {
+            continue;
+        };
+        let command = args
+            .get("command")
+            .filter(|v| truthy(v))
+            .or_else(|| args.get("cmd").filter(|v| truthy(v)));
+        let command = match command {
+            Some(Value::Array(items)) => {
+                items.iter().map(scalar_text).collect::<Vec<_>>().join(" ")
+            }
+            Some(value) => scalar_text(value),
+            None => String::new(),
+        };
+        if super::super::net_guard::blocked(&command) {
+            count += 1;
+        }
+    }
+    json!(count)
 }
 fn first<'a>(items: impl IntoIterator<Item = &'a Value>) -> Value {
     items

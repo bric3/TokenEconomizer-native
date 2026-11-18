@@ -49,6 +49,15 @@ def install():
     from te_harness import swebench as module
     cls = module.ClaudeSwebenchRunner
     replacements = {}
+    original_attempts = module.answer_key_attempts
+    @functools.wraps(original_attempts)
+    def answer_key_attempts(run_dir_path):
+        return checked(invoke("experiment.swebench.answer_key_attempts",{"run_dir_path":os.fspath(run_dir_path),"process_cwd":os.getcwd()}))
+    module.answer_key_attempts = answer_key_attempts
+    replacements[original_attempts] = answer_key_attempts
+    webbench = sys.modules.get("te_harness.webbench")
+    if webbench is not None and getattr(webbench,"answer_key_attempts",None) is original_attempts:
+        webbench.answer_key_attempts = answer_key_attempts
     def config_value(value, representation):
         if representation == "bool": return bool(value)
         if representation == "present": return value is not None

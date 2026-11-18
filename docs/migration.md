@@ -404,6 +404,12 @@ complete while any runtime component delegates production behaviour to Python.
   logs, reset per-task Codex state, record the capability mask and shortened-prompt
   count, and measure RTK compliance and MCP calls from saved transcripts. The host
   binding retains the shared task's row and output-directory objects.
+- The answer-key guard policy and standalone hook are native. Payload key priority,
+  bounded command search, command rendering, Unicode matching, host-list generation,
+  lift settings, refusal logs and transcript attempt counts run in Rust. The
+  standalone executable is `te-net-guard`; original guard subprocess assertions
+  execute it through the validation adapter. Container hook installation remains
+  part of the runner conversion.
 
 ## Remaining production work
 
@@ -416,6 +422,9 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit JSON numeric edge cases and parser nesting limits, including non-finite
   values accepted by Python.
   Include the Hermes redirect helper's raw JSON validation in that audit.
+  Include the guard's numeric spelling, malformed Unicode and non-default stdin
+  encodings. Its own input reader preserves Python-style non-finite numbers,
+  surrogate code points, surrogate-escaped UTF-8 bytes and integer digit limits.
   Include dataset IDs outside the documented string schemas and exact JSON error
   diagnostics in that audit.
   Include grading-table string keys and JSON error wording and positions.
@@ -458,7 +467,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Constructors, provider configuration, global signal cleanup, scaffold backends
+  Constructors, provider configuration, global signal cleanup, guard installation
+  and DNS verification, scaffold backends
   and contexts, installed Codex discovery and validation, agent streaming, and the
   Web-Bench task lifecycle and wrappers still need conversion. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
@@ -1282,6 +1292,28 @@ complete while any runtime component delegates production behaviour to Python.
   run was performed. Production conversion and parity audits remain open;
   simplification and performance passes remain at zero.
 
+- The native answer-key guard matches the source in 417 comparisons. They cover
+  payload priority, bounded recursive lookup, scalar and container command values,
+  dotted/dotless I, hosts entries, lift settings, exact refusal and telemetry bytes,
+  append failures, truncation and 24 concurrent refusals sharing one log. Both the
+  standalone executable and imported entry point are exercised. Transcript attempt
+  counts distinguish missing files from clean traces and preserve argv conversion.
+  The input reader handles non-finite numbers, float and large-integer spelling,
+  escaped surrogates, surrogate-escaped stdin bytes, malformed JSON and 5,000-level
+  unused metadata. Parsing, formatting and destruction use heap stacks. Integer
+  digit limits match the default and tested `PYTHONINTMAXSTRDIGITS` settings.
+  A Rust check verifies that lifting does not read stdin and read failures allow
+  the call. The focused original tests pass with 102 passed and 2 skipped. The full
+  original suite with installed-opencode tests enabled passes with 1,561 passed and
+  30 skipped (70.59 seconds). Native call counts remain in
+  `validation/experiment-task-calls.json`. All 24 Rust checks, debug/release builds,
+  Clippy, formatting, the 178-case wrapper, 282-case task, 466-case configuration
+  regressions and 256-file reference check pass. The three recorded grader JSON
+  diagnostic differences remain open. Original tests remain unchanged. No live
+  Docker, agent hook invocation, DNS or OS-signal verification was performed.
+  Native Windows, non-default input encodings and the remaining production-parity
+  audits remain open; no improvement pass is counted.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -1412,6 +1444,7 @@ jbang validation/SettingsProbe.java
 jbang validation/ContainerProbe.java
 jbang validation/CodexConfigProbe.java
 jbang validation/RunnerWrapperProbe.java
+jbang validation/NetGuardProbe.java
 jbang validation/BridgeProbe.java
 jbang validation/QueueProbe.java
 jbang validation/ContextProbe.java

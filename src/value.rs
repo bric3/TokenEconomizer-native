@@ -5,6 +5,23 @@ use serde_json::ser::Formatter;
 use std::io::{self, Write};
 use std::sync::LazyLock;
 
+pub(crate) fn python_type(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "NoneType",
+        Value::Bool(_) => "bool",
+        Value::String(_) => "str",
+        Value::Array(_) => "list",
+        Value::Object(_) => "dict",
+        Value::Number(n) => {
+            if n.is_i64() || n.is_u64() {
+                "int"
+            } else {
+                "float"
+            }
+        }
+    }
+}
+
 pub fn decimal_integer(text: &str) -> Option<String> {
     static INTEGER: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"^[+-]?\p{Nd}+(?:_\p{Nd}+)*$").unwrap());
@@ -160,38 +177,7 @@ pub fn scalar_text(value: &Value) -> String {
 
 pub(crate) fn python_repr(value: &Value) -> String {
     match value {
-        Value::String(text) => {
-            let quote = if text.contains('\'') && !text.contains('"') {
-                '"'
-            } else {
-                '\''
-            };
-            let mut out = quote.to_string();
-            for c in text.chars() {
-                if c == quote || c == '\\' {
-                    out.push('\\');
-                    out.push(c);
-                } else if c == '\'' || c == '"' {
-                    out.push(c);
-                } else {
-                    let escaped = c.escape_debug().to_string();
-                    if escaped == "\\0" {
-                        out.push_str("\\x00");
-                    } else if escaped.starts_with("\\u{") {
-                        use std::fmt::Write;
-                        match c as u32 {
-                            code @ ..=0xff => write!(out, "\\x{code:02x}").unwrap(),
-                            code @ ..=0xffff => write!(out, "\\u{code:04x}").unwrap(),
-                            code => write!(out, "\\U{code:08x}").unwrap(),
-                        }
-                    } else {
-                        out.push_str(&escaped);
-                    }
-                }
-            }
-            out.push(quote);
-            out
-        }
+        Value::String(text) => python_string_repr(text.chars().map(u32::from)),
         Value::Array(values) => format!(
             "[{}]",
             values
@@ -214,6 +200,43 @@ pub(crate) fn python_repr(value: &Value) -> String {
         ),
         scalar => scalar_text(scalar),
     }
+}
+
+pub(crate) fn python_string_repr(points: impl Iterator<Item = u32> + Clone) -> String {
+    use std::fmt::Write;
+    let quote = if points.clone().any(|c| c == 39) && !points.clone().any(|c| c == 34) {
+        '\"'
+    } else {
+        '\''
+    };
+    let mut out = quote.to_string();
+    for point in points {
+        let Some(c) = char::from_u32(point) else {
+            write!(out, "\\u{point:04x}").unwrap();
+            continue;
+        };
+        if c == quote || c == '\\' {
+            out.push('\\');
+            out.push(c);
+        } else if c == '\'' || c == '"' {
+            out.push(c);
+        } else {
+            let escaped = c.escape_debug().to_string();
+            if escaped == "\\0" {
+                out.push_str("\\x00");
+            } else if escaped.starts_with("\\u{") {
+                match point {
+                    code @ ..=0xff => write!(out, "\\x{code:02x}").unwrap(),
+                    code @ ..=0xffff => write!(out, "\\u{code:04x}").unwrap(),
+                    code => write!(out, "\\U{code:08x}").unwrap(),
+                }
+            } else {
+                out.push_str(&escaped);
+            }
+        }
+    }
+    out.push(quote);
+    out
 }
 
 pub fn round_decimal(value: f64, precision: usize) -> f64 {

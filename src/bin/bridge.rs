@@ -98,6 +98,29 @@ fn dispatch(request: &Value) -> Result<Value, String> {
         return Ok(value);
     }
     let result = match request["op"].as_str().unwrap_or("") {
+        "experiment.net_guard.lifted" => json!(tokeneconomizer::experiments::net_guard::lifted(
+            args["value"].as_str().unwrap_or("")
+        )),
+        "experiment.net_guard.decide" => {
+            tokeneconomizer::experiments::net_guard::decide(&args["command"])
+                .map(|value| json!(value))
+                .unwrap_or_else(spiral_dispatch::failure)
+        }
+        "experiment.net_guard.hook_command" => json!(
+            tokeneconomizer::experiments::net_guard::hook_command(&args["payload"])
+        ),
+        "experiment.net_guard._as_command" => json!(
+            tokeneconomizer::experiments::net_guard::as_command(&args["value"])
+        ),
+        "experiment.net_guard._find_command" => {
+            json!(tokeneconomizer::experiments::net_guard::find_command(
+                &args["node"],
+                args["depth"].as_i64().unwrap_or(4)
+            ))
+        }
+        "experiment.net_guard.hosts_block" => {
+            json!(tokeneconomizer::experiments::net_guard::hosts_block())
+        }
         "package.build_reference" => json!(
             package::build(
                 Path::new(args["source"].as_str().ok_or("expected source directory")?),

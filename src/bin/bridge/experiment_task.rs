@@ -2,7 +2,8 @@ use super::job::{self, Channel};
 use serde_json::{Value, json};
 use std::path::Path;
 use tokeneconomizer::experiments::swebench::{
-    self, Failure, Runtime, Task, codex_config, containers, grading, official, settings, wrappers,
+    self, Failure, Runtime, Task, codex_config, codex_trace, containers, grading, official,
+    settings, wrappers,
 };
 
 struct Transport(Channel);
@@ -37,6 +38,12 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
             args.get("reply").cloned(),
         )
         .map(Some);
+    }
+    if method == "answer_key_attempts" {
+        return Ok(Some(codex_trace::answer_key_attempts(
+            Path::new(args["run_dir_path"].as_str().unwrap_or("")),
+            Path::new(args["process_cwd"].as_str().unwrap_or(".")),
+        )));
     }
     if let Some(agent) = method.strip_prefix("runner.") {
         let args = args.clone();

@@ -54,6 +54,14 @@ EXPERIMENT_HARNESS_REPLACEMENTS = {}
 
 def native_cli_process(*args, **kwargs):
     argv = args[0] if args else kwargs.get("args")
+    if (isinstance(argv,(list,tuple)) and len(argv) >= 2 and argv[0] == sys.executable
+            and (str(argv[1]) == str(ROOT/"reference/upstream/experiments/te_harness/guards/net_guard.py")
+                 or list(argv[1:3]) == ["-m","te_harness.guards.net_guard"])):
+        skip = 3 if argv[1] == "-m" else 2
+        argv = [str(ROOT/"target/debug"/("te-net-guard.exe" if os.name == "nt" else "te-net-guard")),*argv[skip:]]
+        if args: args = (argv,*args[1:])
+        else: kwargs["args"] = argv
+        with LOCK: CALLS["experiment.net_guard.process"] += 1
     if (isinstance(argv, (list, tuple)) and len(argv) >= 3 and argv[0] == sys.executable
             and str(argv[1]) == str(ROOT / "reference/upstream/plugin/scripts/te_bootstrap.py")
             and argv[2] == "cli"):
@@ -116,6 +124,9 @@ def native_package_module(loader, module):
         install_hermes_gateway(module)
     elif module.__name__ == "te_harness.swebench":
         install_experiment_harness()
+    elif module.__name__ == "te_harness.guards.net_guard":
+        from native_experiment_net_guard import install
+        install(module)
     elif module.__name__ == "te_harness.webbench":
         from native_experiment_task import install_network
         install_experiment_harness().update(install_network(module))
@@ -2943,6 +2954,9 @@ def install_opencode_sdk(module):
 
 
 def pytest_collection_modifyitems(items):
+    if "te_harness.guards.net_guard" in sys.modules:
+        from native_experiment_net_guard import install
+        install()
     if "te_harness.swebench" in sys.modules:
         replacements = install_experiment_harness()
         for module in list(sys.modules.values()):

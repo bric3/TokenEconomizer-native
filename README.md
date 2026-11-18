@@ -80,5 +80,9 @@ SWE-bench configuration installation also run in Rust, along with scaffold resul
 handling and MCP configuration wiring.
 The Copilot and Codex SWE-bench task wrappers also run in Rust, including debug-log
 persistence, task state resets and transcript-based RTK and MCP measurements.
+The standalone benchmark answer-key guard is `target/debug/te-net-guard`. It reads
+hook JSON from stdin, refuses matching commands with exit status 2 and a reason on
+stderr, and appends telemetry to `TE_NET_GUARD_LOG` when set. Payload selection,
+host-list generation and transcript attempt counting also run in Rust.
 
 Installed host verification and the remaining migration gates are still in progress.
