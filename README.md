@@ -135,9 +135,11 @@ preload; unbundled development engines use `src/experiments/assets` in the build
 checkout.
 
 Benchmark runner selection, dataset adapter selection, workload filtering and
-overhead-field copying also run in Rust. Factory imports, signature inspection
-and file I/O retain host bindings. The driver command and main stream loop still
-need conversion.
+overhead-field copying also run in Rust. The native registry supplies all 27 arm
+configurations, modes, effort overlays and scaffold names. Environment-file
+parsing, selection and application also use native policy. Factory imports,
+signature inspection, file I/O and OS environment access retain host bindings.
+The driver command and main stream loop still need conversion.
 
 SWE-bench controller selection, constructor parameters, continuation dispatch and
 telemetry fields run in Rust for all three agents. SDK bindings retain controller,

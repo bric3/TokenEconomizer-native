@@ -9,6 +9,9 @@ use super::swebench::{
 use crate::{python_json::Text, value::truthy};
 use serde_json::{Value, json};
 
+mod environment;
+pub use environment::parse_env;
+
 fn returned(slot: &str) -> Value {
     json!({"provider_ref":slot})
 }
@@ -418,6 +421,7 @@ pub fn dispatch(name: &str, rt: &mut dyn Runtime) -> Result<Value> {
         "_same_group" => same_group(rt),
         "load_tasks" => load_tasks(rt),
         "lift_overhead" => lift_overhead(rt),
+        "env_path" | "_parse" | "load_env" | "require_keys" => environment::run(name, rt),
         _ => Err(Failure::new(
             "ValueError",
             format!("unknown experiment driver operation: {name}"),

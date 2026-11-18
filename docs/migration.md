@@ -756,9 +756,10 @@ complete while any runtime component delegates production behaviour to Python.
   Standalone host bindings still need to replace the validation bindings.
   Process and SDK calls retain Python I/O bindings.
 - Benchmark driver runner and dataset selection, workload and task filtering,
-  group matching and overhead-field copying are native. The driver command,
-  main stream loop, arm registry, environment-file loader and offline stub runner
-  remain open alongside standalone host bindings.
+  group matching and overhead-field copying are native. The arm registry and
+  environment-file parsing, selection and application are native too. The driver
+  command, main stream loop and offline stub runner remain open alongside
+  standalone host bindings.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
 
@@ -2668,6 +2669,36 @@ complete while any runtime component delegates production behaviour to Python.
   open. Formal simplification and performance passes remain at 0/3 each; final
   test conversion is pending.
 
+- The native arm registry supplies all 27 pinned configurations in canonical
+  order, including mode labels, effort overlays and the eight scaffold mappings.
+  Every lookup owns its configuration. The Python binding constructs data objects
+  from the native result; arm factories select their configuration in Rust.
+  The registry passes 30 dedicated checks covering the full source table,
+  configuration independence and lookup from a relocated engine with an empty
+  environment. All 75 relevant original arm/configuration tests also pass.
+  The benchmark environment loader now parses assignments, selects files,
+  applies variable precedence and builds missing-credential diagnostics in Rust.
+  Literal shell syntax stays literal, empty values are skipped and existing
+  non-empty exports win unless override is requested. File handles, OS environment
+  operations and the configuration root remain caller-owned binding data.
+  The native parser is also available directly as `driver::parse_env`.
+  Its 230 source comparisons exercise both parser entry points, Unicode whitespace
+  and line boundaries, quotes, duplicate keys, path precedence, missing/invalid
+  files, credential errors, context suppression and cleanup. Real child-process
+  environment checks cover Unicode values and OS rejection of NUL in names or
+  values. These probes use fixture variables and owned files.
+  The full unchanged upstream suite passes with 1,561 passed and 30 skipped
+  (73.30 seconds), including installed-opencode tests against the loopback model
+  fixture. Its call record demonstrates one registry read and 160 native config
+  lookups. Environment-loader coverage comes from the dedicated source probe.
+  The 427 driver-selection and 1,099 task-selection regressions also pass.
+  All 24 Rust checks, debug/release builds, Clippy, formatting and the 256-file
+  reference check pass. IDE inspections remain unavailable because this checkout
+  is not open in the IDE. Windows execution and live agents remain unverified.
+  The driver command, main stream loop, offline stub runner, standalone host
+  bindings and remaining parity audits stay open. Formal simplification and
+  performance passes remain at 0/3 each; final test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2848,6 +2879,8 @@ jbang validation/ExperimentAssetsProbe.java
 jbang validation/WebPreloadProbe.java
 jbang validation/DriverSelectionProbe.java
 jbang validation/DriverTasksProbe.java
+jbang validation/ArmRegistryProbe.java
+jbang validation/EnvironmentProbe.java
 jbang validation/HermesGatewayProbe.java
 jbang validation/PiSdkProbe.java
 jbang validation/OpencodeSdkProbe.java

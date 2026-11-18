@@ -1,9 +1,14 @@
+use indexmap::IndexMap;
 use serde_json::{Value, json};
 use std::{
     collections::BTreeSet,
     path::{Path, PathBuf},
 };
-use tokeneconomizer::experiments::adapters::{self, Adapter, Error};
+use tokeneconomizer::experiments::{
+    adapters::{self, Adapter, Error},
+    arms,
+    driver::parse_env,
+};
 
 fn path(args: &Value, name: &str) -> Option<PathBuf> {
     args[name].as_str().map(PathBuf::from)
@@ -32,6 +37,26 @@ fn response(result: Result<Value, Error>) -> Value {
     }
 }
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
+    if op == "experiment.environment.parse" {
+        return Ok(Some(json!(parse_env(
+            args["text"].as_str().ok_or("expected environment text")?
+        ))));
+    }
+    if op == "experiment.arms.registry" {
+        let registry = arms::registry();
+        let scaffolds: IndexMap<_, _> = registry
+            .iter()
+            .filter_map(|(name, arm)| arm.scaffold.map(|scaffold| (*name, scaffold)))
+            .collect();
+        return Ok(Some(
+            json!({"arms":registry,"order":arms::ARM_ORDER,"scaffolds":scaffolds}),
+        ));
+    }
+    if op == "experiment.arms.config" {
+        return Ok(Some(json!(
+            arms::get(args["name"].as_str().ok_or("expected arm name")?).map(|arm| arm.config)
+        )));
+    }
     let Some(method) = op.strip_prefix("experiment.adapters.") else {
         return Ok(None);
     };

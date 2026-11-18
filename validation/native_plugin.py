@@ -126,6 +126,12 @@ def native_package_module(loader, module):
     elif str(loader.path) == str(ROOT / "reference/upstream/experiments/scripts/run_experiment.py"):
         from native_experiment_providers import install
         install(driver_module=module)
+    elif module.__name__ == "te_bench.arms":
+        from native_experiment_arms import install
+        install(module)
+    elif str(loader.path) == str(ROOT / "reference/upstream/experiments/scripts/_env.py"):
+        from native_experiment_providers import install
+        install(driver_module=module)
     elif module.__name__ in ("te_bench.baselines","te_bench.baselines.base","te_bench.baselines.serena","te_bench.baselines.rtk","te_bench.baselines.repomap"):
         from native_experiment_providers import install
         install(scaffold_module=module)

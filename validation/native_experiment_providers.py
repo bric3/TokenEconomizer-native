@@ -270,6 +270,7 @@ def install(runner_module=None,scaffold_module=None,driver_module=None):
                     elif method == "driver_adapters":
                         from te_bench.adapters import SwebenchAdapter, WebBenchAdapter, CredDataAdapter, ReposVulAdapter
                         values.update(SwebenchAdapter=SwebenchAdapter,WebBenchAdapter=WebBenchAdapter,CredDataAdapter=CredDataAdapter,ReposVulAdapter=ReposVulAdapter)
+                    elif method == "driver_env_lines": value = [list(map(ord,line)) for line in values["text"].splitlines()]
                     elif method == "runner_member": values[parameters[1]] = getattr(values["self"],parameters[0])
                     elif method == "runner_invoke": values["called"] = values["function"](*[values[key] for key in parameters[0]],**{key:values[slot] for key,slot in parameters[1]})
                     elif method == "runner_label": value = values["model"] in tuple(parameters[0])
@@ -542,7 +543,7 @@ def install(runner_module=None,scaffold_module=None,driver_module=None):
         native._te_provider_operation = agent,name
         return native
     if driver_module is not None:
-        for name in ("load_runner","load_adapter","workload_ids","_same_group","load_tasks","lift_overhead"):
+        for name in (("env_path","_parse","load_env","require_keys") if hasattr(driver_module,"require_keys") else ("load_runner","load_adapter","workload_ids","_same_group","load_tasks","lift_overhead")):
             original = getattr(driver_module,name)
             if getattr(original,"_te_provider_operation",None) == ("driver",name): continue
             replacements[original] = function(driver_module,original,"driver",name)
