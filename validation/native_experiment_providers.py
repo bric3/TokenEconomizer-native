@@ -502,6 +502,14 @@ def install(runner_module=None,scaffold_module=None):
         native._te_provider_operation = agent,name
         return native
     def scaffold_calls(owner):
+        if owner.__name__ == "te_bench.baselines.serena":
+            cls=owner.SerenaScaffold
+            for name,operation in (("setup","serena_setup"),("mcp_server","serena_server"),("nudge","serena_nudge")):
+                original=getattr(cls,name)
+                if getattr(original,"_te_provider_operation",None) == ("scaffold",operation): continue
+                replacements[original]=function(owner,original,"scaffold",operation)
+                setattr(cls,name,staticmethod(replacements[original]) if name != "setup" else replacements[original])
+            return
         for cls_name,methods in (("AgentProfile",(("__init__","profile_new"),("mcp_args","profile_mcp"))),
                                  ("ScaffoldContext",(("__init__","context_new"),("read_bytes","context_read"),("log","context_log"),("write_instructions","instructions"),("write_mcp_config","mcp_config"),("merge_json_file","merge_json"))),
                                  ("Scaffold",(("mounts","mounts"),("preflight","preflight"),("setup","setup")))):
@@ -667,6 +675,7 @@ def install(runner_module=None,scaffold_module=None):
     for owner,domain,classes in ((swebench,"swebench",("ClaudeSwebenchRunner","CopilotSwebenchRunner","CodexSwebenchRunner")),
                                  (webbench,"webbench",("WebBenchRunner","CopilotWebBenchRunner","CodexWebBenchRunner"))):
         runner_calls(owner,domain,classes)
-    from te_bench.baselines import base
+    from te_bench.baselines import base,serena
     scaffold_calls(base)
+    scaffold_calls(serena)
     return replacements

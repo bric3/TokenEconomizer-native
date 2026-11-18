@@ -562,13 +562,17 @@ complete while any runtime component delegates production behaviour to Python.
   callbacks with the source signatures and retain their captured objects after
   the creating method returns. Fallback I/O preserves the handled error for
   callbacks and exception chaining. Setup error metadata uses fresh scaffold and
-  exception names and preserves the detail limit of 300 code points. Scaffold backends
-  and SWE-bench context assembly remain pending.
+  exception names and preserves the detail limit of 300 code points. The RTK and
+  repo-map backends and SWE-bench context assembly remain pending.
 - Shared scaffold profile and context constructors, read/log callbacks, instruction
   writes, MCP configuration and merge-helper staging use native policy. SDK bindings
   retain raw objects, file contexts, JSON encoding and process I/O. The staged merge
   program still uses Python; native container-helper deployment remains a production
   gate.
+- Serena installation policy, version reporting, MCP server configuration, Codex
+  server handoff and navigation instructions use native policy. SDK bindings
+  retain callback results, server references and file I/O. The install command
+  still installs Serena's external Python toolchain as required by the baseline.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -705,7 +709,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Container guard binary deployment and registration, scaffold backends, native
+  Container guard binary deployment and registration, the RTK and repo-map backends, native
   merge-helper deployment, SWE-bench context assembly and agent streaming
   still need conversion.
   Stream start and session close coordination are native. Per-task container
@@ -2260,6 +2264,26 @@ complete while any runtime component delegates production behaviour to Python.
   parity audits stay open. Simplification and performance passes remain at 0/3
   each; final test conversion is pending.
 
+- Serena passes 426 source comparisons covering installation success and failure,
+  version and error truncation, agent-specific MCP context, Codex server reference
+  identity, raw configuration and instruction results, generator evaluation and
+  failure order. Real file checks verify MCP configuration and project instructions
+  for Claude, Copilot and Codex, with no temporary files after success. These checks
+  do not download or install Serena. The 611-case shared scaffold regression and
+  all six offline Web-Bench HTTP/process pipelines pass. Focused original tests
+  pass with 36 passed and one skipped. The full original suite, with
+  installed-opencode tests enabled, passes with 1,561 passed and 30 skipped
+  (69.51 seconds). The native call record in
+  `validation/experiment-task-calls.json` includes five Serena setups, five server
+  configurations, four navigation instructions and 20 tool-name evaluations.
+  All 24 Rust checks, debug/release builds, Clippy, formatting and the 256-file
+  reference check pass. Original tests remain unchanged. IDE inspections remain
+  unavailable because this checkout is not open in the IDE. Serena's actual
+  installation and MCP startup, live agents, Linux namespaces and Windows remain
+  unverified. RTK, repo-map, native container-helper deployment, SWE-bench integration,
+  host bindings and remaining parity audits stay open. Simplification and performance
+  passes remain at 0/3 each; final test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2390,6 +2414,7 @@ jbang validation/WebAgentProbe.java
 jbang validation/WebGuardProbe.java
 jbang validation/WebScaffoldProbe.java
 jbang validation/ScaffoldBaseProbe.java
+jbang validation/SerenaScaffoldProbe.java
 jbang validation/InvocationProbe.java
 jbang validation/WebSegmentProcessProbe.java
 jbang validation/WebTaskPipelineProbe.java

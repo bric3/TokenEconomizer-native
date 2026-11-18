@@ -123,7 +123,7 @@ def native_package_module(loader, module):
             "source": module.REPO, "out": str(out), "droid": True})
     elif str(loader.path) == str(ROOT / "reference/upstream/plugin/hermes/__init__.py"):
         install_hermes_gateway(module)
-    elif module.__name__ == "te_bench.baselines.base":
+    elif module.__name__ in ("te_bench.baselines.base","te_bench.baselines.serena"):
         from native_experiment_providers import install
         install(scaffold_module=module)
     elif module.__name__ == "te_harness.swebench":

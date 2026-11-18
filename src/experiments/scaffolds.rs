@@ -299,8 +299,153 @@ fn merge(rt: &mut dyn Runtime) -> Result<Value> {
     let found = truthy(&rt.call("provider_contains", json!(["marker", "stdout"]))?);
     Ok(json!(found))
 }
+
+fn field(rt: &mut dyn Runtime, object: &str, key: &str, value: &str) -> Result<()> {
+    rt.call("eval_field", json!([object, key, value]))
+        .map(|_| ())
+}
+fn serena_server(rt: &mut dyn Runtime) -> Result<Value> {
+    attr(rt, "profile", "home", "home")?;
+    attr(rt, "profile", "kind", "kind")?;
+    literal(rt, "codex", json!("codex"))?;
+    rt.call("web_compare", json!(["eq", "kind", "codex"]))?;
+    let context = if boolean(rt, "comparison")? {
+        "codex"
+    } else {
+        "ide-assistant"
+    };
+    let mut command = formatted(rt, "home", "")?;
+    push(&mut command, "/.local/bin/serena");
+    text(rt, "command", command)?;
+    literal(rt, "spec", json!({}))?;
+    field(rt, "spec", "command", "command")?;
+    literal(
+        rt,
+        "args",
+        json!([
+            "start-mcp-server",
+            "--project",
+            "/testbed",
+            "--context",
+            context,
+            "--transport",
+            "stdio",
+            "--enable-web-dashboard",
+            "false"
+        ]),
+    )?;
+    field(rt, "spec", "args", "args")?;
+    let mut path = formatted(rt, "home", "")?;
+    push(&mut path, "/.local/bin:/usr/local/bin:/usr/bin:/bin");
+    text(rt, "path", path)?;
+    literal(rt, "env", json!({}))?;
+    field(rt, "env", "PATH", "path")?;
+    field(rt, "spec", "env", "env")?;
+    Ok(returned("spec"))
+}
+fn serena_tool(rt: &mut dyn Runtime) -> Result<Value> {
+    literal(rt, "tick", json!("`"))?;
+    binary(rt, "add", "tick", "element", "quoted")?;
+    binary(rt, "add", "quoted", "tick", "quoted")?;
+    rt.call("eval_list", json!(["entry", ["quoted"]]))?;
+    Ok(returned("entry"))
+}
+fn serena_nudge(rt: &mut dyn Runtime) -> Result<Value> {
+    literal(rt, "separator", json!(", "))?;
+    attr(rt, "separator", "join", "join")?;
+    function(rt, "SERENA_TOOLS")?;
+    rt.call(
+        "eval_generator",
+        json!(["tools_iter", "function", "serena_tool", "scaffold"]),
+    )?;
+    call(rt, "join", &["tools_iter"], "tools")?;
+    literal(rt, "separator", json!("/"))?;
+    attr(rt, "separator", "join", "join")?;
+    attr(rt, "profile", "nav_tools", "nav_tools")?;
+    call(rt, "join", &["nav_tools"], "forbid")?;
+    fallback(rt, "forbid", json!("rg/grep/sed/cat in the shell"))?;
+    let mut nudge = Text::from(
+        "# MANDATORY code-navigation policy\nFor ANY code search, symbol lookup, or 'where is X defined/used' task, you MUST use the Serena MCP tools (use tool search to load them if needed): ",
+    );
+    nudge.0.extend(formatted(rt, "tools", "")?.0);
+    push(&mut nudge, ". Do NOT use ");
+    nudge.0.extend(formatted(rt, "forbid", "")?.0);
+    push(
+        &mut nudge,
+        " to locate or browse code -- use Serena's semantic tools instead. They return precise, symbol-level results and are the required way to navigate this repository.\n",
+    );
+    text(rt, "nudge", nudge)?;
+    Ok(returned("nudge"))
+}
+fn serena_setup(rt: &mut dyn Runtime) -> Result<Value> {
+    attr(rt, "ctx", "profile", "profile")?;
+    attr(rt, "profile", "home", "home")?;
+    attr(rt, "ctx", "exec_", "exec")?;
+    function(rt, "INSTALL")?;
+    copy(rt, "install", "function")?;
+    literal(rt, "timeout", json!(900))?;
+    literal(rt, "env", json!({}))?;
+    field(rt, "env", "HOME", "home")?;
+    copy(rt, "function", "exec")?;
+    invoke(rt, &["install"], &[("timeout", "timeout"), ("env", "env")])?;
+    copy(rt, "ins", "called")?;
+    attr(rt, "ins", "returncode", "returncode")?;
+    literal(rt, "zero", json!(0))?;
+    rt.call("web_compare", json!(["eq", "returncode", "zero"]))?;
+    copy(rt, "installed", "comparison")?;
+    literal(rt, "notes", json!({"arm_setup":"serena"}))?;
+    field(rt, "notes", "serena_installed", "installed")?;
+    attr(rt, "ins", "stdout", "stdout")?;
+    fallback(rt, "stdout", json!(""))?;
+    method(rt, "stdout", "strip", &[], "version")?;
+    rt.call("logger_slice", json!(["version", -30, null, "version"]))?;
+    field(rt, "notes", "serena_version", "version")?;
+    if !boolean(rt, "installed")? {
+        attr(rt, "ctx", "log", "logger")?;
+        attr(rt, "ins", "stderr", "stderr")?;
+        fallback(rt, "stderr", json!(""))?;
+        rt.call("logger_slice", json!(["stderr", -200, null, "stderr"]))?;
+        let mut message =
+            Text::from("serena: install FAILED -- this task runs without the MCP server (");
+        message.0.extend(formatted(rt, "stderr", "")?.0);
+        push(&mut message, ")");
+        text(rt, "message", message)?;
+        call(rt, "logger", &["message"], "logged")?;
+        literal(rt, "false", json!(false))?;
+        field(rt, "notes", "serena_nudged", "false")?;
+        return Ok(returned("notes"));
+    }
+    member(rt, "mcp_server", "server")?;
+    attr(rt, "ctx", "profile", "profile")?;
+    call(rt, "server", &["profile"], "spec")?;
+    attr(rt, "ctx", "write_mcp_config", "writer")?;
+    literal(rt, "servers", json!({}))?;
+    field(rt, "servers", "serena", "spec")?;
+    call(rt, "writer", &["servers"], "cfg")?;
+    field(rt, "notes", "mcp_config", "cfg")?;
+    attr(rt, "ctx", "profile", "profile")?;
+    attr(rt, "profile", "kind", "kind")?;
+    literal(rt, "codex", json!("codex"))?;
+    rt.call("web_compare", json!(["eq", "kind", "codex"]))?;
+    if boolean(rt, "comparison")? {
+        literal(rt, "servers", json!({}))?;
+        field(rt, "servers", "serena", "spec")?;
+        field(rt, "notes", "mcp_servers", "servers")?;
+    }
+    attr(rt, "ctx", "write_instructions", "writer")?;
+    member(rt, "nudge", "nudge_function")?;
+    attr(rt, "ctx", "profile", "profile")?;
+    call(rt, "nudge_function", &["profile"], "nudge")?;
+    call(rt, "writer", &["nudge"], "nudged")?;
+    field(rt, "notes", "serena_nudged", "nudged")?;
+    Ok(returned("notes"))
+}
 pub fn dispatch(operation: &str, rt: &mut dyn Runtime) -> Result<Value> {
     match operation {
+        "serena_server" => serena_server(rt),
+        "serena_nudge" => serena_nudge(rt),
+        "serena_tool" => serena_tool(rt),
+        "serena_setup" => serena_setup(rt),
         "profile_new" => profile_new(rt),
         "profile_mcp" => profile_mcp(rt),
         "context_new" => context_new(rt),
