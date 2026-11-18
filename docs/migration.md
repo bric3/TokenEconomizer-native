@@ -427,8 +427,8 @@ complete while any runtime component delegates production behaviour to Python.
   model and effort selection, optimizer-override rejection, scaffold setup,
   configuration probes, initial state and validation order. The SDK binding
   retains argument, scaffold, profile, routing and configuration objects.
-  Optimizer calls and scaffold backends remain callbacks
-  until their implementations are ported.
+  Runner call wrappers, Copilot CLI optimizer calls and scaffold backends remain
+  callbacks until their implementations are ported.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -441,7 +441,14 @@ complete while any runtime component delegates production behaviour to Python.
   `TE_OPTIMIZER_PREFLIGHT` gate, sixteen-token probe arguments, response checks,
   rejection messages and Codex success logging. The binding retains credentials,
   routing and model objects, and captures the Codex logger before invoking the
-  optimizer. Optimizer transport implementations remain callbacks.
+  optimizer.
+- Messages and Responses optimizer calls use native request construction,
+  credential selection, retry control flow, text extraction, warnings and usage
+  accounting. Responses text extraction also runs in Rust. The binding supplies
+  HTTP contexts, clocks, observers and pricing calls, and retains model, prompt,
+  credential and pricing-result references. Native counters preserve decimal
+  integers beyond machine range. Observer mutations follow each source function's
+  billing order, including the second output-token read on the Responses path.
 - The shared JSON reader supplies syntax messages, Unicode positions and line
   and column information. Catalogue HTTP contexts receive reconstructed
   `JSONDecodeError` objects with the source fields. The grader loader uses those
@@ -515,7 +522,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Web-Bench constructors, optimizer-call transports, runner call wrappers,
+  Web-Bench constructors, Copilot CLI optimizer calls, shared optimizer logging
+  and context helpers, runner call wrappers,
   factories, global signal cleanup, container guard binary deployment and
   registration, scaffold backends and contexts, agent streaming, and the
   Web-Bench task lifecycle and wrappers still need conversion. Per-task container
@@ -525,7 +533,7 @@ complete while any runtime component delegates production behaviour to Python.
   native too, along with constructor coordination for all three agents.
   Provider routing, credential filtering, model normalisation, catalogue reads,
   model verification and shared endpoint preflight control flow are native.
-  Optimizer-call transports still need conversion.
+  Messages and Responses optimizer policy is native; HTTP I/O retains SDK bindings.
   Codex installation discovery, captured-prompt loading and offline probes are
   native. Experiment asset packaging and host bindings still need to replace the
   validation binding's reference-data paths.
@@ -1504,6 +1512,24 @@ complete while any runtime component delegates production behaviour to Python.
   remain unavailable because this checkout is not open in the connected IDE.
   Live provider checks, optimizer transports, runner conversion and the remaining
   parity audits stay open. No simplification or performance pass is counted.
+
+- HTTP optimizer calls pass 235 source comparisons, including four real loopback
+  HTTP requests. They cover exact request bytes and headers, credential precedence,
+  request reuse, retry codes and delays, HTTP-body truncation, response extraction,
+  malformed responses, suppressed context errors, ordinary and fatal exceptions,
+  logger replacement, observer mutations, Unicode and arbitrary-size counters.
+  The 267-case provider and 241-case preflight regressions also pass.
+  Focused original tests pass with 72 passed and two skipped. The full original
+  suite, with installed-opencode tests enabled, passes with 1,561 passed and 30
+  skipped (68.06 seconds). Its record is
+  `validation/experiment-task-calls.json`; it includes three Messages calls, one
+  Responses call and one Responses text-extraction call. All 24 Rust checks,
+  debug/release builds, Clippy, formatting and the 256-file reference check pass.
+  Original tests remain unchanged. IDE inspections remain unavailable because
+  this checkout is not open in the connected IDE. No external provider or paid
+  model was called. Copilot CLI optimizer calls, shared optimizer helpers, runner
+  conversion and the remaining parity audits stay open. No simplification or
+  performance pass is counted.
 
 ## Dependencies
 

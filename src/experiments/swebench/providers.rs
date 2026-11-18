@@ -26,7 +26,7 @@ pub(super) fn literal(rt: &mut dyn Runtime, slot: &str, value: Value) -> Result<
     rt.call("provider_literal", json!([slot, value]))
         .map(|_| ())
 }
-fn copy(rt: &mut dyn Runtime, target: &str, source: &str) -> Result<()> {
+pub(super) fn copy(rt: &mut dyn Runtime, target: &str, source: &str) -> Result<()> {
     rt.call("provider_copy", json!([target, source]))
         .map(|_| ())
 }
@@ -197,6 +197,24 @@ fn normalize(rt: &mut dyn Runtime) -> Result<Value> {
     }
     Ok(returned("normal"))
 }
+pub(super) fn read_json(rt: &mut dyn Runtime) -> Result<Node> {
+    let document = rt.call("provider_http_read", json!([]))?;
+    let text = document["text"].as_str().unwrap_or("");
+    python_json::parse_result(
+        text.as_bytes(),
+        document["int_max_digits"].as_u64().unwrap_or(0) as usize,
+    )
+    .map_err(|error| match error {
+        python_json::ParseError::Syntax { message, position } => {
+            let mut failure = Failure::new("JSONDecodeError", error.message(text));
+            failure.details = Some(Box::new(json!({"msg":message,"doc":text,"pos":position})));
+            failure
+        }
+        python_json::ParseError::IntegerLimit { .. } => {
+            Failure::new("ValueError", error.message(""))
+        }
+    })
+}
 fn catalogue(rt: &mut dyn Runtime) -> Result<Value> {
     if truthy(&rt.call("provider_cache_begin", json!([]))?) {
         rt.call("provider_cache_get", json!([]))?;
@@ -212,28 +230,7 @@ fn catalogue(rt: &mut dyn Runtime) -> Result<Value> {
         let key = rt.call("provider_format", json!(["api_key"]))?;
         rt.call("provider_request",json!([format!("{base}/models"),{"authorization":format!("Bearer {}",scalar_text(&key))}]))?;
         rt.call("provider_http_enter", json!([]))?;
-        let parsed = (|| {
-            let document = rt.call("provider_http_read", json!([]))?;
-            python_json::parse_result(
-                document["text"].as_str().unwrap_or("").as_bytes(),
-                document["int_max_digits"].as_u64().unwrap_or(0) as usize,
-            )
-            .map_err(|error| match error {
-                python_json::ParseError::Syntax { message, position } => {
-                    let mut failure = Failure::new(
-                        "JSONDecodeError",
-                        error.message(document["text"].as_str().unwrap_or("")),
-                    );
-                    failure.details = Some(Box::new(
-                        json!({"msg":message,"doc":document["text"],"pos":position}),
-                    ));
-                    failure
-                }
-                python_json::ParseError::IntegerLimit { .. } => {
-                    Failure::new("ValueError", error.message(""))
-                }
-            })
-        })();
+        let parsed = read_json(rt);
         let suppressed = rt.call("provider_http_exit", json!([parsed.as_ref().err()]))?;
         let payload = match parsed {
             Err(_) if truthy(&suppressed) => {
@@ -327,6 +324,9 @@ pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
         "resolve_codex_routing" => routed_key(rt, false),
         "preflight_optimizer_endpoint" => super::preflight::run(false, rt),
         "preflight_optimizer" if agent == "codex" => super::preflight::run(true, rt),
+        "anthropic_optimizer_call" => super::optimizer::run(false, rt),
+        "optimizer_call" if agent == "codex" => super::optimizer::run(true, rt),
+        "_responses_text" if agent == "codex" => super::optimizer::response_text_call(rt),
         "agent_credential_env" => {
             for key in names(rt, "IGNORED_ANTHROPIC_VARS")? {
                 rt.call("provider_env_pop", json!([key]))?;

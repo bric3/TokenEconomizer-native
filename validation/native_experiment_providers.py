@@ -4,6 +4,7 @@ import builtins
 import inspect
 import json
 import sys
+from decimal import Decimal
 
 from native_plugin import invoke
 from native_experiment_task import checked, data
@@ -19,6 +20,10 @@ def install():
             bound = signature.bind(*args,**kwargs)
             bound.apply_defaults()
             values = dict(bound.arguments)
+            if agent == "codex" and name == "optimizer_call":
+                from te_harness.swebench import _log, _log_optimizer_call
+                values["optimizer_log"] = _log
+                values["optimizer_record"] = _log_optimizer_call
             if agent == "codex" and name == "preflight_optimizer":
                 from te_harness.swebench import _log
                 values["preflight_log"] = _log
@@ -29,6 +34,8 @@ def install():
             values["output"] = {}
             errors = []
             context,response,document = None,None,""
+            # Native arithmetic can produce more digits than the HTTP decoder permits.
+            def decode(encoded): return json.loads(encoded,parse_int=lambda number:int(Decimal(number)))
             result = invoke("experiment.swebench.provider."+agent+"."+name,{})
             while isinstance(result,dict) and "callback" in result:
                 method,parameters = result["method"],result["args"]
@@ -86,6 +93,44 @@ def install():
                                     error = json.JSONDecodeError(details["msg"],details["doc"],details["pos"])
                                 else: error = getattr(builtins,info["kind"])(info["message"])
                             value = bool(context.__exit__(type(error),error,error.__traceback__))
+                        values["optimizer_suppressed"] = info is not None and value
+                    elif method == "optimizer_json": value = json.dumps(values[parameters[0]],ensure_ascii=True)
+                    elif method == "optimizer_string":
+                        item = values[parameters[0]]
+                        value = json.dumps(item,ensure_ascii=True) if type(item) is str else None
+                    elif method == "optimizer_format": value = json.dumps(format(values[parameters[0]],""),ensure_ascii=True)
+                    elif method == "optimizer_capture_request": values["request_function"] = module.urllib.request.Request
+                    elif method == "optimizer_request":
+                        headers = {key:values[item] if kind == "ref" else decode(item) if kind == "encoded" else item for key,kind,item in parameters[2]}
+                        values["request"] = values["request_function"](decode(parameters[0]),data=parameters[1].encode(),method="POST",headers=headers)
+                    elif method == "optimizer_capture_log": values["active_log"] = values["optimizer_log"] if "optimizer_log" in values else module._log
+                    elif method == "optimizer_log": values["active_log"](decode(parameters[0]))
+                    elif method == "optimizer_sleep": module.time.sleep(*parameters)
+                    elif method == "optimizer_error_code":
+                        values["error_code"] = values["http_error"].code
+                        value = values["error_code"]
+                    elif method == "optimizer_error_body": value = list(values["http_error"].read()[:parameters[0]])
+                    elif method == "optimizer_suppressed": value = values.get("optimizer_suppressed",False)
+                    elif method == "optimizer_integer_limit": value = getattr(sys,"get_int_max_str_digits",lambda:0)()
+                    elif method == "optimizer_set_usage": values["usage"] = decode(parameters[0])
+                    elif method == "optimizer_usage_from_response": values["usage"] = values["data"].get("usage")
+                    elif method == "optimizer_usage_field": value = json.dumps(values["usage"].get(parameters[0]),ensure_ascii=True)
+                    elif method == "optimizer_capture_usage": values[parameters[0]] = values["usage"].get(parameters[0])
+                    elif method == "optimizer_response_text":
+                        function = module._responses_text
+                        values["data"] = decode(parameters[0])
+                        values["text"] = function(values["data"])
+                        value = {"text":json.dumps(values["text"],ensure_ascii=True),"data":json.dumps(values["data"],ensure_ascii=True)}
+                    elif method == "optimizer_record":
+                        function = values["optimizer_record"] if "optimizer_record" in values else module._log_optimizer_call
+                        values["text"] = decode(parameters[0])
+                        usage = values["usage"] if parameters[1] is None else decode(parameters[1])
+                        function(values["mid"],values["prompt"],values["text"],usage,stop_reason=decode(parameters[2]))
+                    elif method == "optimizer_pricing":
+                        record = {"model":values["mid"]}
+                        record.update({key:values[item] if kind == "ref" else int(Decimal(item)) if kind == "integer" else item for key,(kind,item) in parameters.items()})
+                        values["effective"] = module.pricing.effective_tokens(record)
+                    elif method == "optimizer_finish": values["optimizer_result"] = decode(parameters[0]),values["effective"]
                     elif method == "preflight_format": value = format(values[parameters[0]],parameters[1])
                     elif method == "preflight_log":
                         values["preflight_call_log"](*parameters)
@@ -98,6 +143,7 @@ def install():
                     reply = {"value":data(value)}
                 except BaseException as error:
                     errors.append(error)
+                    if hasattr(module,"urllib") and isinstance(error,module.urllib.error.HTTPError): values["http_error"] = error
                     reply = {"error":{"kind":type(error).__name__,"message":str(error),"bases":[base.__module__+"."+base.__qualname__ for base in type(error).__mro__]}}
                 result = invoke("experiment.swebench.resume",{"job":result["job"],"reply":reply})
             if isinstance(result,dict) and "raised" in result:
@@ -106,18 +152,18 @@ def install():
             result = checked(result)
             if isinstance(result,dict) and "provider_ref" in result: return values[result["provider_ref"]]
             if isinstance(result,dict) and "provider_encoded" in result: result = json.loads(result["provider_encoded"])
-            return tuple(result) if name == "verify_model" else result
+            return tuple(result) if name in ("verify_model","anthropic_optimizer_call","optimizer_call") else result
         return native
-    for module,agent,names in ((swebench,"claude",("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint")),
+    for module,agent,names in ((swebench,"claude",("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call")),
                               (copilot,"copilot",("auth_env","byok_active","provider_base","anthropic_optimizer_endpoint","provider_env","provider_secret_names","normalize_model","effort_applies","validate_priceable")),
-                              (codex,"codex",("resolve_codex_routing","validate_priceable","fetch_catalog","verify_model","preflight_optimizer"))):
+                              (codex,"codex",("resolve_codex_routing","validate_priceable","fetch_catalog","verify_model","preflight_optimizer","optimizer_call","_responses_text"))):
         for name in names:
             original = getattr(module,name)
             replacements[original] = function(module,original,agent,name)
             setattr(module,name,replacements[original])
     webbench = sys.modules.get("te_harness.webbench")
     if webbench is not None:
-        for name in ("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint"):
+        for name in ("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call"):
             original = getattr(webbench,name,None)
             if original in replacements: setattr(webbench,name,replacements[original])
     return replacements
