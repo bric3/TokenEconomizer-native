@@ -34,6 +34,7 @@ pub mod setup;
 #[cfg(test)]
 mod tests;
 pub mod web_host;
+pub mod web_http;
 pub mod web_output;
 pub mod web_session;
 pub mod web_start;

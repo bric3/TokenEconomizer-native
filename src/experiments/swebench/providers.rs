@@ -320,6 +320,8 @@ fn verify(rt: &mut dyn Runtime) -> Result<Value> {
 pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
     let (agent, name) = method.split_once('.').unwrap_or(("", method));
     match name {
+        "http_post" if agent == "webbench" => super::web_http::post(rt),
+        "http_log_message" if agent == "webbench" => Ok(Value::Null),
         "eval_start" if agent == "webbench" => super::web_start::start(rt),
         "_full_task_ids" if agent == "webbench" => super::web_tasks::load(rt),
         "_read_stdout" if agent == "webbench" => super::web_output::read(rt),

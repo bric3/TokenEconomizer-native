@@ -447,7 +447,7 @@ complete while any runtime component delegates production behaviour to Python.
   are native for all three agents. Project selection, directory checks, evaluator
   arguments and partial state after errors follow the source order. Task lists,
   sessions, helper references and unchanged project strings retain their references.
-  Evaluator HTTP request handling and process cleanup still use the source
+  Evaluator process cleanup still uses the source
   implementation.
 - Web-Bench evaluator event and request waits use native deadlines, five-second
   polling bounds, empty-queue handling, completion checks and event selection.
@@ -475,6 +475,13 @@ complete while any runtime component delegates production behaviour to Python.
   runtime handler factory uses the source module context so the generated class
   keeps its original module and session binding. Constructor failures preserve
   the source's partial state and resource-creation order.
+- Web-Bench HTTP handling uses native request parsing order, parse-error responses,
+  request/reply rendezvous, timeout fallback, response construction and broken-pipe
+  handling. SDK bindings supply JSON library codecs, bytes and object protocols,
+  queues and HTTP I/O. Parsed requests, reply queues and payloads retain their
+  references. Getters, formatters and callbacks in exception handlers observe
+  the handled exception and preserve exception chains. HTTP access logging remains
+  quiet through a native no-op method.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -613,7 +620,7 @@ complete while any runtime component delegates production behaviour to Python.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   Global signal cleanup, container guard binary deployment and
   registration, scaffold backends and contexts, agent streaming, and the
-  Web-Bench HTTP request handling, process cleanup, task calls and
+  Web-Bench process cleanup, task calls and
   wrappers still need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
@@ -1862,6 +1869,30 @@ complete while any runtime component delegates production behaviour to Python.
   and signal cleanup, task calls, host bindings and remaining parity audits stay
   open. Simplification and performance passes remain at 0/3 each; final test
   conversion is pending.
+
+- Web-Bench HTTP policy passes 269 source comparisons covering content lengths,
+  integer digit limits, UTF-8 and JSON errors, raw request/reply identities, reply
+  timeouts, response bytes and headers, quiet logging and exception boundaries.
+  Cases distinguish timeout handling from enqueue and encoding failures, and
+  final-write broken pipes from failures while sending headers. Getters,
+  formatters and loggers observe the active exception; formatter/logger failures
+  retain their exception chains. Error text preserves adjacent surrogate code
+  points. Seven real local HTTP requests cover successful responses, timeout
+  fallback, malformed JSON, invalid UTF-8, invalid lengths and Unicode replies.
+  The 413-case startup corpus now runs its combined offline pipeline through the
+  native HTTP handler, task loader, queue waits and stdout reader. Its two real
+  HTTP/process runs and executable launch-failure case pass. No Web-Bench/Playwright
+  evaluator or paid model is called.
+  The full original suite, with installed-opencode tests enabled, passes with
+  1,561 passed and 30 skipped (70.68 seconds). Its updated call record remains
+  `validation/experiment-task-calls.json`. Original tests do not call the evaluator
+  HTTP methods; the focused corpora supply their runtime coverage. The 217-case
+  task-loader and 307-case logging regressions, all 24 Rust checks, debug/release
+  builds, Clippy, formatting and the 256-file reference check pass.
+  Original tests remain unchanged. IDE inspections remain unavailable because
+  this checkout is not open in the connected IDE. Process and signal cleanup,
+  task calls, host bindings and remaining parity audits stay open. Simplification
+  and performance passes remain at 0/3 each; final test conversion is pending.
 
 ## Dependencies
 

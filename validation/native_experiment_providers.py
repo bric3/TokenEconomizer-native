@@ -55,15 +55,19 @@ def install(runner_module=None):
                     raise TypeError(f"'{kind}' object does not support the context manager protocol (missed {name} method)")
                 descriptor = getattr(type(method),"__get__",None)
                 return descriptor(method,instance,type(instance)) if descriptor is not None else method
+            def with_exception(error,function,*args,**kwargs):
+                if error is None: return function(*args,**kwargs)
+                traceback = BaseException.__traceback__.__get__(error)
+                try: raise error
+                except BaseException:
+                    # Callbacks in an exception handler observe sys.exception().
+                    BaseException.__traceback__.__set__(error,traceback)
+                    return function(*args,**kwargs)
             def context_exit(exit_method,info):
                 if info is None: return exit_method(None,None,None)
                 error = error_object(info)
                 traceback = BaseException.__traceback__.__get__(error)
-                try: raise error
-                except BaseException:
-                    # __exit__ observes the handled exception through sys.exception().
-                    BaseException.__traceback__.__set__(error,traceback)
-                    return exit_method(type(error),error,traceback)
+                return with_exception(error,exit_method,type(error),error,traceback)
             def in_module(function,*args,**kwargs): return function(*args,**kwargs)
             result = invoke("experiment.swebench.provider."+agent+"."+name,{})
             while isinstance(result,dict) and "callback" in result:
@@ -315,6 +319,13 @@ def install(runner_module=None):
                         values["config_exit"] = special(values["called"],"__exit__")
                         values["config_handle"] = special(values["called"],"__enter__")()
                     elif method == "eval_exit": values["exit_result"] = context_exit(values["config_exit"],parameters[0])
+                    elif method == "handler_exception": values["caught_error"] = error_object(parameters[0]) if parameters[0] is not None else None
+                    elif method == "handler_member": values[parameters[2]] = with_exception(values.get("caught_error"),getattr,values[parameters[0]],parameters[1])
+                    elif method == "handler_invoke":
+                        values["called"] = with_exception(values.get("caught_error"),values["function"],*[values[key] for key in parameters[0]],**{key:values[slot] for key,slot in parameters[1]})
+                    elif method == "handler_format":
+                        formatted = with_exception(values.get("caught_error"),format,values[parameters[0]],"")
+                        value = list(map(ord,str.__iter__(formatted)))
                     elif method == "preflight_format": value = format(values[parameters[0]],parameters[1])
                     elif method == "preflight_log":
                         values["preflight_call_log"](*parameters)
@@ -362,6 +373,11 @@ def install(runner_module=None):
             replacements[original] = function(owner,original,"claude",operation)
             owner.make_runner = replacements[original]
         if domain == "webbench":
+            for name,operation in (("do_POST","http_post"),("log_message","http_log_message")):
+                original = getattr(owner._AgentHandler,name)
+                if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
+                replacements[original] = function(owner,original,"webbench",operation)
+                setattr(owner._AgentHandler,name,replacements[original])
             original = owner._EvalSession.__init__
             if getattr(original,"_te_provider_operation",None) != ("webbench","eval_start"):
                 replacements[original] = function(owner,original,"webbench","eval_start")

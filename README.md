@@ -104,7 +104,8 @@ Evaluator stdout logging, attempt parsing, event publication and exit-state
 updates also run in Rust. Evaluator startup uses native configuration, subset
 warnings, environment assembly, process launch and session registration. SDK
 bindings supply queues, HTTP servers, threads, files and process I/O. HTTP request
-handling and process cleanup still use source callbacks.
+parsing, queue rendezvous, timeout replies, response headers and broken-pipe logging
+also use native policy. Process cleanup still uses source callbacks.
 Evaluator task-file loading uses native path assembly, line filtering, ID
 collection and file-error handling. SDK bindings provide file contexts and JSON
 library decoding while retaining ID values by reference.
