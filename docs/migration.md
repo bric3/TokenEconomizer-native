@@ -400,6 +400,10 @@ complete while any runtime component delegates production behaviour to Python.
   SWE-bench installs the configuration and optional shortened prompt through a
   native base64 command. Scaffold result handling and Codex MCP wiring are native;
   the host binding retains the scaffold notes and server specification objects.
+- Copilot and Codex SWE-bench task wrappers are native. They persist Copilot debug
+  logs, reset per-task Codex state, record the capability mask and shortened-prompt
+  count, and measure RTK compliance and MCP calls from saved transcripts. The host
+  binding retains the shared task's row and output-directory objects.
 
 ## Remaining production work
 
@@ -454,11 +458,12 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Constructors, agent-specific task wrappers, provider configuration, global
-  signal cleanup, scaffold backends and contexts, installed Codex discovery and
-  validation, and agent streaming still need conversion. Per-task container policy,
-  grading orchestration, the official-grader wrapper, Codex config writing and
-  scaffold result handling are native. Process and SDK calls retain Python I/O bindings.
+  Constructors, provider configuration, global signal cleanup, scaffold backends
+  and contexts, installed Codex discovery and validation, agent streaming, and the
+  Web-Bench task lifecycle and wrappers still need conversion. Per-task container
+  policy, grading orchestration, the official-grader wrapper, Codex config writing,
+  scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
+  Process and SDK calls retain Python I/O bindings.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
 
@@ -1257,6 +1262,26 @@ complete while any runtime component delegates production behaviour to Python.
   Codex strict-config or OS-signal run was performed. Production-parity audits and
   runner conversion remain open; no improvement pass is counted.
 
+- Copilot and Codex task wrappers and scaffold measurements match the source in
+  178 comparisons. They cover task argument and return-object identity, per-task
+  state resets, capability conversion, partial row updates when token conversion
+  fails, debug-file bytes and write errors, shell wrappers, RTK prefixes, MCP
+  completion and invocation shapes, unknown-item samples, missing transcripts,
+  decoding replacement and universal line endings. The task lifecycle probe now
+  passes 282 comparisons, including 20 new cases that run both wrappers through
+  native task execution, resumed segments and cleanup failures. No model or Docker
+  process is used by these comparisons.
+  The focused original tests pass with 51 passed and 2 skipped. The full original
+  suite with installed-opencode tests enabled passes with 1,561 passed and 30
+  skipped (68.45 seconds). Native call counts remain in
+  `validation/experiment-task-calls.json`; wrapper execution coverage comes from
+  the new probes. All 23 Rust checks, debug/release builds, Clippy, formatting,
+  the existing configuration/container/settings/grader probes and the 256-file
+  reference check pass. The three recorded grader JSON diagnostic differences
+  remain open. Original tests remain unchanged. No live Docker, model or OS-signal
+  run was performed. Production conversion and parity audits remain open;
+  simplification and performance passes remain at zero.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -1386,6 +1411,7 @@ jbang validation/GraderProbe.java
 jbang validation/SettingsProbe.java
 jbang validation/ContainerProbe.java
 jbang validation/CodexConfigProbe.java
+jbang validation/RunnerWrapperProbe.java
 jbang validation/BridgeProbe.java
 jbang validation/QueueProbe.java
 jbang validation/ContextProbe.java

@@ -15,12 +15,14 @@ use std::{
 use crate::value::python_repr;
 
 pub mod codex_config;
+pub mod codex_trace;
 pub mod containers;
 pub mod grading;
 pub mod official;
 pub mod settings;
 #[cfg(test)]
 mod tests;
+pub mod wrappers;
 
 pub const TASK_TEMPLATE: &str = include_str!("swebench/task-prompt.txt");
 

@@ -7,6 +7,7 @@ use regex::Regex;
 use serde_json::{Map, Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    path::Path,
     sync::LazyLock,
 };
 
@@ -19,6 +20,28 @@ pub fn dispatch(method: &str, args: &Value, rt: &mut dyn Runtime) -> Result<Valu
         .and_then(Value::as_object)
         .unwrap_or(&empty);
     match method {
+        "rtk_compliance" => super::codex_trace::rtk_compliance(
+            &args["transcript_path"],
+            Path::new(args["process_cwd"].as_str().unwrap_or(".")),
+        ),
+        "mcp_tool_calls" => super::codex_trace::mcp_tool_calls(
+            &args["transcript_path"],
+            &args["server"],
+            Path::new(args["process_cwd"].as_str().unwrap_or(".")),
+        ),
+        "_unwrap_shell" => {
+            let command = &args["cmd"];
+            if !truthy(command) {
+                return Ok(json!(""));
+            }
+            let command = command.as_str().ok_or_else(|| {
+                Failure::new(
+                    "AttributeError",
+                    format!("'{}' object has no attribute 'strip'", kind(command)),
+                )
+            })?;
+            Ok(json!(super::codex_trace::unwrap_shell(command)))
+        }
         "network_block_toggles" => Ok(json!(network_toggles(env))),
         "config_toggles" => config_toggles(&args["capabilities"], env).map(|v| json!(v)),
         "lean_instructions" => lean_instructions(&args["base_text"], &args["capabilities"]),
@@ -67,7 +90,7 @@ const INTERACTIVE: &[&str] = &[
 fn space(c: char) -> bool {
     c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}')
 }
-fn kind(value: &Value) -> &'static str {
+pub(super) fn kind(value: &Value) -> &'static str {
     match value {
         Value::Null => "NoneType",
         Value::Bool(_) => "bool",
@@ -83,7 +106,7 @@ fn kind(value: &Value) -> &'static str {
         }
     }
 }
-fn sequence(value: &Value) -> Result<Vec<Value>> {
+pub(super) fn sequence(value: &Value) -> Result<Vec<Value>> {
     match value {
         Value::Array(v) => Ok(v.clone()),
         Value::String(v) => Ok(v.chars().map(|c| json!(c.to_string())).collect()),
@@ -118,7 +141,7 @@ fn text(value: &Value) -> Result<&str> {
         .as_str()
         .ok_or_else(|| Failure::new("TypeError", format!("expected str, found {}", kind(value))))
 }
-fn integer(value: &Value) -> Result<String> {
+pub(super) fn integer(value: &Value) -> Result<String> {
     if let Some(s) = value.as_str() {
         let normalized = decimal_integer(s).ok_or_else(|| {
             Failure::new(

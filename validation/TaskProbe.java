@@ -62,6 +62,10 @@ class TaskProbe {
       for(var rc:List.of(0,1))compare(nativeCode,source,"\"with_grading\":true,\"exec_eval\":{\"returncode\":"+rc+",\"stdout\":\"\",\"stderr\":\"container unavailable\"}");
       compare(nativeCode,source,"\"kind\":\"eval_exec_failed\",\"log_is_directory\":true,\"stderr\":\"write failed\"");
       for(var kind:List.of("task","grade"))compare(nativeCode,source,"\"kind\":"+q(kind)+",\"cwd\":"+q(artifacts)+",\"run_dir_relative\":true,\"with_grading\":true");
+      for(var agent:List.of("copilot","codex"))for(boolean guard:List.of(false,true))for(int resumes:List.of(0,2))
+        compare(nativeCode,source,"\"wrapper_agent\":"+q(agent)+",\"guard\":"+guard+",\"resumes\":"+resumes+",\"kwargs\":{\"codex_config_capabilities\":[\"skills\",\"goals\"]}");
+      for(var agent:List.of("copilot","codex"))for(var method:List.of("_start","_segment","_stop"))for(var kind:List.of("RuntimeError","KeyboardInterrupt"))
+        compare(nativeCode,source,"\"wrapper_agent\":"+q(agent)+",\"fail\":"+q(method)+",\"error_kind\":"+q(kind));
       System.out.println("SWE-bench task lifecycle and grading match the source in "+cases+" cases; prompts, names, resumes, artifacts, partial timeout output, failure reports and cleanup passed without Docker or model calls");passed=true;
     } finally {if(passed)clear(artifacts);else System.err.println("Probe artifacts: "+artifacts);}
   }

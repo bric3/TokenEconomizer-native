@@ -290,6 +290,10 @@ for line in sys.stdin:
             else:
                 task = request.get("task",{"instance_id":"acme__widget-1","repo":"acme/widget","problem_statement":"Fix this task"})
                 runner = GradedTaskRunner() if request.get("with_grading") else Runner()
+                if request.get("wrapper_agent"):
+                    agent_class = sw.CopilotSwebenchRunner if request["wrapper_agent"] == "copilot" else sw.CodexSwebenchRunner
+                    runner = type("WrappedRunner",(Runner,agent_class),{})()
+                    runner.agent,runner.scaffold_name = request["wrapper_agent"],request.get("scaffold_name")
                 run_dir = os.path.relpath(request["root"]) if request.get("run_dir_relative") else request["root"]
                 row,path = runner.run_task(task,arm="trimech",injected=request.get("injected"),exclude_tools=request.get("excluded"),run_dir_path=run_dir,**request.get("kwargs",{}))
                 value = {"row":row,"path":path}

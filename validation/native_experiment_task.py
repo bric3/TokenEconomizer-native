@@ -55,13 +55,14 @@ def install():
         if representation == "list": return list(value)
         # shortcut: object strings are captured per callback; audit conversion side effects before release.
         return json.loads(json.dumps(value,default=str))
-    def drive(self, result, run_kwargs, guard=None, process_cmd=NO_COMMAND, record_row=None):
+    def drive(self, result, run_kwargs, guard=None, process_cmd=NO_COMMAND, record_row=None, task_call=None):
         errors = []
         processes = {}
         transcript = None
         spec = None
         scaffold_result = None
         popped = None
+        task_result = None
         while isinstance(result,dict) and "callback" in result:
             method, args = result["method"], result["args"]
             try:
@@ -85,6 +86,17 @@ def install():
                 elif method == "config_kwarg": value = config_value(run_kwargs.get(args[0]),args[1])
                 elif method == "config_set":
                     setattr(self,args[0],args[1])
+                    value = None
+                elif method == "runner_capabilities":
+                    self._capabilities = tuple(args)
+                    value = None
+                elif method == "runner_base_task":
+                    task_result = task_call()
+                    value = {"out_dir":os.fspath(task_result[1]),"cwd":os.getcwd()}
+                elif method == "runner_row_get": value = task_result[0].get(*args)
+                elif method == "runner_row_pop": value = task_result[0].pop(*args)
+                elif method == "runner_row_update":
+                    task_result[0].update(*args)
                     value = None
                 elif method == "config_function": value = getattr(module,args[0])(*args[1])
                 elif method == "codex_function": value = getattr(module.codex,args[0])(*args[1],**args[2])
@@ -172,6 +184,7 @@ def install():
             checked(result)
         if isinstance(result,dict) and "_process_ref" in result: return processes[result["_process_ref"]]
         if isinstance(result,dict) and result.get("_scaffold_result"): return scaffold_result
+        if isinstance(result,dict) and result.get("_runner_result"): return task_result[0],task_result[1]
         return result
     def codex_function(original,operation):
         signature = inspect.signature(original)
@@ -181,13 +194,14 @@ def install():
             bound.apply_defaults()
             arguments = data(dict(bound.arguments))
             arguments["environment"] = {key:os.environ[key] for key in ("TE_ALLOW_NETWORK_TOOLS",) if key in os.environ}
+            arguments["process_cwd"] = os.getcwd()
             value = drive(None,invoke("experiment.swebench.codex."+operation,arguments),{})
             if operation == "network_block_toggles": return tuple(value[0]),tuple(tuple(pair) for pair in value[1])
             if operation == "config_toggles": return value[0],[tuple(pair) for pair in value[1]]
             return value
         replacements[original] = native
         return native
-    for name in ("network_block_toggles","config_toggles","config_toml","skills_config_entries","lean_instructions"):
+    for name in ("network_block_toggles","config_toggles","config_toml","skills_config_entries","lean_instructions","_unwrap_shell","rtk_compliance","mcp_tool_calls"):
         setattr(module.codex,name,codex_function(getattr(module.codex,name),name))
     original_write_config = module.CodexSwebenchRunner._write_config
     @functools.wraps(original_write_config)
@@ -264,6 +278,16 @@ def install():
                         "environment":{key:os.environ[key] for key in ("TE_MAX_TURNS",) if key in os.environ}, "process_cwd":os.getcwd()})
         return drive(self,result,run_kwargs), run_dir_path
     cls.run_task = run_task
+    def runner_method(original,agent):
+        @functools.wraps(original)
+        def native(self,task,*,arm,injected,exclude_tools,run_dir_path,**run_kwargs):
+            def task_call():
+                return cls.run_task(self,task,arm=arm,injected=injected,exclude_tools=exclude_tools,run_dir_path=run_dir_path,**run_kwargs)
+            result = invoke("experiment.swebench.runner."+agent,{"task":data(task)})
+            return drive(self,result,run_kwargs,task_call=task_call)
+        return native
+    for klass,agent in ((module.CopilotSwebenchRunner,"copilot"),(module.CodexSwebenchRunner,"codex")):
+        klass.run_task = runner_method(klass.run_task,agent)
     original_config = cls._write_run_config
     @functools.wraps(original_config)
     def write_run_config(self,run_dir_path,task,arm,injected,exclude_tools,max_turns,run_kwargs,guard):

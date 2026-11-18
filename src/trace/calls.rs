@@ -35,20 +35,24 @@ pub fn is_codex_exec(lines: &[String]) -> bool {
 
 pub fn load_trajectory(path: &Path) -> Vec<Call> {
     let lines = jsonl::lines(path).collect::<Vec<_>>();
-    if is_codex_exec(&lines) {
-        return codex::exec_calls(&lines);
+    trajectory_from_lines(&lines)
+}
+
+pub fn trajectory_from_lines(lines: &[String]) -> Vec<Call> {
+    if is_codex_exec(lines) {
+        return codex::exec_calls(lines);
     }
     if lines.iter().any(|line| {
         line.contains("\"tool_use\"")
             || line.contains("\"type\": \"assistant\"")
             || line.contains("\"type\":\"assistant\"")
     }) {
-        return claude::calls(&lines)
+        return claude::calls(lines)
             .into_iter()
             .map(|(name, args, result, ok, _)| (name, args, result, ok.into()))
             .collect();
     }
-    copilot::event_calls(&lines)
+    copilot::event_calls(lines)
 }
 
 pub fn call_cwds(path: &Path) -> Vec<Option<String>> {
