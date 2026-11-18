@@ -81,6 +81,11 @@ handling and MCP configuration wiring.
 SWE-bench scaffold context assembly and its retained Docker execution, copy and
 binary-read callbacks also use native policy. SDK bindings retain the raw handles
 and supply process I/O.
+SWE-bench agent segments now run in Rust for Claude, Copilot and Codex, including
+Docker arguments, credential forwarding, transcripts, guard stops, deadlines,
+container-side termination, usage recovery and Claude session-log reads. Both
+benchmark harnesses share the native stream loop and retain their launch and
+termination policy. SDK bindings supply processes, pipes, clocks and object APIs.
 The Copilot and Codex SWE-bench task wrappers also run in Rust, including debug-log
 persistence, task state resets and transcript-based RTK and MCP measurements.
 The standalone benchmark answer-key guard is `target/debug/te-net-guard`. It reads

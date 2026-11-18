@@ -341,6 +341,10 @@ pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
             super::web_agent::dispatch(&name[6..], rt)
         }
         "segment_claude" if agent == "webbench" => super::web_segment::run(rt, "claude"),
+        "segment_claude" if agent == "swebench" => super::segment::run(rt, "claude"),
+        "segment_copilot" if agent == "swebench" => super::segment::run(rt, "copilot"),
+        "segment_codex" if agent == "swebench" => super::segment::run(rt, "codex"),
+        "session_log" if agent == "swebench" => super::segment::session_log(rt),
         "segment_copilot" if agent == "webbench" => super::web_segment::run(rt, "copilot"),
         "segment_codex" if agent == "webbench" => super::web_segment::run(rt, "codex"),
         "session_log" if agent == "webbench" => super::web_segment::session_log(rt),

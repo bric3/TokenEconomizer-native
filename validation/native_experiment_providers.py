@@ -356,6 +356,7 @@ def install(runner_module=None,scaffold_module=None):
                         try: value = with_exception(error,matches)
                         finally: BaseException.__traceback__.__set__(error,traceback)
                     elif method == "eval_list": values[parameters[0]] = [values[key] for key in parameters[1]]
+                    elif method == "eval_star": values[parameters[2]] = [*values[parameters[0]],*values[parameters[1]]]
                     elif method == "eval_bytes": values[parameters[0]] = bytes(parameters[1])
                     elif method == "eval_tuple": values[parameters[0]] = tuple(values[key] for key in parameters[1])
                     elif method == "eval_closure":
@@ -712,6 +713,15 @@ def install(runner_module=None,scaffold_module=None):
     if getattr(original,"_te_provider_operation",None) != ("swebench","scaffold_context"):
         replacements[original]=function(swebench,original,"swebench","scaffold_context")
         swebench.ClaudeSwebenchRunner._scaffold_context=replacements[original]
+    for cls,agent in ((swebench.ClaudeSwebenchRunner,"claude"),(swebench.CopilotSwebenchRunner,"copilot"),(swebench.CodexSwebenchRunner,"codex")):
+        original=cls._segment
+        if getattr(original,"_te_provider_operation",None) == ("swebench","segment_"+agent): continue
+        replacements[original]=function(swebench,original,"swebench","segment_"+agent)
+        cls._segment=replacements[original]
+    original=swebench.ClaudeSwebenchRunner._session_log_text
+    if getattr(original,"_te_provider_operation",None) != ("swebench","session_log"):
+        replacements[original]=function(swebench,original,"swebench","session_log")
+        swebench.ClaudeSwebenchRunner._session_log_text=replacements[original]
     for module,agent,names in ((swebench,"claude",("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call","optimizer_log_path","_cell_of","set_optimizer_context","optimizer_call_kind","_log_optimizer_call","_log")),
                               (copilot,"copilot",("auth_env","byok_active","provider_base","anthropic_optimizer_endpoint","provider_env","provider_secret_names","normalize_model","effort_applies","validate_priceable","optimizer_call","copilot_bin","copilot_cache","copilot_config","cli_version","require_install","run_env")),
                               (codex,"codex",("resolve_codex_routing","validate_priceable","fetch_catalog","verify_model","preflight_optimizer","optimizer_call","_responses_text"))):

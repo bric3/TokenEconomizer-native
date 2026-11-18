@@ -14,6 +14,7 @@ use std::{
 #[cfg(unix)]
 use crate::value::python_repr;
 
+mod agent_stream;
 pub mod cleanup;
 pub mod codex_config;
 pub mod codex_install;
@@ -32,6 +33,7 @@ pub mod preflight;
 pub mod providers;
 pub mod runner_calls;
 pub mod scaffold_context;
+pub mod segment;
 pub mod settings;
 pub mod setup;
 #[cfg(test)]

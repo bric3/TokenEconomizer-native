@@ -568,6 +568,12 @@ complete while any runtime component delegates production behaviour to Python.
   captures, signatures, metadata and raw result objects. Execution preserves
   environment argument order; binary reads preserve stdout and format truncated
   stderr when the process fails.
+- SWE-bench agent segments use native Docker arguments, credential forwarding,
+  tool masks, MCP arguments, stream handling, guard and deadline stops, container-side
+  termination, usage recovery, configuration refusal detection and Claude session-log
+  reads. Both benchmark harnesses share transcript processing, guard monitoring,
+  usage recovery and wait-timeout handling. Launch and termination policy remain
+  with each harness. SDK bindings provide process, pipe, clock and object APIs.
 - Shared scaffold profile and context constructors, read/log callbacks, instruction
   writes, MCP configuration and merge-helper staging use native policy. SDK bindings
   retain raw objects, file contexts, JSON encoding and process I/O. The staged merge
@@ -726,8 +732,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Container guard binary deployment and registration, native merge-helper
-  deployment and SWE-bench agent streaming still need conversion.
+  Container guard binary deployment and registration and native merge-helper
+  deployment still need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
@@ -2378,6 +2384,34 @@ complete while any runtime component delegates production behaviour to Python.
   Simplification and performance passes remain at 0/3 each; final test conversion
   is pending.
 
+- SWE-bench streaming passes 1,067 source comparisons covering all three agents'
+  Docker arguments, credentials forwarded by name, environment order, protected
+  and network tool masks, MCP arguments, per-segment Copilot logs, Codex resumes,
+  transcripts, guard stops, deadlines, usage recovery, session logs and failure
+  scopes. Shared stream processing moves into a module used by both benchmark
+  harnesses; this extraction is part of the port, not a formal simplification pass.
+  Web-Bench's 1,160-case streaming regression passes.
+  All 24 source/native SWE-bench process checks pass with separate owned Java
+  Docker-client and agent processes. They verify streams, accounting, configuration
+  refusals, Codex resumes, secret forwarding without key values in argv, preserved
+  workspace edits and termination of the internal agent. Codex uses exact process-name
+  matching; Claude and Copilot use command-line matching. The process fixture skips
+  the two-second grace delay; the comparison corpus verifies the sleep argument.
+  Web-Bench's 24 process checks and six offline HTTP/process pipelines pass too.
+  These fixtures invoke no model and require no Docker daemon.
+  Focused original tests pass with 52 passed and one skipped. The full original
+  suite, with installed-opencode tests using a loopback model fixture, passes with
+  1,561 passed and 30 skipped (71.08 seconds). Its record remains
+  `validation/experiment-task-calls.json`; it includes one native Claude segment.
+  Dedicated comparisons and process checks cover the other streaming paths.
+  All 24 Rust checks, debug/release builds, Clippy, formatting and the 256-file
+  reference check pass. Original tests remain unchanged. IDE inspections remain
+  unavailable because this checkout is not open in the IDE. Actual Docker execution,
+  live model-backed agents, Linux namespaces and Windows remain unverified. Native
+  container-helper deployment, experiment packaging, host bindings and remaining
+  parity audits stay open. Simplification and performance passes remain at 0/3
+  each; final test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2513,6 +2547,8 @@ jbang validation/RtkScaffoldProbe.java
 jbang validation/ScaffoldRegistryProbe.java
 jbang validation/RepoMapScaffoldProbe.java
 jbang validation/SweScaffoldContextProbe.java
+jbang validation/SweSegmentProbe.java
+jbang validation/SweSegmentProcessProbe.java
 jbang validation/InvocationProbe.java
 jbang validation/WebSegmentProcessProbe.java
 jbang validation/WebTaskPipelineProbe.java
