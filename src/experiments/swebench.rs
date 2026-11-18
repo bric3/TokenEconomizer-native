@@ -31,6 +31,7 @@ pub mod optimizer_log;
 pub mod preflight;
 pub mod providers;
 pub mod runner_calls;
+pub mod scaffold_context;
 pub mod settings;
 pub mod setup;
 #[cfg(test)]

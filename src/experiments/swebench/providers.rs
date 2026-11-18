@@ -328,6 +328,9 @@ pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
         name if agent == "webbench" && name.starts_with("scaffold_") => {
             super::web_scaffold::dispatch(&name[9..], rt)
         }
+        name if agent == "swebench" && name.starts_with("scaffold_") => {
+            super::scaffold_context::dispatch(&name[9..], rt)
+        }
         name if matches!(agent, "copilot" | "codex") && name.starts_with("invocation_") => {
             super::invocation::dispatch(&name[11..], agent, rt)
         }

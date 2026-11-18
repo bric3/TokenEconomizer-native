@@ -356,6 +356,7 @@ def install(runner_module=None,scaffold_module=None):
                         try: value = with_exception(error,matches)
                         finally: BaseException.__traceback__.__set__(error,traceback)
                     elif method == "eval_list": values[parameters[0]] = [values[key] for key in parameters[1]]
+                    elif method == "eval_bytes": values[parameters[0]] = bytes(parameters[1])
                     elif method == "eval_tuple": values[parameters[0]] = tuple(values[key] for key in parameters[1])
                     elif method == "eval_closure":
                         kind = parameters[1]
@@ -369,10 +370,15 @@ def install(runner_module=None,scaffold_module=None):
                             def callback(src,dst): pass
                         elif kind == "copy":
                             def callback(host_path,dest_path): pass
+                        elif kind == "container_copy":
+                            def callback(host_path,container_path): pass
+                        elif kind == "container_read":
+                            def callback(script,timeout=600): pass
+                            callback.__doc__ = next(item.co_consts[0] for item in original.__code__.co_consts if getattr(item,"co_name",None) == "read_bytes")
                         elif kind == "logger":
                             def callback(msg): pass
                         else: raise AssertionError("unknown closure signature: "+kind)
-                        callback.__name__ = {"mcp":"<lambda>","host":"_host","exec":"exec_","place":"_place","copy":"copy_in","logger":"<lambda>"}[kind]
+                        callback.__name__ = {"mcp":"<lambda>","host":"_host","exec":"exec_","place":"_place","copy":"copy_in","container_copy":"copy_in","container_read":"read_bytes","logger":"<lambda>"}[kind]
                         callback.__qualname__ = original.__qualname__+".<locals>."+callback.__name__
                         callback.__module__ = module.__name__
                         # Scaffolds can retain callbacks after the creating method returns.
@@ -702,6 +708,10 @@ def install(runner_module=None,scaffold_module=None):
     if runner_module is not None:
         runner_calls(runner_module,"webbench",("WebBenchRunner","CopilotWebBenchRunner","CodexWebBenchRunner"))
         return replacements
+    original=swebench.ClaudeSwebenchRunner._scaffold_context
+    if getattr(original,"_te_provider_operation",None) != ("swebench","scaffold_context"):
+        replacements[original]=function(swebench,original,"swebench","scaffold_context")
+        swebench.ClaudeSwebenchRunner._scaffold_context=replacements[original]
     for module,agent,names in ((swebench,"claude",("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call","optimizer_log_path","_cell_of","set_optimizer_context","optimizer_call_kind","_log_optimizer_call","_log")),
                               (copilot,"copilot",("auth_env","byok_active","provider_base","anthropic_optimizer_endpoint","provider_env","provider_secret_names","normalize_model","effort_applies","validate_priceable","optimizer_call","copilot_bin","copilot_cache","copilot_config","cli_version","require_install","run_env")),
                               (codex,"codex",("resolve_codex_routing","validate_priceable","fetch_catalog","verify_model","preflight_optimizer","optimizer_call","_responses_text"))):

@@ -78,6 +78,9 @@ environment activation run in Rust. Process execution uses a Python I/O binding.
 Codex request configuration, capability toggles, prompt-section trimming and
 SWE-bench configuration installation also run in Rust, along with scaffold result
 handling and MCP configuration wiring.
+SWE-bench scaffold context assembly and its retained Docker execution, copy and
+binary-read callbacks also use native policy. SDK bindings retain the raw handles
+and supply process I/O.
 The Copilot and Codex SWE-bench task wrappers also run in Rust, including debug-log
 persistence, task state resets and transcript-based RTK and MCP measurements.
 The standalone benchmark answer-key guard is `target/debug/te-net-guard`. It reads

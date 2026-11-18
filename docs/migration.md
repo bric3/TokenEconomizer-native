@@ -562,8 +562,12 @@ complete while any runtime component delegates production behaviour to Python.
   callbacks with the source signatures and retain their captured objects after
   the creating method returns. Fallback I/O preserves the handled error for
   callbacks and exception chaining. Setup error metadata uses fresh scaffold and
-  exception names and preserves the detail limit of 300 code points. SWE-bench
-  context assembly remains pending.
+  exception names and preserves the detail limit of 300 code points.
+- SWE-bench scaffold context assembly, retained Docker execution and copy
+  callbacks, and binary reads use native policy. SDK bindings retain callback
+  captures, signatures, metadata and raw result objects. Execution preserves
+  environment argument order; binary reads preserve stdout and format truncated
+  stderr when the process fails.
 - Shared scaffold profile and context constructors, read/log callbacks, instruction
   writes, MCP configuration and merge-helper staging use native policy. SDK bindings
   retain raw objects, file contexts, JSON encoding and process I/O. The staged merge
@@ -723,7 +727,7 @@ complete while any runtime component delegates production behaviour to Python.
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   Container guard binary deployment and registration, native merge-helper
-  deployment, SWE-bench context assembly and agent streaming still need conversion.
+  deployment and SWE-bench agent streaming still need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
@@ -2350,6 +2354,30 @@ complete while any runtime component delegates production behaviour to Python.
   and Windows remain unverified. Simplification and performance passes remain at
   0/3 each; final test conversion is pending.
 
+- SWE-bench scaffold context assembly passes 820 source comparisons covering
+  constructor argument identity, retained callbacks, signatures and metadata,
+  independent contexts, global runner rebinding, environment order, raw values,
+  binary results and failure boundaries. Owned Java Docker fixtures execute real
+  subprocess checks for binary stdout, environment arguments and failed reads.
+  A repo-map pipeline streams a real tar through the context, filters archive
+  members, copies nested project instructions and removes the source directory.
+  It asserts that the shared context, repo-map policy and all four new SWE-bench
+  context operations execute natively. These checks use no Docker daemon or aider.
+  The 704-case repo-map regression and all six offline Web-Bench HTTP/process
+  pipelines pass. Focused original tests pass with 36 passed and one skipped.
+  The full original suite, with installed-opencode tests enabled, passes with
+  1,561 passed and 30 skipped (72.43 seconds). Its record remains
+  `validation/experiment-task-calls.json`; the original suite records no calls
+  to the new SWE-bench context operations, whose coverage comes from the dedicated
+  comparisons and pipeline. All 24 Rust checks, debug/release builds, Clippy,
+  formatting and the 256-file reference check pass. Original tests remain
+  unchanged. IDE inspections remain unavailable because this checkout is not open
+  in the IDE. Actual Docker execution, live agents, Linux namespaces and Windows
+  remain unverified. Native container-helper deployment, SWE-bench agent streaming,
+  experiment packaging, host bindings and remaining parity audits stay open.
+  Simplification and performance passes remain at 0/3 each; final test conversion
+  is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2484,6 +2512,7 @@ jbang validation/SerenaScaffoldProbe.java
 jbang validation/RtkScaffoldProbe.java
 jbang validation/ScaffoldRegistryProbe.java
 jbang validation/RepoMapScaffoldProbe.java
+jbang validation/SweScaffoldContextProbe.java
 jbang validation/InvocationProbe.java
 jbang validation/WebSegmentProcessProbe.java
 jbang validation/WebTaskPipelineProbe.java
