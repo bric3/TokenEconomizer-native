@@ -10,6 +10,7 @@ from decimal import Decimal
 from types import FunctionType
 
 from native_plugin import invoke
+from native_cleanup_transport import isolated_invoke
 from native_experiment_task import checked, data
 
 
@@ -18,8 +19,8 @@ def install(runner_module=None):
     replacements = {}
     def function(module,original,agent,name):
         signature = inspect.signature(original)
-        @functools.wraps(original)
-        def native(*args,**kwargs):
+        bind_function = function
+        def drive(rpc,*args,**kwargs):
             try: bound = signature.bind(*args,**kwargs)
             except TypeError: bound = None
             if bound is None:
@@ -69,7 +70,7 @@ def install(runner_module=None):
                 traceback = BaseException.__traceback__.__get__(error)
                 return with_exception(error,exit_method,type(error),error,traceback)
             def in_module(function,*args,**kwargs): return function(*args,**kwargs)
-            result = invoke("experiment.swebench.provider."+agent+"."+name,{})
+            result = rpc("experiment.swebench.provider."+agent+"."+name,{})
             while isinstance(result,dict) and "callback" in result:
                 method,parameters = result["method"],result["args"]
                 try:
@@ -326,6 +327,16 @@ def install(runner_module=None):
                     elif method == "handler_format":
                         formatted = with_exception(values.get("caught_error"),format,values[parameters[0]],"")
                         value = list(map(ord,str.__iter__(formatted)))
+                    elif method == "cleanup_iter": values["iterator"] = iter(values["snapshot"])
+                    elif method == "cleanup_next":
+                        try: values["session"] = next(values["iterator"])
+                        except StopIteration: value = False
+                        else: value = True
+                    elif method == "cleanup_handler":
+                        def handler(signum,frame): pass
+                        handler.__qualname__ = original.__qualname__+".<locals>.handler"
+                        handler.__module__ = module.__name__
+                        values["handler"] = bind_function(module,handler,agent,"signal_handler")
                     elif method == "preflight_format": value = format(values[parameters[0]],parameters[1])
                     elif method == "preflight_log":
                         values["preflight_call_log"](*parameters)
@@ -341,7 +352,7 @@ def install(runner_module=None):
                     if not deferred_errors and hasattr(module,"urllib") and isinstance(error,module.urllib.error.HTTPError): values["http_error"] = error
                     reply = {"error":{"kind":type(error).__name__,"message":"" if deferred_errors else str(error),"bases":[base.__module__+"."+base.__qualname__ for base in type(error).__mro__]}}
                     if deferred_errors: reply["error"]["details"] = {"provider_error_index":len(errors)-1}
-                result = invoke("experiment.swebench.resume",{"job":result["job"],"reply":reply})
+                result = rpc("experiment.swebench.resume",{"job":result["job"],"reply":reply})
             if isinstance(result,dict) and "raised" in result:
                 if deferred_errors:
                     index = result.get("details",{}).get("provider_error_index")
@@ -355,6 +366,12 @@ def install(runner_module=None):
             if isinstance(result,dict) and "provider_points" in result: return "".join(map(chr,result["provider_points"]))
             if isinstance(result,dict) and "provider_encoded" in result: result = json.loads(result["provider_encoded"])
             return tuple(result) if name in ("verify_model","anthropic_optimizer_call","optimizer_call") else result
+        @functools.wraps(original)
+        def native(*args,**kwargs):
+            # Signal cleanup can interrupt a call holding the shared bridge lock.
+            if agent == "webbench" and name in ("eval_close","cleanup_sessions","signal_install","signal_handler"):
+                with isolated_invoke() as rpc: return drive(rpc,*args,**kwargs)
+            return drive(invoke,*args,**kwargs)
         native._te_provider_operation = agent,name
         return native
     def runner_calls(owner,domain,classes):
@@ -373,6 +390,11 @@ def install(runner_module=None):
             replacements[original] = function(owner,original,"claude",operation)
             owner.make_runner = replacements[original]
         if domain == "webbench":
+            for name,operation in (("_cleanup_sessions","cleanup_sessions"),("_install_signal_cleanup","signal_install")):
+                original = getattr(owner,name)
+                if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
+                replacements[original] = function(owner,original,"webbench",operation)
+                setattr(owner,name,replacements[original])
             for name,operation in (("do_POST","http_post"),("log_message","http_log_message")):
                 original = getattr(owner._AgentHandler,name)
                 if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
@@ -382,6 +404,10 @@ def install(runner_module=None):
             if getattr(original,"_te_provider_operation",None) != ("webbench","eval_start"):
                 replacements[original] = function(owner,original,"webbench","eval_start")
                 owner._EvalSession.__init__ = replacements[original]
+            original = owner._EvalSession.close
+            if getattr(original,"_te_provider_operation",None) != ("webbench","eval_close"):
+                replacements[original] = function(owner,original,"webbench","eval_close")
+                owner._EvalSession.close = replacements[original]
             for name in ("next_event","next_request","_read_stdout","_full_task_ids"):
                 original = getattr(owner._EvalSession,name)
                 if getattr(original,"_te_provider_operation",None) == ("webbench",name): continue

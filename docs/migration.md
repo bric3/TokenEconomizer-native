@@ -447,8 +447,7 @@ complete while any runtime component delegates production behaviour to Python.
   are native for all three agents. Project selection, directory checks, evaluator
   arguments and partial state after errors follow the source order. Task lists,
   sessions, helper references and unchanged project strings retain their references.
-  Evaluator process cleanup still uses the source
-  implementation.
+  Evaluator process cleanup also uses native policy.
 - Web-Bench evaluator event and request waits use native deadlines, five-second
   polling bounds, empty-queue handling, completion checks and event selection.
   SDK bindings supply clocks, queue I/O and numeric, mapping and formatting
@@ -482,6 +481,13 @@ complete while any runtime component delegates production behaviour to Python.
   references. Getters, formatters and callbacks in exception handlers observe
   the handled exception and preserve exception chains. HTTP access logging remains
   quiet through a native no-op method.
+- Web-Bench evaluator cleanup uses native registry removal, HTTP shutdown,
+  process-group termination and escalation, bounded waits, log-file close and
+  completion updates. Live-session sweeping snapshots the registry and preserves
+  per-session exception boundaries. Signal registration and handlers also run in
+  Rust, including resetting and repeating the received signal. SDK bindings supply
+  process, signal and object APIs through a separate bridge connection so cleanup
+  can interrupt a call holding the main RPC lock.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -618,9 +624,9 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Global signal cleanup, container guard binary deployment and
+  SWE-bench global signal cleanup, container guard binary deployment and
   registration, scaffold backends and contexts, agent streaming, and the
-  Web-Bench process cleanup, task calls and
+  Web-Bench task calls and
   wrappers still need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
@@ -1893,6 +1899,28 @@ complete while any runtime component delegates production behaviour to Python.
   this checkout is not open in the connected IDE. Process and signal cleanup,
   task calls, host bindings and remaining parity audits stay open. Simplification
   and performance passes remain at 0/3 each; final test conversion is pending.
+
+- Web-Bench evaluator close policy passes 235 source comparisons covering registry
+  removal, shutdown order, process polling, TERM/KILL escalation, wait failures,
+  file close, completion state, callable capture and exception boundaries. Registry
+  and signal coordination passes another 214 comparisons covering snapshots,
+  mutation during cleanup, handler identity, eager signal capture, registration
+  errors and handler failures. Eight real signal cases compare source and native
+  TERM, INT, HUP and process-group TERM while the main RPC lock is held. They verify
+  child reaping, listener shutdown, separate cleanup process groups and preservation
+  of the signal exit status. No Web-Bench evaluator or paid model is called.
+  Startup's 413 comparisons, including its real HTTP/process pipeline, and the
+  914-case shared runner corpus pass with the new provider bindings.
+  The full original suite, with installed-opencode tests enabled, passes with
+  1,561 passed and 30 skipped (70.34 seconds). Its call record remains
+  `validation/experiment-task-calls.json` and includes two native signal-registration
+  calls. Original tests do not exercise evaluator close, session sweeping or signal
+  handlers. All 24 Rust checks, debug/release builds, Clippy,
+  formatting and the 256-file reference check pass. Original tests remain unchanged.
+  IDE inspections remain unavailable because this checkout is not open in the IDE.
+  SWE-bench global cleanup, Web-Bench task calls, host bindings and remaining parity
+  audits stay open. Simplification and performance passes remain at 0/3 each;
+  final test conversion is pending.
 
 ## Dependencies
 
