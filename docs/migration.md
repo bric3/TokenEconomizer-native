@@ -562,8 +562,13 @@ complete while any runtime component delegates production behaviour to Python.
   callbacks with the source signatures and retain their captured objects after
   the creating method returns. Fallback I/O preserves the handled error for
   callbacks and exception chaining. Setup error metadata uses fresh scaffold and
-  exception names and preserves the detail limit of 300 code points. Scaffold backends,
-  supporting context methods and SWE-bench context assembly remain pending.
+  exception names and preserves the detail limit of 300 code points. Scaffold backends
+  and SWE-bench context assembly remain pending.
+- Shared scaffold profile and context constructors, read/log callbacks, instruction
+  writes, MCP configuration and merge-helper staging use native policy. SDK bindings
+  retain raw objects, file contexts, JSON encoding and process I/O. The staged merge
+  program still uses Python; native container-helper deployment remains a production
+  gate.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -700,8 +705,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Container guard binary deployment and registration, scaffold backends,
-  supporting context methods, SWE-bench context assembly and agent streaming
+  Container guard binary deployment and registration, scaffold backends, native
+  merge-helper deployment, SWE-bench context assembly and agent streaming
   still need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
@@ -2232,6 +2237,29 @@ complete while any runtime component delegates production behaviour to Python.
   integration, host bindings and remaining parity audits stay open. Simplification
   and performance passes remain at 0/3 each; final test conversion is pending.
 
+- Shared scaffold classes pass 611 source comparisons covering constructor state,
+  raw callbacks, environment copies, MCP arguments, instruction and configuration
+  writes, merge-program staging and failure order. The baseline-only SDK binding
+  installs without importing either harness and supports repeated installation.
+  Real file checks verify successful cleanup and source-compatible temporary-file
+  retention when copying or removal fails. All six offline Web-Bench pipelines
+  write MCP configuration and execute the generated merge program, preserving
+  existing JSON keys. That program still executes Python; this milestone ports its
+  construction and orchestration, and native container-helper deployment stays open.
+  The 1,350-case scaffold, 368-case run-contract and 476-case task-loop regressions
+  pass. Focused original tests pass with 36 passed and one skipped. The full
+  original suite, with installed-opencode tests enabled, passes with 1,561 passed
+  and 30 skipped (67.21 seconds). Its native call record remains
+  `validation/experiment-task-calls.json`, including eight profile constructors,
+  21 context constructors, ten instruction writes, six MCP writes and two merge
+  operations. All 24 Rust checks, debug/release builds, Clippy, formatting and the
+  256-file reference check pass. Original tests remain unchanged. IDE inspections
+  remain unavailable because this checkout is not open in the IDE. Live agents,
+  Linux namespaces and Windows remain unverified. Scaffold backends, native
+  container-helper deployment, SWE-bench integration, host bindings and remaining
+  parity audits stay open. Simplification and performance passes remain at 0/3
+  each; final test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2361,6 +2389,7 @@ jbang validation/WebSegmentProbe.java
 jbang validation/WebAgentProbe.java
 jbang validation/WebGuardProbe.java
 jbang validation/WebScaffoldProbe.java
+jbang validation/ScaffoldBaseProbe.java
 jbang validation/InvocationProbe.java
 jbang validation/WebSegmentProcessProbe.java
 jbang validation/WebTaskPipelineProbe.java

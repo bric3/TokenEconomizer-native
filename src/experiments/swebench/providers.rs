@@ -19,14 +19,18 @@ pub(super) fn capture(
     };
     rt.call("provider_env_get", args).map(|_| ())
 }
-pub(super) fn boolean(rt: &mut dyn Runtime, slot: &str) -> Result<bool> {
+pub(in crate::experiments) fn boolean(rt: &mut dyn Runtime, slot: &str) -> Result<bool> {
     rt.call("provider_bool", json!([slot])).map(|v| truthy(&v))
 }
-pub(super) fn literal(rt: &mut dyn Runtime, slot: &str, value: Value) -> Result<()> {
+pub(in crate::experiments) fn literal(
+    rt: &mut dyn Runtime,
+    slot: &str,
+    value: Value,
+) -> Result<()> {
     rt.call("provider_literal", json!([slot, value]))
         .map(|_| ())
 }
-pub(super) fn copy(rt: &mut dyn Runtime, target: &str, source: &str) -> Result<()> {
+pub(in crate::experiments) fn copy(rt: &mut dyn Runtime, target: &str, source: &str) -> Result<()> {
     rt.call("provider_copy", json!([target, source]))
         .map(|_| ())
 }
@@ -320,6 +324,7 @@ fn verify(rt: &mut dyn Runtime) -> Result<Value> {
 pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
     let (agent, name) = method.split_once('.').unwrap_or(("", method));
     match name {
+        name if agent == "scaffold" => crate::experiments::scaffolds::dispatch(name, rt),
         name if agent == "webbench" && name.starts_with("scaffold_") => {
             super::web_scaffold::dispatch(&name[9..], rt)
         }

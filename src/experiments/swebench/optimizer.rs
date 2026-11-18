@@ -28,7 +28,7 @@ pub(super) fn parse_wire(value: &Value) -> Result<Node> {
     python_json::parse(value.as_str().unwrap_or("").as_bytes(), 0)
         .ok_or_else(|| Failure::new("ValueError", "invalid optimizer binding JSON"))
 }
-pub(super) fn code_points(value: Value) -> Result<Text> {
+pub(in crate::experiments) fn code_points(value: Value) -> Result<Text> {
     serde_json::from_value(value)
         .map(Text)
         .map_err(|error| Failure::new("TypeError", error.to_string()))

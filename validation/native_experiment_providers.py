@@ -20,8 +20,9 @@ FNMATCH_COMPILE = fnmatch._compile_pattern
 FNMATCH_TRANSLATE = fnmatch.translate
 
 
-def install(runner_module=None):
-    from te_harness import swebench, copilot, codex
+def install(runner_module=None,scaffold_module=None):
+    if scaffold_module is None:
+        from te_harness import swebench, copilot, codex
     replacements = {}
     def function(module,original,agent,name,captures=None):
         signature = inspect.signature(original)
@@ -35,7 +36,7 @@ def install(runner_module=None):
             bound.apply_defaults()
             values = dict(bound.arguments)
             if captures: values.update(captures)
-            deferred_errors = name in ("_log_optimizer_call","_log") or name.startswith(("runner_","invocation_")) or agent in ("webbench","swebench")
+            deferred_errors = name in ("_log_optimizer_call","_log") or name.startswith(("runner_","invocation_")) or agent in ("webbench","swebench","scaffold")
             if agent == "codex" and name == "optimizer_call":
                 from te_harness.swebench import _log, _log_optimizer_call
                 values["optimizer_log"] = _log
@@ -45,7 +46,7 @@ def install(runner_module=None):
                 values["preflight_log"] = _log
             local_env = "env" in values
             # Scaffold exec receives overrides; None must preserve the task's HOME and PATH.
-            if local_env and name != "scaffold_exec" and values["env"] is None and signature.parameters["env"].default is None:
+            if local_env and agent != "scaffold" and name != "scaffold_exec" and values["env"] is None and signature.parameters["env"].default is None:
                 values["env"] = module.os.environ
             def environment(): return values["env"] if local_env else module.os.environ
             values["output"] = {}
@@ -351,13 +352,15 @@ def install(runner_module=None):
                             def callback(src,dst): pass
                         elif kind == "copy":
                             def callback(host_path,dest_path): pass
+                        elif kind == "logger":
+                            def callback(msg): pass
                         else: raise AssertionError("unknown closure signature: "+kind)
-                        callback.__name__ = {"mcp":"<lambda>","host":"_host","exec":"exec_","place":"_place","copy":"copy_in"}[kind]
+                        callback.__name__ = {"mcp":"<lambda>","host":"_host","exec":"exec_","place":"_place","copy":"copy_in","logger":"<lambda>"}[kind]
                         callback.__qualname__ = original.__qualname__+".<locals>."+callback.__name__
                         callback.__module__ = module.__name__
                         # Scaffolds can retain callbacks after the creating method returns.
                         captured = {key:values[slot] for key,slot in parameters[3]}
-                        values[parameters[0]] = bind_function(module,callback,"webbench",parameters[2],captured)
+                        values[parameters[0]] = bind_function(module,callback,parameters[4] if len(parameters)>4 else "webbench",parameters[2],captured)
                     elif method == "eval_generator":
                         # Create the iterator eagerly; Rust evaluates elements only when the caller consumes them.
                         iterator = iter(values[parameters[1]])
@@ -498,6 +501,19 @@ def install(runner_module=None):
             return drive(invoke,*args,**kwargs)
         native._te_provider_operation = agent,name
         return native
+    def scaffold_calls(owner):
+        for cls_name,methods in (("AgentProfile",(("__init__","profile_new"),("mcp_args","profile_mcp"))),
+                                 ("ScaffoldContext",(("__init__","context_new"),("read_bytes","context_read"),("log","context_log"),("write_instructions","instructions"),("write_mcp_config","mcp_config"),("merge_json_file","merge_json"))),
+                                 ("Scaffold",(("mounts","mounts"),("preflight","preflight"),("setup","setup")))):
+            cls = getattr(owner,cls_name)
+            for name,operation in methods:
+                original = getattr(cls,name)
+                if getattr(original,"_te_provider_operation",None) == ("scaffold",operation): continue
+                replacements[original] = function(owner,original,"scaffold",operation)
+                setattr(cls,name,replacements[original])
+    if scaffold_module is not None:
+        scaffold_calls(scaffold_module)
+        return replacements
     def runner_calls(owner,domain,classes):
         if owner is None or not hasattr(owner,"RUNNERS"): return
         for cls_name,agent in zip(classes,("claude","copilot","codex")):
@@ -651,4 +667,6 @@ def install(runner_module=None):
     for owner,domain,classes in ((swebench,"swebench",("ClaudeSwebenchRunner","CopilotSwebenchRunner","CodexSwebenchRunner")),
                                  (webbench,"webbench",("WebBenchRunner","CopilotWebBenchRunner","CodexWebBenchRunner"))):
         runner_calls(owner,domain,classes)
+    from te_bench.baselines import base
+    scaffold_calls(base)
     return replacements

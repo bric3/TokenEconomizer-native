@@ -40,6 +40,12 @@ class Scaffold:
     def setup(self,context):
         expected=["--mcp-config","/fixture/mcp.json"] if agent == "claude" else []
         assert context.profile.mcp_args("/fixture/mcp.json") == expected
+        mcp=context.write_mcp_config({"fixture":{"command":"/bin/echo","args":["fixture"]}})
+        assert json.loads(Path(mcp).read_text(encoding="utf-8"))["mcpServers"]["fixture"]["args"] == ["fixture"]
+        merged=Path(context.profile.home,"fixture-settings.json")
+        merged.write_text('{"keep":"yes","section":{"existing":1}}',encoding="utf-8")
+        assert context.merge_json_file(str(merged),{"section":{"added":2}}) is True
+        assert json.loads(merged.read_text(encoding="utf-8")) == {"keep":"yes","section":{"existing":1,"added":2}}
         staged=operator_config/"fixture-tool"
         staged.write_text("fixture scaffold binary",encoding="utf-8")
         installed=Path(context.profile.bin_dir,"fixture-helper")
@@ -110,6 +116,8 @@ if "--native" in sys.argv:
     for name in ("network_install","network_verify","network_blocks"):
         assert native_plugin.CALLS["experiment.swebench.provider.webbench."+name] > 0,"pipeline bypassed native "+name
     assert native_plugin.CALLS["experiment.net_guard.process"] == 1
+    for name in ("profile_new","profile_mcp","context_new","mcp_config","merge_json"):
+        assert native_plugin.CALLS["experiment.swebench.provider.scaffold."+name] > 0,"pipeline bypassed native shared scaffold "+name
     for name in ("scaffold_apply","scaffold_context","scaffold_exec","scaffold_copy","scaffold_place","scaffold_host","scaffold_excludes","scaffold_profile_"+agent,"scaffold_mcp_claude" if agent == "claude" else "scaffold_mcp_empty"):
         assert native_plugin.CALLS["experiment.swebench.provider.webbench."+name] > 0,"pipeline bypassed native "+name
     for name in ("agent_home_codex" if agent == "codex" else "agent_home_claude","agent_bin_dir","agent_row_"+agent,"agent_usage_"+agent):
