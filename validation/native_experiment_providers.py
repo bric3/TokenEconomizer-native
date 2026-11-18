@@ -23,7 +23,7 @@ FNMATCH_TRANSLATE = fnmatch.translate
 def install(runner_module=None):
     from te_harness import swebench, copilot, codex
     replacements = {}
-    def function(module,original,agent,name):
+    def function(module,original,agent,name,captures=None):
         signature = inspect.signature(original)
         bind_function = function
         def drive(rpc,*args,**kwargs):
@@ -34,6 +34,7 @@ def install(runner_module=None):
                 return original(*args,**kwargs)
             bound.apply_defaults()
             values = dict(bound.arguments)
+            if captures: values.update(captures)
             deferred_errors = name in ("_log_optimizer_call","_log") or name.startswith(("runner_","invocation_")) or agent in ("webbench","swebench")
             if agent == "codex" and name == "optimizer_call":
                 from te_harness.swebench import _log, _log_optimizer_call
@@ -43,7 +44,8 @@ def install(runner_module=None):
                 from te_harness.swebench import _log
                 values["preflight_log"] = _log
             local_env = "env" in values
-            if local_env and values["env"] is None and signature.parameters["env"].default is None:
+            # Scaffold exec receives overrides; None must preserve the task's HOME and PATH.
+            if local_env and name != "scaffold_exec" and values["env"] is None and signature.parameters["env"].default is None:
                 values["env"] = module.os.environ
             def environment(): return values["env"] if local_env else module.os.environ
             values["output"] = {}
@@ -336,6 +338,26 @@ def install(runner_module=None):
                         try: value = with_exception(error,matches)
                         finally: BaseException.__traceback__.__set__(error,traceback)
                     elif method == "eval_list": values[parameters[0]] = [values[key] for key in parameters[1]]
+                    elif method == "eval_tuple": values[parameters[0]] = tuple(values[key] for key in parameters[1])
+                    elif method == "eval_closure":
+                        kind = parameters[1]
+                        if kind == "mcp":
+                            def callback(cfg): pass
+                        elif kind == "host":
+                            def callback(argv,timeout=300): pass
+                        elif kind == "exec":
+                            def callback(script,timeout=300,env=None): pass
+                        elif kind == "place":
+                            def callback(src,dst): pass
+                        elif kind == "copy":
+                            def callback(host_path,dest_path): pass
+                        else: raise AssertionError("unknown closure signature: "+kind)
+                        callback.__name__ = {"mcp":"<lambda>","host":"_host","exec":"exec_","place":"_place","copy":"copy_in"}[kind]
+                        callback.__qualname__ = original.__qualname__+".<locals>."+callback.__name__
+                        callback.__module__ = module.__name__
+                        # Scaffolds can retain callbacks after the creating method returns.
+                        captured = {key:values[slot] for key,slot in parameters[3]}
+                        values[parameters[0]] = bind_function(module,callback,"webbench",parameters[2],captured)
                     elif method == "eval_generator":
                         # Create the iterator eagerly; Rust evaluates elements only when the caller consumes them.
                         iterator = iter(values[parameters[1]])
@@ -365,6 +387,16 @@ def install(runner_module=None):
                     elif method == "eval_exit": values["exit_result"] = context_exit(values["config_exit"],parameters[0])
                     elif method == "handler_exception": values["caught_error"] = error_object(parameters[0]) if parameters[0] is not None else None
                     elif method == "handler_member": values[parameters[2]] = with_exception(values.get("caught_error"),getattr,values[parameters[0]],parameters[1])
+                    elif method == "handler_function":
+                        def resolve():
+                            called = module
+                            for part in parameters[0].split("."): called = getattr(called,part)
+                            return called
+                        values["function"] = with_exception(values.get("caught_error"),resolve)
+                    elif method == "handler_item": values[parameters[2]] = with_exception(values.get("caught_error"),operator.getitem,values[parameters[0]],parameters[1])
+                    elif method == "handler_type":
+                        def type_name(): return getattr(module,"type",builtins.type)(values[parameters[0]]).__name__
+                        values[parameters[1]] = with_exception(values.get("caught_error"),type_name)
                     elif method == "handler_invoke":
                         values["called"] = with_exception(values.get("caught_error"),values["function"],*[values[key] for key in parameters[0]],**{key:values[slot] for key,slot in parameters[1]})
                     elif method == "handler_format":
@@ -488,6 +520,18 @@ def install(runner_module=None):
             replacements[original] = function(owner,original,domain,operation)
             setattr(owner,name,replacements[original])
         if domain == "webbench":
+            for cls_name,methods in (
+                ("WebBenchRunner",(("scaffold_profile_for","profile_claude"),("_scaffold_context","context"),("_apply_scaffold","apply"),("scaffold_answer_excludes","excludes"))),
+                ("CopilotWebBenchRunner",(("scaffold_profile_for","profile_copilot"),)),
+                ("CodexWebBenchRunner",(("scaffold_profile_for","profile_codex"),)),
+            ):
+                cls = getattr(owner,cls_name)
+                for name,suffix in methods:
+                    original = getattr(cls,name)
+                    operation = "scaffold_"+suffix
+                    if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
+                    replacements[original] = function(owner,original,"webbench",operation)
+                    setattr(cls,name,replacements[original])
             for cls_name,methods in (
                 ("WebBenchRunner",(("_net_guard_log","log"),("_net_guard_blocks","blocks"),("net_guard_settings_path","settings_claude"),("net_guard_hook_entry","entry_claude"),("_install_net_guard","install"),("_verify_net_guard","verify"))),
                 ("CopilotWebBenchRunner",(("net_guard_settings_path","settings_copilot"),("net_guard_hook_entry","entry_copilot"))),

@@ -42,6 +42,7 @@ pub mod web_guard;
 pub mod web_host;
 pub mod web_http;
 pub mod web_output;
+pub mod web_scaffold;
 pub mod web_segment;
 pub mod web_session;
 pub mod web_start;

@@ -556,6 +556,14 @@ complete while any runtime component delegates production behaviour to Python.
   detection uses native line selection, lazy pattern matching and truncation.
   SDK bindings retain raw arguments and object protocols, including generator
   captures that follow loop updates when callers retain a generator.
+- Web-Bench scaffold integration uses native profiles, context construction,
+  execution and host callbacks, hardlink placement, copy fallbacks, destination
+  redirection, setup coordination and answer exclusions. SDK bindings construct
+  callbacks with the source signatures and retain their captured objects after
+  the creating method returns. Fallback I/O preserves the handled error for
+  callbacks and exception chaining. Setup error metadata uses fresh scaffold and
+  exception names and preserves the detail limit of 300 code points. Scaffold backends,
+  supporting context methods and SWE-bench context assembly remain pending.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -692,8 +700,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Container guard binary deployment and registration, scaffold backends and
-  contexts, SWE-bench agent streaming and Web-Bench scaffold-exclusion helpers
+  Container guard binary deployment and registration, scaffold backends,
+  supporting context methods, SWE-bench context assembly and agent streaming
   still need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
@@ -2198,6 +2206,32 @@ complete while any runtime component delegates production behaviour to Python.
   integration, host bindings and remaining parity audits stay open. Simplification
   and performance passes remain at 0/3 each; final test conversion is pending.
 
+- Web-Bench scaffold integration passes 1,350 source comparisons covering profile
+  arguments, tuple values, callback signatures and modules, retained captures,
+  execution environments, host commands, file placement, setup results, exclusions
+  and nested failure contexts. Real filesystem checks verify hardlinks, symlink
+  replacement, copy and destination fallbacks, executable modes and preserved file
+  contents. Real process checks verify task HOME, environment overrides, working
+  directory and host execution. Checks cover raw setup notes, repeated error
+  formatting, renamed exception types and Unicode truncation.
+  All six offline HTTP/process pipelines now install a fixture scaffold through
+  the real setup method and callbacks for all three agents. They hardlink an
+  executable, run an installation command, invoke the host callback and keep
+  scaffold artifacts out of the evaluator answer. Native operation counts confirm
+  profile construction, MCP callbacks, context creation, setup, execution, placement
+  and exclusion predicates ran. The 476-case task-loop, 368-case run-contract,
+  333-case workspace and 1,681-case agent-support regressions pass. The focused
+  original tests pass with 30 passed. The full original suite, with
+  installed-opencode tests enabled, passes with 1,561 passed and 30 skipped
+  (68.37 seconds). Its record remains `validation/experiment-task-calls.json`;
+  original coverage of the new operations is one Codex profile call. All 24 Rust
+  checks, debug/release builds, Clippy, formatting and the 256-file reference check
+  pass. Original tests remain unchanged. IDE inspections remain unavailable because
+  this checkout is not open in the IDE. Live agents, Linux namespaces and Windows
+  remain unverified. Scaffold backends, supporting context methods, SWE-bench
+  integration, host bindings and remaining parity audits stay open. Simplification
+  and performance passes remain at 0/3 each; final test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2326,6 +2360,7 @@ jbang validation/TaskProbe.java
 jbang validation/WebSegmentProbe.java
 jbang validation/WebAgentProbe.java
 jbang validation/WebGuardProbe.java
+jbang validation/WebScaffoldProbe.java
 jbang validation/InvocationProbe.java
 jbang validation/WebSegmentProcessProbe.java
 jbang validation/WebTaskPipelineProbe.java

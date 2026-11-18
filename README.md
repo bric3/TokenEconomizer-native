@@ -135,7 +135,9 @@ run in Rust too. Web-Bench hook installation, refusal probes, refusal counts,
 hosts-file generation and namespace path quoting also use native policy.
 Copilot and Codex argument builders, Codex resume arguments and environment
 additions, and Copilot configuration-refusal detection also run in Rust.
-Scaffold helpers still cross migration callbacks.
+Web-Bench scaffold profiles, context construction, retained execution and copy
+callbacks, setup coordination and answer exclusions also run in Rust. Scaffold
+backends and supporting context methods still cross migration callbacks.
 Run configuration, prompt construction, transport-instruction filtering
 and both guard constructors now use native policy. The pinned prompt text is
 embedded in the native library; SDK bindings retain runtime values and object APIs.

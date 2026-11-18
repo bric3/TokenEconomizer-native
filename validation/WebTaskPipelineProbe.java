@@ -42,6 +42,6 @@ class WebTaskPipelineProbe {
       }
       passed=true;
     } finally {if(passed)try(var paths=Files.walk(root)){for(var path:paths.sorted(Comparator.reverseOrder()).toList())Files.delete(path);}}
-    System.out.println("Source and native Web-Bench tasks passed 6 offline HTTP/process pipelines across three agents; evaluator startup, real queues, agent segments, workspace round trip, usage accounting, wrappers, verdicts and cleanup passed without a model or Playwright");
+    System.out.println("Source and native Web-Bench tasks passed 6 offline HTTP/process pipelines across three agents; scaffold setup, callbacks and exclusions, agent segments, usage, evaluator replies and cleanup passed without a model or Playwright");
   }
 }
