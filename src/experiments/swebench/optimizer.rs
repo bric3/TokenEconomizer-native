@@ -28,6 +28,19 @@ pub(super) fn parse_wire(value: &Value) -> Result<Node> {
     python_json::parse(value.as_str().unwrap_or("").as_bytes(), 0)
         .ok_or_else(|| Failure::new("ValueError", "invalid optimizer binding JSON"))
 }
+pub(super) fn code_points(value: Value) -> Result<Text> {
+    serde_json::from_value(value)
+        .map(Text)
+        .map_err(|error| Failure::new("TypeError", error.to_string()))
+}
+pub(super) fn string(rt: &mut dyn Runtime, slot: &str) -> Result<Option<Text>> {
+    let value = rt.call("optimizer_string", json!([slot]))?;
+    if value.is_null() {
+        Ok(None)
+    } else {
+        code_points(value).map(Some)
+    }
+}
 fn argument(rt: &mut dyn Runtime, slot: &str) -> Result<Node> {
     parse_wire(&rt.call("optimizer_json", json!([slot]))?)
 }
@@ -134,7 +147,7 @@ fn messages_text(data: &Node) -> Result<Text> {
     }
     Ok(output)
 }
-fn capture_log(rt: &mut dyn Runtime) -> Result<()> {
+pub(super) fn capture_log(rt: &mut dyn Runtime) -> Result<()> {
     rt.call("optimizer_capture_log", json!([])).map(|_| ())
 }
 fn log(rt: &mut dyn Runtime, message: Text) -> Result<()> {
@@ -142,14 +155,10 @@ fn log(rt: &mut dyn Runtime, message: Text) -> Result<()> {
         .map(|_| ())
 }
 fn starts_with(rt: &mut dyn Runtime, slot: &str, prefix: &str) -> Result<bool> {
-    let wire = rt.call("optimizer_string", json!([slot]))?;
-    if !wire.is_null() {
-        if let Node::String(ref value) = parse_wire(&wire)? {
-            return Ok(value
-                .0
-                .starts_with(&prefix.chars().map(u32::from).collect::<Vec<_>>()));
-        }
-        unreachable!();
+    if let Some(value) = string(rt, slot)? {
+        return Ok(value
+            .0
+            .starts_with(&prefix.chars().map(u32::from).collect::<Vec<_>>()));
     }
     rt.call(
         "provider_method",

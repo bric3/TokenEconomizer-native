@@ -34,6 +34,7 @@ class CopilotHostProbe {
       for(var boundary:List.of("\n","\r","\r\n","\u000b","\u000c","\u001c","\u001d","\u001e","\u0085","\u2028","\u2029"))
         compare(nativeCode,source,"\"method\":\"cli_version\",\"arguments\":{\"binary\":\"fixture\"},\"stdout\":"+q("first"+boundary+"second"));
       compare(nativeCode,source,"\"method\":\"cli_version\",\"arguments\":{\"binary\":\"fixture\"},\"opaque_stdout\":true");
+      for(int padding:List.of(0,118,119,120,121))compare(nativeCode,source,"\"method\":\"cli_version\",\"arguments\":{\"binary\":\"fixture\"},\"paired_stdout\":true,\"stdout\":"+q("x".repeat(padding)));
       for(var extra:List.of("null","false","0","1","\"\"","\"bad\"","[]","{}","[1]","[[\"EXTRA\",23]]","{\"SAME\":\"extra\",\"COPILOT_AUTO_UPDATE\":\"true\"}"))
         compare(nativeCode,source,"\"method\":\"run_env\",\"arguments\":{\"extra\":"+extra+"}");
       compare(nativeCode,source,"\"method\":\"run_env\",\"opaque_helpers\":true");

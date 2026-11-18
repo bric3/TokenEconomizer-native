@@ -452,8 +452,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Copilot CLI optimizer coordination is native: tool denial and exclusion flags,
   model selection, process arguments, cleanup, assistant-event parsing, usage
   observation and billing order. The binding retains opaque arguments and usage
-  objects, and supplies process and filesystem I/O. The shared optimizer logger
-  remains a helper callback.
+  objects, and supplies process and filesystem I/O.
   The source's log-directory retention after timeout and launch failure is
   preserved. The shared JSON reader accepts Unicode code points directly for
   process output, including lone surrogates.
@@ -467,8 +466,17 @@ complete while any runtime component delegates production behaviour to Python.
   context replacement with only `None` values removed, and classification against
   the nine prompt signatures within the first 600 Unicode code points. The
   binding retains the shared context and opaque values. Web-Bench aliases use
-  the same native helpers. Shared JSON log writing and verbosity control remain
-  callbacks.
+  the same native helpers.
+- Shared optimizer log records and verbosity control use native policy: the log
+  path gate, field order, context overrides, truncation, character counts, error
+  handling, `TE_VERBOSE` selection, message prefix and explicit stdout flush.
+  The binding retains record objects until encoding, preserving callback
+  mutations and JSON dictionary-key behaviour. It supplies file contexts, clocks,
+  Python object protocols, JSON encoding and stream I/O. Logger capture precedes
+  exception formatting, and normal resource return values are ignored.
+  Shared exact-string bindings use code point arrays so adjacent surrogates stay
+  distinct from astral characters. Classification, Copilot version reporting,
+  log excerpts, character counts and printed messages preserve that distinction.
 - The shared JSON reader supplies syntax messages, Unicode positions and line
   and column information. Catalogue HTTP contexts receive reconstructed
   `JSONDecodeError` objects with the source fields. The grader loader uses those
@@ -484,6 +492,8 @@ complete while any runtime component delegates production behaviour to Python.
   library rejects Python's `(?a)` flag; this remains a required compatibility fix.
 - Audit JSON numeric edge cases and parser nesting limits, including non-finite
   values accepted by Python.
+  Audit remaining JSON object and exception-message codecs for adjacent surrogate
+  code points; the shared exact-string and logging-format bindings preserve them.
   Include the Hermes redirect helper's raw JSON validation in that audit.
   Include the guard's numeric spelling, malformed Unicode and non-default stdin
   encodings. Its own input reader preserves Python-style non-finite numbers,
@@ -542,7 +552,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Web-Bench constructors, shared optimizer logging, runner call wrappers,
+  Web-Bench constructors, runner call wrappers,
   factories, global signal cleanup, container guard binary deployment and
   registration, scaffold backends and contexts, agent streaming, and the
   Web-Bench task lifecycle and wrappers still need conversion. Per-task container
@@ -1601,6 +1611,28 @@ complete while any runtime component delegates production behaviour to Python.
   provider or paid model was called. Shared log writing, runner conversion and
   the remaining parity audits stay open. No simplification or performance pass
   is counted.
+
+- Optimizer logging passes 290 source comparisons. They cover exact JSON rows,
+  context overrides and mutations, numeric dictionary keys, cyclic usage values,
+  Unicode truncation at 400 and 4,000 characters, character counts, file-context
+  descriptors and lookup order, ignored return values, suppressed exceptions,
+  ordinary and fatal failures, deferred exception formatting, verbosity gates,
+  Web-Bench aliases, and real file appends and stdout printing.
+  A failing source comparison reproduced adjacent surrogates collapsing into one
+  character through JSON string encoding. The corrected shared binding uses
+  code point arrays. The metadata corpus now passes 217 comparisons and Copilot
+  host helpers pass 243, including surrogate-pair truncation and classification
+  boundaries. HTTP optimizer and Copilot optimizer regressions pass 235 and 164
+  comparisons respectively.
+  The full original suite, with installed-opencode tests enabled, passes with
+  1,561 passed and 30 skipped (69.65 seconds). Its record remains
+  `validation/experiment-task-calls.json`; it includes five native log-record
+  calls and twenty native verbosity calls. All 24 Rust checks, debug/release
+  builds, Clippy, formatting and the 256-file reference check pass. Original tests
+  remain unchanged. IDE inspections remain unavailable because this checkout is
+  not open in the connected IDE. No external provider or paid model was called.
+  Runner conversion, host bindings and the remaining parity audits stay open.
+  No simplification or performance pass is counted.
 
 ## Dependencies
 

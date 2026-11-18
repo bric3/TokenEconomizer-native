@@ -20,6 +20,7 @@ def install():
             bound = signature.bind(*args,**kwargs)
             bound.apply_defaults()
             values = dict(bound.arguments)
+            deferred_errors = name in ("_log_optimizer_call","_log")
             if agent == "codex" and name == "optimizer_call":
                 from te_harness.swebench import _log, _log_optimizer_call
                 values["optimizer_log"] = _log
@@ -36,6 +37,13 @@ def install():
             context,response,document = None,None,""
             # Native arithmetic can produce more digits than the HTTP decoder permits.
             def decode(encoded): return json.loads(encoded,parse_int=lambda number:int(Decimal(number)))
+            def error_object(info):
+                index = (info.get("details") or {}).get("provider_error_index")
+                return errors[index] if index is not None else getattr(builtins,info["kind"])(info["message"])
+            def special(instance,name):
+                method = inspect.getattr_static(type(instance),name)
+                descriptor = getattr(type(method),"__get__",None)
+                return descriptor(method,instance,type(instance)) if descriptor is not None else method
             result = invoke("experiment.swebench.provider."+agent+"."+name,{})
             while isinstance(result,dict) and "callback" in result:
                 method,parameters = result["method"],result["args"]
@@ -97,7 +105,8 @@ def install():
                     elif method == "optimizer_json": value = json.dumps(values[parameters[0]],ensure_ascii=True)
                     elif method == "optimizer_string":
                         item = values[parameters[0]]
-                        value = json.dumps(item,ensure_ascii=True) if type(item) is str else None
+                        # Code point arrays preserve adjacent surrogates as distinct characters.
+                        value = list(map(ord,item)) if type(item) is str else None
                     elif method == "optimizer_format": value = json.dumps(format(values[parameters[0]],""),ensure_ascii=True)
                     elif method == "optimizer_capture_request": values["request_function"] = module.urllib.request.Request
                     elif method == "optimizer_request":
@@ -175,14 +184,45 @@ def install():
                         value = [item is None for key,item in values["fields_items"]]
                     elif method == "context_update": values["update"](dict(values["fields_items"][index] for index in parameters[0]))
                     elif method == "context_slice_head": values["head"] = values["prompt"][:600]
-                    elif method == "context_head": values["head"] = decode(parameters[0])
+                    elif method == "context_head": values["head"] = "".join(map(chr,parameters[0]))
                     elif method == "context_kinds": values["kinds"] = iter(module._OPT_KINDS)
                     elif method == "context_next_kind":
                         try: item = next(values["kinds"])
                         except StopIteration: value = [False,None]
                         else:
                             values["kind"],values["signature"] = item
-                            value = [True,json.dumps(values["signature"],ensure_ascii=True) if type(values["signature"]) is str else None]
+                            value = [True,list(map(ord,values["signature"])) if type(values["signature"]) is str else None]
+                    elif method == "logger_path": values["path"] = module.optimizer_log_path()
+                    elif method == "logger_capture_makedirs": values["makedirs"] = module.os.makedirs
+                    elif method == "logger_makedirs": values["makedirs"](values["parent"],exist_ok=True)
+                    elif method == "logger_open":
+                        values["log_context"] = getattr(module,"open",builtins.open)(values["path"],"a",encoding="utf-8")
+                        # The source runtime resolves __exit__ before __enter__.
+                        values["log_exit"] = special(values["log_context"],"__exit__")
+                        enter = special(values["log_context"],"__enter__")
+                        values["handle"] = enter()
+                    elif method == "logger_capture_write": values["write"] = values["handle"].write
+                    elif method == "logger_timestamp": values["timestamp"] = module.time.strftime(parameters[0],module.time.gmtime())
+                    elif method == "logger_context": values["row"] = {"ts":values["timestamp"],**module._OPT_CTX}
+                    elif method == "logger_kind": values["kind"] = module.optimizer_call_kind(values["prompt"])
+                    elif method == "logger_field": values["row"][parameters[0]] = values[parameters[1]]
+                    elif method == "logger_equal": values[parameters[2]] = values[parameters[0]] == parameters[1]
+                    elif method == "logger_slice": values[parameters[3]] = values[parameters[0]][parameters[1]:parameters[2]]
+                    elif method == "logger_literal": values[parameters[0]] = "".join(map(chr,parameters[1]))
+                    elif method == "logger_length": values[parameters[1]] = len(values[parameters[0]])
+                    elif method == "logger_encode": value = json.dumps(values["row"])
+                    elif method == "logger_write": values["write"](parameters[0])
+                    elif method == "logger_close":
+                        if parameters[0] is None: values["log_exit"](None,None,None)
+                        else:
+                            error = error_object(parameters[0])
+                            if not values["log_exit"](type(error),error,error.__traceback__): raise error
+                    elif method == "logger_error_format": value = list(map(ord,format(error_object(parameters[0]),"")))
+                    elif method == "logger_format": value = list(map(ord,format(values[parameters[0]],"")))
+                    elif method == "logger_report": values["active_log"]("".join(map(chr,parameters[0])))
+                    elif method == "logger_capture_print": values["print"] = getattr(module,"print",builtins.print)
+                    elif method == "logger_print": values["print"]("".join(map(chr,parameters[0])),flush=True)
+                    elif method == "logger_flush": module.sys.stdout.flush()
                     elif method == "preflight_format": value = format(values[parameters[0]],parameters[1])
                     elif method == "preflight_log":
                         values["preflight_call_log"](*parameters)
@@ -195,19 +235,25 @@ def install():
                     reply = {"value":data(value)}
                 except BaseException as error:
                     errors.append(error)
-                    if hasattr(module,"urllib") and isinstance(error,module.urllib.error.HTTPError): values["http_error"] = error
-                    reply = {"error":{"kind":type(error).__name__,"message":str(error),"bases":[base.__module__+"."+base.__qualname__ for base in type(error).__mro__]}}
+                    if not deferred_errors and hasattr(module,"urllib") and isinstance(error,module.urllib.error.HTTPError): values["http_error"] = error
+                    reply = {"error":{"kind":type(error).__name__,"message":"" if deferred_errors else str(error),"bases":[base.__module__+"."+base.__qualname__ for base in type(error).__mro__]}}
+                    if deferred_errors: reply["error"]["details"] = {"provider_error_index":len(errors)-1}
                 result = invoke("experiment.swebench.resume",{"job":result["job"],"reply":reply})
             if isinstance(result,dict) and "raised" in result:
-                for error in reversed(errors):
-                    if type(error).__name__ == result["raised"] and str(error) == result["message"]: raise error
+                if deferred_errors:
+                    index = result.get("details",{}).get("provider_error_index")
+                    if index is not None: raise errors[index]
+                else:
+                    for error in reversed(errors):
+                        if type(error).__name__ == result["raised"] and str(error) == result["message"]: raise error
             result = checked(result)
             if isinstance(result,dict) and "provider_error" in result: raise RuntimeError(decode(result["provider_error"]))
             if isinstance(result,dict) and "provider_ref" in result: return values[result["provider_ref"]]
+            if isinstance(result,dict) and "provider_points" in result: return "".join(map(chr,result["provider_points"]))
             if isinstance(result,dict) and "provider_encoded" in result: result = json.loads(result["provider_encoded"])
             return tuple(result) if name in ("verify_model","anthropic_optimizer_call","optimizer_call") else result
         return native
-    for module,agent,names in ((swebench,"claude",("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call","optimizer_log_path","_cell_of","set_optimizer_context","optimizer_call_kind")),
+    for module,agent,names in ((swebench,"claude",("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call","optimizer_log_path","_cell_of","set_optimizer_context","optimizer_call_kind","_log_optimizer_call","_log")),
                               (copilot,"copilot",("auth_env","byok_active","provider_base","anthropic_optimizer_endpoint","provider_env","provider_secret_names","normalize_model","effort_applies","validate_priceable","optimizer_call","copilot_bin","cli_version","require_install","run_env")),
                               (codex,"codex",("resolve_codex_routing","validate_priceable","fetch_catalog","verify_model","preflight_optimizer","optimizer_call","_responses_text"))):
         for name in names:
@@ -216,7 +262,7 @@ def install():
             setattr(module,name,replacements[original])
     webbench = sys.modules.get("te_harness.webbench")
     if webbench is not None:
-        for name in ("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call","set_optimizer_context","_cell_of"):
+        for name in ("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call","set_optimizer_context","_cell_of","_log"):
             original = getattr(webbench,name,None)
             if original in replacements: setattr(webbench,name,replacements[original])
     return replacements

@@ -111,6 +111,9 @@ flags, model selection, cleanup, event parsing and billing order. Copilot host
 binary discovery, version reporting, installation validation and environment
 assembly also run in Rust. Shared optimizer metadata uses native log-path
 selection, cell keys, context updates and prompt classification, including the
-Web-Bench aliases. Shared log writing and verbosity control still need conversion.
+Web-Bench aliases. Shared optimizer log records and verbosity control also use
+native policy, with SDK bindings for files, clocks, streams and JSON encoding.
+The shared string binding preserves individual Python code points, including
+adjacent surrogates, during log truncation, classification and version reporting.
 
 Installed host verification and the remaining migration gates are still in progress.

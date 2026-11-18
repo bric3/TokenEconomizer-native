@@ -56,7 +56,10 @@ for line in sys.stdin:
     def exists(path): record("exists",path);return os.path.exists(path) if request.get("real_paths") else path not in request.get("missing",[])
     class Completed:
         @property
-        def stdout(self): record("stdout");return Token("stdout") if request.get("opaque_stdout") else request.get("stdout","fixture 1.2.3\nextra")
+        def stdout(self):
+            record("stdout")
+            if request.get("paired_stdout"): return request.get("stdout","")+"\ud800\udc00"
+            return Token("stdout") if request.get("opaque_stdout") else request.get("stdout","fixture 1.2.3\nextra")
         @property
         def stderr(self): record("stderr");return request.get("stderr","")
     def run(argv,**kwargs):
@@ -81,6 +84,7 @@ for line in sys.stdin:
         if method == "run_env" and request.get("opaque_helpers"): assert value["AUTH"] is helper_values["auth_env"]["AUTH"],"credential identity changed"
         if method == "cli_version" and request.get("opaque_stdout"): assert isinstance(value,Token),"foreign string protocol result lost"
         result = {"value":encode(value)}
+        if request.get("paired_stdout"): result["points"] = list(map(ord,value))
     except BaseException as error: result = {"raised":type(error).__name__,"message":str(error)}
     finally:
         for name,value in saved.items(): setattr(cp,name,value)

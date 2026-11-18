@@ -334,6 +334,8 @@ pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
         "optimizer_log_path" | "_cell_of" | "set_optimizer_context" | "optimizer_call_kind" => {
             super::optimizer_context::run(name, rt)
         }
+        "_log_optimizer_call" => super::optimizer_log::record(rt),
+        "_log" => super::optimizer_log::verbose(rt),
         "agent_credential_env" => {
             for key in names(rt, "IGNORED_ANTHROPIC_VARS")? {
                 rt.call("provider_env_pop", json!([key]))?;

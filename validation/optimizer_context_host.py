@@ -47,6 +47,7 @@ for line in sys.stdin:
     arguments = dict(request.get("arguments",{}))
     for name in request.get("objects",[]): arguments[name] = Token(name)
     if "signature_index" in request: arguments["prompt"] = request.get("padding","")+saved[2][request["signature_index"]][1]
+    if request.get("paired_prefix"): arguments["prompt"] = "\ud800\udc00"+arguments.get("prompt","")
     def path_function(name):
         def call(*args):
             record(name,args)
@@ -67,6 +68,7 @@ for line in sys.stdin:
         sw.os = types.SimpleNamespace(environ=environment,path=path)
         sw._OPT_CTX = context
         if "kinds" in request: sw._OPT_KINDS = request["kinds"]
+        if request.get("paired_signature"): sw._OPT_KINDS = [("paired","\ud800\udc00")]
         if request.get("opaque_kind"): sw._OPT_KINDS = [(Token("kind"),"match")]
         value = getattr(owner,method)(**arguments)
         if method == "optimizer_log_path" and "TE_OPTIMIZER_LOG" in request.get("env_objects",[]) and request.get("truthy",True): assert value is environment["TE_OPTIMIZER_LOG"],"explicit path identity changed"

@@ -1,5 +1,6 @@
 use super::{
     Failure, Result, Runtime,
+    optimizer::string,
     providers::{boolean, capture, copy, literal},
 };
 use crate::python_json::{self, Node, Text};
@@ -50,11 +51,7 @@ fn version(rt: &mut dyn Runtime) -> Result<Value> {
                 literal(rt, "stream", json!(""))?;
             }
         }
-        let encoded = rt.call("optimizer_string", json!(["stream"]))?;
-        if let Some(encoded) = encoded.as_str() {
-            let Some(Node::String(ref text)) = python_json::parse(encoded.as_bytes(), 0) else {
-                unreachable!()
-            };
+        if let Some(text) = string(rt, "stream")? {
             let whitespace = |point: &u32| {
                 char::from_u32(*point)
                     .is_some_and(|c| c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}'))
@@ -78,7 +75,7 @@ fn version(rt: &mut dyn Runtime) -> Result<Value> {
                 .take(120)
                 .copied()
                 .collect();
-            Ok(json!({"provider_encoded":Text(first).json()}))
+            Ok(json!({"provider_points":Text(first).0}))
         } else {
             rt.call(
                 "provider_method",

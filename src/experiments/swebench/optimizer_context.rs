@@ -1,12 +1,9 @@
 use super::{
     Result, Runtime,
-    optimizer::parse_wire,
+    optimizer::{code_points, string},
     providers::{boolean, capture, literal},
 };
-use crate::{
-    python_json::{Node, Text},
-    value::truthy,
-};
+use crate::value::truthy;
 use serde_json::{Value, json};
 
 fn log_path(rt: &mut dyn Runtime) -> Result<Value> {
@@ -60,17 +57,13 @@ fn kind(rt: &mut dyn Runtime) -> Result<Value> {
     if !boolean(rt, "prompt")? {
         literal(rt, "prompt", json!(""))?;
     }
-    let encoded = rt.call("optimizer_string", json!(["prompt"]))?;
-    let head = if encoded.is_null() {
+    let head = if let Some(mut head) = string(rt, "prompt")? {
+        head.0.truncate(600);
+        rt.call("context_head", json!([head.0]))?;
+        Some(head)
+    } else {
         rt.call("context_slice_head", json!([]))?;
         None
-    } else {
-        let Node::String(ref text) = parse_wire(&encoded)? else {
-            unreachable!()
-        };
-        let head = Text(text.0.iter().take(600).copied().collect());
-        rt.call("context_head", json!([head.json()]))?;
-        Some(head)
     };
     rt.call("context_kinds", json!([]))?;
     loop {
@@ -81,9 +74,7 @@ fn kind(rt: &mut dyn Runtime) -> Result<Value> {
         let found = if let Some(head) = &head
             && !next[1].is_null()
         {
-            let Node::String(ref signature) = parse_wire(&next[1])? else {
-                unreachable!()
-            };
+            let signature = code_points(next[1].clone())?;
             signature.0.is_empty()
                 || head
                     .0

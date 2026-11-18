@@ -33,6 +33,11 @@ class OptimizerContextProbe {
       for(var kinds:List.of("null","[]","[[]]","[[\"kind\"]]","[[\"kind\",\"sig\",\"extra\"]]","[1]","[[\"kind\",\"\"]]","[[\"kind\",1]]","[[\"first\",\"match\"],[\"second\",\"match\"]]"))
         compare(nativeCode,source,"\"method\":\"optimizer_call_kind\",\"kinds\":"+kinds+",\"arguments\":{\"prompt\":\"match\"}");
       compare(nativeCode,source,"\"method\":\"optimizer_call_kind\",\"opaque_kind\":true,\"arguments\":{\"prompt\":\"match\"}");
+      var preflight="Reply with the single word: ok";
+      for(int padding:List.of(0,598-preflight.length(),599-preflight.length(),600-preflight.length()))
+        compare(nativeCode,source,"\"method\":\"optimizer_call_kind\",\"paired_prefix\":true,\"arguments\":{\"prompt\":"+q("x".repeat(padding)+preflight)+"}");
+      compare(nativeCode,source,"\"method\":\"optimizer_call_kind\",\"paired_prefix\":true,\"paired_signature\":true");
+      compare(nativeCode,source,"\"method\":\"optimizer_call_kind\",\"paired_signature\":true,\"arguments\":{\"prompt\":"+q("\ud800\udc00")+"}");
       for(var failure:List.of("get","join","normpath","dirname","basename","clear","update","slice","contains","bool:prompt"))for(var error:List.of("RuntimeError","TypeError","KeyboardInterrupt")) {
         var method=List.of("clear","update").contains(failure)?"set_optimizer_context":List.of("slice","contains","bool:prompt").contains(failure)?"optimizer_call_kind":List.of("normpath","dirname","basename").contains(failure)?"_cell_of":"optimizer_log_path";
         var fields=method.equals("_cell_of")?",\"arguments\":{\"run_dir_path\":\"/arm/cell/run\"}":method.equals("optimizer_call_kind")?",\"objects\":[\"prompt\"]":",\"env\":{\"TOKENECONOMIZER_RESULTS\":\"root\"}";
