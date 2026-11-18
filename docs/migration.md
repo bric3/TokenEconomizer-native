@@ -423,6 +423,12 @@ complete while any runtime component delegates production behaviour to Python.
   reporting, captured-prompt lookup, offline bundled-skills discovery, strict
   configuration validation, process-group cleanup and temporary-directory retries.
   The SDK binding supplies filesystem operations, process handles and clocks.
+- SWE-bench constructor coordination is native for Claude, Copilot and Codex:
+  model and effort selection, optimizer-override rejection, scaffold setup,
+  configuration probes, initial state and validation order. The SDK binding
+  retains argument, scaffold, profile, routing and configuration objects.
+  Provider helpers, endpoint preflights and scaffold backends remain callbacks
+  until their implementations are ported.
 
 ## Remaining production work
 
@@ -483,17 +489,20 @@ complete while any runtime component delegates production behaviour to Python.
   task rows; the direct method binding transports normalised decimal strings.
   Include custom parameter objects in `guard_accepts` and controller budget
   conversion outside the tested numeric and string cases.
+  Include constructor subclass attributes with side effects and helper results
+  outside their ordinary schemas. Captured configuration callables and arguments
+  already retain their references when the prompt callback replaces them.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Constructors, provider configuration, global signal cleanup, container guard
-  binary deployment and registration, scaffold backends and contexts, agent
-  streaming, and the
+  Web-Bench constructors, provider configuration and preflight helpers, runner
+  factories, global signal cleanup, container guard binary deployment and
+  registration, scaffold backends and contexts, agent streaming, and the
   Web-Bench task lifecycle and wrappers still need conversion. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
   SWE-bench controller construction parameters, continuation and telemetry are
-  native too.
+  native too, along with constructor coordination for all three agents.
   Codex installation discovery, captured-prompt loading and offline probes are
   native. Experiment asset packaging and host bindings still need to replace the
   validation binding's reference-data paths.
@@ -1401,6 +1410,29 @@ complete while any runtime component delegates production behaviour to Python.
   Original tests remain unchanged. Native Windows and Linux process-group behaviour,
   experiment asset packaging, runner conversion and the remaining parity audits
   are still pending. No simplification or performance pass is counted.
+
+- SWE-bench constructor coordination passes 483 source comparisons, including 27
+  flows through the real routing, pricing and model-normalisation helpers. The
+  comparisons check all three agents, partial state after failures, environment
+  precedence, effort levels, exact integers and digit limits, scaffold profiles,
+  object identity, skill defaults, configuration errors and model verification.
+  A prompt callback replaces runner fields and the configuration function; the
+  constructor retains the callable and arguments evaluated before that callback.
+  Three additional flows complete constructor setup through the actual Codex
+  prompt and configuration implementations, exercising nested native callbacks.
+  The integer digit-limit check is shared with controller budget conversion.
+  Focused original tests pass with 83 passed and two skipped. The full original
+  suite, with installed-opencode tests enabled, passes with 1,561 passed and 30
+  skipped (67.88 seconds). `validation/experiment-task-calls.json` records three
+  native Codex constructor entries. Those original calls stop at credential
+  validation; the new probe supplies runtime coverage of the remaining setup.
+  The 196-case controller and 466-case Codex configuration regressions, all 24 Rust
+  checks, debug/release builds, Clippy, formatting and the 256-file reference check
+  pass. Original tests remain unchanged. IDE inspections remain unavailable because
+  this checkout is not open in the connected IDE. Constructor preflights use SDK
+  stand-ins; no live provider or agent run was performed for this change. Provider
+  helpers, factories, global cleanup, streaming and the remaining parity audits
+  stay open. No simplification or performance pass is counted.
 
 ## Dependencies
 

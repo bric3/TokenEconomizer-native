@@ -126,6 +126,23 @@ fn text(value: &Value) -> Result<&str> {
         .as_str()
         .ok_or_else(|| Failure::new("TypeError", format!("expected str, found {}", kind(value))))
 }
+pub(super) fn integer_with_limit(value: &Value, limit: usize) -> Result<String> {
+    let number = integer(value)?;
+    if let Some(text) = value.as_str()
+        && limit != 0
+    {
+        let digits = text.chars().filter(|c| c.is_numeric()).count();
+        if digits > limit {
+            return Err(Failure::new(
+                "ValueError",
+                format!(
+                    "Exceeds the limit ({limit} digits) for integer string conversion: value has {digits} digits; use sys.set_int_max_str_digits() to increase the limit"
+                ),
+            ));
+        }
+    }
+    Ok(number)
+}
 pub(super) fn integer(value: &Value) -> Result<String> {
     if let Some(s) = value.as_str() {
         let normalized = decimal_integer(s).ok_or_else(|| {

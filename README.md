@@ -94,5 +94,8 @@ callback and telemetry objects across the native calls.
 Codex installation discovery, captured-prompt loading, offline skills discovery
 and configuration validation also run in Rust, including process-group cleanup
 and temporary-directory retries. SDK bindings supply filesystem and process I/O.
+SWE-bench constructor coordination also runs in Rust for Claude, Copilot and Codex,
+including validation order, scaffold setup and configuration preflights. Provider
+helpers and scaffold backends still cross migration callbacks.
 
 Installed host verification and the remaining migration gates are still in progress.

@@ -140,6 +140,8 @@ def install_experiment_harness():
         EXPERIMENT_HARNESS_REPLACEMENTS.update(install())
         from native_codex_install import install
         EXPERIMENT_HARNESS_REPLACEMENTS.update(install())
+        from native_runner_setup import install
+        EXPERIMENT_HARNESS_REPLACEMENTS.update(install())
     return EXPERIMENT_HARNESS_REPLACEMENTS
 
 

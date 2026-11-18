@@ -23,6 +23,7 @@ pub mod grading;
 pub mod guard_install;
 pub mod official;
 pub mod settings;
+pub mod setup;
 #[cfg(test)]
 mod tests;
 pub mod wrappers;

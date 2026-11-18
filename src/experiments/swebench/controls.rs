@@ -1,4 +1,4 @@
-use super::{Failure, Result, Runtime, codex_config::integer};
+use super::{Failure, Result, Runtime, codex_config::integer_with_limit};
 use crate::value::truthy;
 use serde_json::{Value, json};
 
@@ -27,24 +27,13 @@ fn budget(rt: &mut dyn Runtime, int_max_digits: usize) -> Result<Value> {
             Ok(reference("nudge_budget", "spiral_nudge_budget"))
         }
         kind => {
-            let mut number = integer(&input["value"]).map_err(|mut e| {
-                if kind == "tuple" {
-                    e.message = e.message.replace("'list'", "'tuple'");
-                }
-                e
-            })?;
-            if let Some(text) = input["value"].as_str()
-                && int_max_digits != 0
-                && text.chars().filter(|c| c.is_numeric()).count() > int_max_digits
-            {
-                return Err(Failure::new(
-                    "ValueError",
-                    format!(
-                        "Exceeds the limit ({int_max_digits} digits) for integer string conversion: value has {} digits; use sys.set_int_max_str_digits() to increase the limit",
-                        text.chars().filter(|c| c.is_numeric()).count()
-                    ),
-                ));
-            }
+            let mut number =
+                integer_with_limit(&input["value"], int_max_digits).map_err(|mut e| {
+                    if kind == "tuple" {
+                        e.message = e.message.replace("'list'", "'tuple'");
+                    }
+                    e
+                })?;
             if number == "-0" {
                 number = "0".into();
             }
