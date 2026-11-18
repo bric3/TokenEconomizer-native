@@ -100,7 +100,9 @@ Web-Bench's shared stream-state initialisation also runs in Rust.
 Its stream start, session ownership checks and session close coordination also
 run in Rust. Evaluator event and request waits also use native deadline, polling
 and event-selection policy, with SDK bindings for clocks, queues and object protocols.
-Evaluator startup, stdout parsing and process cleanup still use source callbacks.
+Evaluator stdout logging, attempt parsing, event publication and exit-state
+updates also run in Rust. Evaluator startup and process cleanup still use source
+callbacks.
 Web-Bench repository and Node discovery, evaluator abort and task-timeout policy,
 preload environment assembly and namespace-probe decisions also run in Rust.
 SDK bindings supply paths, process I/O and Python object protocols.

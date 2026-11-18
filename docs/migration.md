@@ -447,12 +447,18 @@ complete while any runtime component delegates production behaviour to Python.
   are native for all three agents. Project selection, directory checks, evaluator
   arguments and partial state after errors follow the source order. Task lists,
   sessions, helper references and unchanged project strings retain their references.
-  Evaluator startup, stdout parsing and process cleanup still use the source
+  Evaluator startup and process cleanup still use the source
   implementation.
 - Web-Bench evaluator event and request waits use native deadlines, five-second
   polling bounds, empty-queue handling, completion checks and event selection.
   SDK bindings supply clocks, queue I/O and numeric, mapping and formatting
   protocols, retaining raw queue results by reference.
+- Web-Bench evaluator stdout processing uses native log-write order, attempt
+  parsing, event publication, exit-state updates and final logging. SDK bindings
+  supply stream iteration, file and queue I/O, object protocols and integer
+  conversion. Custom matchers retain their bound methods and group results.
+  The standard pattern recognises Python whitespace and Unicode 17 decimal digits,
+  including Tolong Siki digits absent from the installed regex tables.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -524,6 +530,9 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit regular-expression compatibility with Python in the production parity
   pass, including word boundaries, whitespace classes and syntax. The current
   library rejects Python's `(?a)` flag; this remains a required compatibility fix.
+  Include Unicode-version differences outside the evaluator stdout pattern,
+  whose explicit Tolong Siki range matches Python 3.15 and the
+  [Unicode 17 numeric data](https://www.unicode.org/Public/17.0.0/ucd/extracted/DerivedNumericType.txt).
 - Audit JSON numeric edge cases and parser nesting limits, including non-finite
   values accepted by Python.
   Audit remaining JSON object and exception-message codecs for adjacent surrogate
@@ -588,7 +597,7 @@ complete while any runtime component delegates production behaviour to Python.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   Global signal cleanup, container guard binary deployment and
   registration, scaffold backends and contexts, agent streaming, and the
-  Web-Bench evaluator startup, stdout parsing, process cleanup, task calls and
+  Web-Bench evaluator startup, process cleanup, task calls and
   wrappers still need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
@@ -1770,6 +1779,26 @@ complete while any runtime component delegates production behaviour to Python.
   parsing, process cleanup, task calls, host bindings and remaining parity audits
   stay open. No live evaluator or provider is called. Simplification and
   performance passes remain at 0/3 each; final test conversion is pending.
+
+- Web-Bench stdout processing passes 535 source comparisons covering attempt
+  prefixes, project and task names, whitespace, Unicode decimal digits, ordinal
+  conversion and digit limits, retained line references, foreign matchers and
+  group results, callback replacement, log-write order, event order and partial
+  state after exceptions. The source corpus exposed the Unicode 17 Tolong Siki
+  digit gap in the installed regex tables; the evaluator pattern now handles it.
+  An offline Java process checks real stdout reads, log writes and both successful
+  and failing exits. It does not start Web-Bench or call a provider.
+  The full original suite, with installed-opencode tests enabled, passes with
+  1,561 passed and 30 skipped (73.66 seconds). Its updated call record remains
+  `validation/experiment-task-calls.json`. Original tests do not call the stdout
+  method; the focused corpus supplies its runtime coverage. The 272-case evaluator
+  wait and 519-case stream regressions pass, as do all 24 Rust checks, debug/release
+  builds, Clippy, formatting and the 256-file reference check.
+  Original tests remain unchanged. IDE inspections remain unavailable because
+  this checkout is not open in the connected IDE. Evaluator startup and task-file
+  loading, process and signal cleanup, task calls, host bindings and remaining
+  parity audits stay open. Simplification and performance passes remain at 0/3
+  each; final test conversion is pending.
 
 ## Dependencies
 

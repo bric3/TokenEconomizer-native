@@ -3,6 +3,7 @@ import functools
 import builtins
 import inspect
 import operator
+import re
 import json
 import sys
 from decimal import Decimal
@@ -262,6 +263,20 @@ def install(runner_module=None):
                     elif method == "stream_item": values[parameters[2]] = values[parameters[0]][parameters[1]]
                     elif method == "stream_close_function": values["function"] = values["session"].close
                     elif method == "session_get_function": values["function"] = values["queue"].get
+                    elif method == "stdout_member": values[parameters[2]] = getattr(values[parameters[0]],parameters[1])
+                    elif method == "stdout_iter": values["iterator"] = iter(values["stdout"])
+                    elif method == "stdout_next":
+                        try: values["line"] = next(values["iterator"])
+                        except StopIteration: value = False
+                        else: value = True
+                    elif method == "stdout_capture_match":
+                        pattern = module._ATTEMPT_RE
+                        values["match_function"] = pattern.match
+                        value = [pattern.pattern,pattern.flags] if type(pattern) is re.Pattern else None
+                    elif method == "stdout_match": values["match"] = values["match_function"](values["stripped"])
+                    elif method == "stdout_group": values[parameters[1]] = values["match"].group(parameters[0])
+                    elif method == "stdout_capture_integer": values["integer_function"] = getattr(module,"int",builtins.int)
+                    elif method == "stdout_integer": values["attempt"] = values["integer_function"](values["ordinal"])
                     elif method == "preflight_format": value = format(values[parameters[0]],parameters[1])
                     elif method == "preflight_log":
                         values["preflight_call_log"](*parameters)
@@ -309,7 +324,7 @@ def install(runner_module=None):
             replacements[original] = function(owner,original,"claude",operation)
             owner.make_runner = replacements[original]
         if domain == "webbench":
-            for name in ("next_event","next_request"):
+            for name in ("next_event","next_request","_read_stdout"):
                 original = getattr(owner._EvalSession,name)
                 if getattr(original,"_te_provider_operation",None) == ("webbench",name): continue
                 replacements[original] = function(owner,original,"webbench",name)
