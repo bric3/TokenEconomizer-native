@@ -13,7 +13,7 @@ class WebTaskPipelineProbe {
   public static void main(String[] args) throws Exception {
     var root=Files.createTempDirectory(Path.of("validation/results"),"web-task-pipeline-").toAbsolutePath();boolean passed=false;
     try {
-      if(ToolProvider.getSystemJavaCompiler().run(null,null,null,"-d",root.toString(),"validation/WebEvaluatorFixture.java","validation/WebAgentFixture.java")!=0)throw new AssertionError("fixture compilation failed");
+      if(ToolProvider.getSystemJavaCompiler().run(null,null,null,"-d",root.toString(),"validation/WebEvaluatorFixture.java","validation/WebAgentFixture.java","validation/RtkFixture.java")!=0)throw new AssertionError("fixture compilation failed");
       var project=Files.createDirectories(root.resolve("repo/projects/project"));
       Files.writeString(project.resolve("tasks.jsonl"),"{\"id\":\"init\"}\n");
       Files.createDirectories(root.resolve("repo/apps/eval/dist"));Files.writeString(root.resolve("repo/apps/eval/dist/index.js"),"");
@@ -23,6 +23,11 @@ class WebTaskPipelineProbe {
       var agentBinary=root.resolve("agent");
       Files.writeString(agentBinary,"#!/bin/sh\nexec '"+Path.of(System.getProperty("java.home"),"bin/java")+"' -cp '"+root+"' WebAgentFixture \"$@\"\n");
       if(!agentBinary.toFile().setExecutable(true))throw new AssertionError("agent fixture is not executable");
+      var rtkBinary=root.resolve("rtk");
+      Files.writeString(rtkBinary,"#!/bin/sh\nexec '"+Path.of(System.getProperty("java.home"),"bin/java")+"' -cp '"+root+"' RtkFixture \"$@\"\n");
+      if(!rtkBinary.toFile().setExecutable(true))throw new AssertionError("RTK fixture is not executable");
+      var bashEnv=root.resolve("bash-env");
+      Files.writeString(bashEnv,"export PATH='"+root+"':\"$PATH\"\n");
       for(var agent:List.of("claude","copilot","codex"))for(boolean nativeCode:List.of(false,true)) {
         var directory=Files.createDirectories(root.resolve((nativeCode?"native-":"source-")+agent));
         var command=new ArrayList<>(List.of(Path.of(".venv/bin/python").toAbsolutePath().toString(),"validation/web_task_pipeline_host.py",binary.toString(),root.resolve("repo").toString(),directory.resolve("run").toString()));
@@ -31,6 +36,8 @@ class WebTaskPipelineProbe {
         builder.environment().put("TE_FIXTURE_TASK_LOOP","1");
         builder.environment().put("TE_FIXTURE_AGENT",agent);
         builder.environment().put("TE_FIXTURE_AGENT_BIN",agentBinary.toString());
+        builder.environment().put("TE_FIXTURE_RTK_BIN",rtkBinary.toString());
+        builder.environment().put("BASH_ENV",bashEnv.toString());
         builder.environment().put("TE_FIXTURE_MODE","normal");
         var process=builder.start();
         try {

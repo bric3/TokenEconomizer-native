@@ -139,7 +139,9 @@ Web-Bench scaffold profiles, context construction, retained execution and copy
 callbacks, setup coordination and answer exclusions also run in Rust. Scaffold
 profile and context constructors, instructions, MCP configuration and merge-helper
 staging use native policy too. The generated merge program still uses Python;
-native container-helper deployment and the RTK and repo-map backends remain open.
+native container-helper deployment, the repo-map backend and scaffold registry
+remain open. RTK cache selection, host staging, agent-specific hook registration,
+rewrite probes and Codex instruction inlining also use native policy.
 Serena installation policy, MCP server configuration, Codex server handoff and
 navigation instructions also run in Rust. Serena remains an external Python tool.
 Run configuration, prompt construction, transport-instruction filtering

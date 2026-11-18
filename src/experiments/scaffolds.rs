@@ -7,6 +7,8 @@ use super::swebench::{
 use crate::{python_json::Text, value::truthy};
 use serde_json::{Value, json};
 
+mod rtk;
+
 fn attr(rt: &mut dyn Runtime, object: &str, name: &str, target: &str) -> Result<()> {
     rt.call("stdout_member", json!([object, name, target]))
         .map(|_| ())
@@ -441,6 +443,9 @@ fn serena_setup(rt: &mut dyn Runtime) -> Result<Value> {
     Ok(returned("notes"))
 }
 pub fn dispatch(operation: &str, rt: &mut dyn Runtime) -> Result<Value> {
+    if let Some(operation) = operation.strip_prefix("rtk_") {
+        return rtk::dispatch(operation, rt);
+    }
     match operation {
         "serena_server" => serena_server(rt),
         "serena_nudge" => serena_nudge(rt),

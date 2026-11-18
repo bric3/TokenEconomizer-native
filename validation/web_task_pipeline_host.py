@@ -56,7 +56,25 @@ class Scaffold:
         assert result.returncode == 0 and result.stdout == "installed"
         result=context.host_run(["/bin/echo","fixture-host"])
         assert result.returncode == 0 and result.stdout == "fixture-host\n"
-        return {"fixture_scaffold_installed":True}
+        from te_bench.baselines.rtk import RtkScaffold
+        class FixtureRtk(RtkScaffold):
+            def stage_host_binary(self,ctx): return True
+            def bin_path(self): return os.environ["TE_FIXTURE_RTK_BIN"]
+        notes=FixtureRtk().setup(context)
+        assert notes["rtk_staged_host"] is True and notes["rtk_installed"] is True and notes["rtk_version"] == "rtk 0.45.0",notes
+        assert notes["rtk_hook_exec_ok"] is True,notes
+        if agent == "codex":
+            assert notes["rtk_mode"] == "instructions" and notes["rtk_instructions_written"] is True and notes["rtk_agents_inlined"] is True,notes
+            assert "Always prefix shell commands with" in Path(context.profile.env["CODEX_HOME"],"AGENTS.md").read_text(encoding="utf-8")
+        else:
+            assert notes["rtk_mode"] == "hook" and notes["rtk_hook_registered"] is True and notes["rtk_hook_rewrites"] is True,notes
+            home=Path(context.profile.home)
+            hook_path=Path(notes["rtk_hook_path"]) if agent == "copilot" else home/".claude/settings.json"
+            assert hook_path.is_relative_to(run),hook_path
+            hook=json.loads(hook_path.read_text(encoding="utf-8"))
+            entry=hook["hooks"]["PreToolUse"][0]
+            assert (entry["command"] if agent == "copilot" else entry["hooks"][0]["command"]) == str(Path(context.profile.bin_dir,"rtk"))+" hook "+agent
+        return {"fixture_scaffold_installed":True,**notes}
 class Runner(base):
     def session_for(self,project):
         assert project == "project"
@@ -68,7 +86,7 @@ try:
     assert out == str(run) and row["resolved"] is True and row["resolved_p1"] is True and row["resolved_p2"] is True
     assert row["webbench_attempts"] == 1 and row["webbench_answered_files"] == [["src/a.js"]]
     assert row["net_guard_installed"] is True and row["net_guard_blocks"] == 0
-    assert row["fixture_scaffold_installed"] is True and row["scaffold"] == "fixture"
+    assert row.get("fixture_scaffold_installed") is True and row["scaffold"] == "fixture",row
     assert Path(run,"ws-attempt1/SCAFFOLD.md").read_text(encoding="utf-8") == "installed"
     assert row["input_tokens"] == 10 and row["cache_read_input_tokens"] == 20 and row["cache_creation_input_tokens"] == 30 and row["output_tokens"] == 4
     transcript = Path(run,"transcript.jsonl").read_text(encoding="utf-8")
@@ -118,6 +136,9 @@ if "--native" in sys.argv:
     assert native_plugin.CALLS["experiment.net_guard.process"] == 1
     for name in ("profile_new","profile_mcp","context_new","mcp_config","merge_json"):
         assert native_plugin.CALLS["experiment.swebench.provider.scaffold."+name] > 0,"pipeline bypassed native shared scaffold "+name
+    for name in ("rtk_setup","rtk_hook_binary","rtk_codex" if agent == "codex" else "rtk_probe"):
+        assert native_plugin.CALLS["experiment.swebench.provider.scaffold."+name] > 0,"pipeline bypassed native RTK "+name
+    if agent == "copilot": assert native_plugin.CALLS["experiment.swebench.provider.scaffold.rtk_copilot"] > 0
     for name in ("scaffold_apply","scaffold_context","scaffold_exec","scaffold_copy","scaffold_place","scaffold_host","scaffold_excludes","scaffold_profile_"+agent,"scaffold_mcp_claude" if agent == "claude" else "scaffold_mcp_empty"):
         assert native_plugin.CALLS["experiment.swebench.provider.webbench."+name] > 0,"pipeline bypassed native "+name
     for name in ("agent_home_codex" if agent == "codex" else "agent_home_claude","agent_bin_dir","agent_row_"+agent,"agent_usage_"+agent):

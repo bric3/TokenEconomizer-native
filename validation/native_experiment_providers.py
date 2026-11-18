@@ -502,6 +502,19 @@ def install(runner_module=None,scaffold_module=None):
         native._te_provider_operation = agent,name
         return native
     def scaffold_calls(owner):
+        if owner.__name__ == "te_bench.baselines.rtk":
+            original=owner.cache_dir
+            if getattr(original,"_te_provider_operation",None) != ("scaffold","rtk_cache"):
+                replacements[original]=function(owner,original,"scaffold","rtk_cache")
+                owner.cache_dir=replacements[original]
+            cls=owner.RtkScaffold
+            for name,operation in (("_hook_binary","hook_binary"),("_claude_hook","claude_hook"),("_copilot_hook_config","copilot_config"),("bin_path","bin_path"),("preflight","preflight"),("stage_host_binary","stage"),("setup","setup"),("_codex_instructions","codex"),("_install_copilot_hook","copilot"),("_probe_hook_rewrites","probe")):
+                descriptor=vars(cls)[name]
+                original=descriptor.__func__ if isinstance(descriptor,(staticmethod,classmethod)) else descriptor
+                if getattr(original,"_te_provider_operation",None) == ("scaffold","rtk_"+operation): continue
+                replacements[original]=function(owner,original,"scaffold","rtk_"+operation)
+                setattr(cls,name,type(descriptor)(replacements[original]) if isinstance(descriptor,(staticmethod,classmethod)) else replacements[original])
+            return
         if owner.__name__ == "te_bench.baselines.serena":
             cls=owner.SerenaScaffold
             for name,operation in (("setup","serena_setup"),("mcp_server","serena_server"),("nudge","serena_nudge")):
@@ -675,7 +688,8 @@ def install(runner_module=None,scaffold_module=None):
     for owner,domain,classes in ((swebench,"swebench",("ClaudeSwebenchRunner","CopilotSwebenchRunner","CodexSwebenchRunner")),
                                  (webbench,"webbench",("WebBenchRunner","CopilotWebBenchRunner","CodexWebBenchRunner"))):
         runner_calls(owner,domain,classes)
-    from te_bench.baselines import base,serena
+    from te_bench.baselines import base,serena,rtk
     scaffold_calls(base)
     scaffold_calls(serena)
+    scaffold_calls(rtk)
     return replacements

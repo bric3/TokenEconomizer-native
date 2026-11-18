@@ -562,8 +562,8 @@ complete while any runtime component delegates production behaviour to Python.
   callbacks with the source signatures and retain their captured objects after
   the creating method returns. Fallback I/O preserves the handled error for
   callbacks and exception chaining. Setup error metadata uses fresh scaffold and
-  exception names and preserves the detail limit of 300 code points. The RTK and
-  repo-map backends and SWE-bench context assembly remain pending.
+  exception names and preserves the detail limit of 300 code points. The repo-map
+  backend, scaffold registry and SWE-bench context assembly remain pending.
 - Shared scaffold profile and context constructors, read/log callbacks, instruction
   writes, MCP configuration and merge-helper staging use native policy. SDK bindings
   retain raw objects, file contexts, JSON encoding and process I/O. The staged merge
@@ -573,6 +573,11 @@ complete while any runtime component delegates production behaviour to Python.
   server handoff and navigation instructions use native policy. SDK bindings
   retain callback results, server references and file I/O. The install command
   still installs Serena's external Python toolchain as required by the baseline.
+- RTK cache selection, pinned host staging, fallback installation, Claude and
+  Copilot hook registration, execution and rewrite probes, and Codex instruction
+  inlining use native policy. SDK bindings retain object and environment protocols,
+  JSON encoding and process I/O. Stage and hook results retain their raw references
+  and source evaluation order.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -709,8 +714,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Container guard binary deployment and registration, the RTK and repo-map backends, native
-  merge-helper deployment, SWE-bench context assembly and agent streaming
+  Container guard binary deployment and registration, the repo-map backend,
+  scaffold registry, native merge-helper deployment, SWE-bench context assembly and agent streaming
   still need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
@@ -1556,7 +1561,9 @@ complete while any runtime component delegates production behaviour to Python.
   the call. The focused original tests pass with 102 passed and 2 skipped. The full
   original suite with installed-opencode tests enabled passes with 1,561 passed and
   30 skipped (70.59 seconds). Native call counts remain in
-  `validation/experiment-task-calls.json`. All 24 Rust checks, debug/release builds,
+  `validation/experiment-task-calls.json`, including eight setups, eight staging
+  checks, 15 cache reads, five rewrite probes and three Codex instruction setups.
+  All 24 Rust checks, debug/release builds,
   Clippy, formatting, the 178-case wrapper, 282-case task, 466-case configuration
   regressions and 256-file reference check pass. The three recorded grader JSON
   diagnostic differences remain open. Original tests remain unchanged. No live
@@ -2284,6 +2291,31 @@ complete while any runtime component delegates production behaviour to Python.
   host bindings and remaining parity audits stay open. Simplification and performance
   passes remain at 0/3 each; final test conversion is pending.
 
+- RTK passes 780 source comparisons covering cache precedence, cached and downloaded
+  staging paths, installation fallback, agent-specific hook configuration, Copilot
+  output parsing, rewriting probes, Codex instructions, raw results and failure
+  order. Original static and class method descriptors retain their calling contracts.
+  The SDK binding supports repeated installation without importing either harness.
+  All six offline Web-Bench pipelines now execute the RTK scaffold with an owned
+  Java RTK executable. They verify Claude settings, Copilot hook files, actual
+  rewrite-probe output, Codex instruction inlining and preserved operator settings.
+  The fixture supplies the staged executable; host downloads remain fixture-only.
+  A login shell selected the host's RTK during fixture development; the successful
+  pipelines use an owned BASH_ENV file to pin PATH to the fixture executable.
+  Deployment still needs to verify the RTK version selected by login-shell PATH.
+  The 611-case shared scaffold and 426-case Serena regressions pass. Focused
+  original tests pass with 36 passed and one skipped. The full original suite,
+  with installed-opencode tests enabled, passes with 1,561 passed and 30 skipped
+  (70.12 seconds). The native call record remains
+  `validation/experiment-task-calls.json`. All 24 Rust checks, debug/release builds,
+  Clippy, formatting and the 256-file reference check pass. Original tests remain
+  unchanged. IDE inspections remain unavailable because this checkout is not open
+  in the IDE. Actual RTK downloads, live agent hook invocation, Linux namespaces
+  and Windows remain unverified. Repo-map, scaffold registry, native container-helper
+  deployment, SWE-bench integration, host bindings and remaining parity audits stay
+  open. Simplification and performance passes remain at 0/3 each; final test
+  conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2415,6 +2447,7 @@ jbang validation/WebGuardProbe.java
 jbang validation/WebScaffoldProbe.java
 jbang validation/ScaffoldBaseProbe.java
 jbang validation/SerenaScaffoldProbe.java
+jbang validation/RtkScaffoldProbe.java
 jbang validation/InvocationProbe.java
 jbang validation/WebSegmentProcessProbe.java
 jbang validation/WebTaskPipelineProbe.java
