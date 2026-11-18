@@ -124,9 +124,13 @@ The shared Web-Bench task loop uses native retry and stream-failure decisions,
 per-attempt guard coordination, evaluator replies, artifact order, resolve metrics
 and telemetry selection. SDK bindings retain session, queue, file and result
 objects. Copilot debug log persistence and Codex capability metadata, compliance
-coordination and task home pruning also run in Rust. Agent execution, scaffold
-backends and remaining accounting and network guard helpers still cross migration
-callbacks. Run configuration, prompt construction, transport-instruction filtering
+coordination and task home pruning also run in Rust. Web-Bench agent segments use
+native environment assembly, streaming, guard stops, deadlines, process cleanup
+and usage-recovery coordination for Claude, Copilot and Codex. Claude session-log
+discovery and read-error handling also run in Rust. SDK bindings supply processes,
+pipes, clocks, files and object protocols. Supporting command, home, configuration,
+accounting, network guard and scaffold helpers still cross migration callbacks.
+Run configuration, prompt construction, transport-instruction filtering
 and both guard constructors now use native policy. The pinned prompt text is
 embedded in the native library; SDK bindings retain runtime values and object APIs.
 Provider routing, credential filtering, Copilot model normalisation and effort

@@ -508,8 +508,8 @@ complete while any runtime component delegates production behaviour to Python.
   preserve the source's stream rule. SDK bindings retain raw session, queue, file,
   guard, prompt and result objects, and supply object and numeric protocols.
   Guard attributes remain lazy while standard `any` and `sum` consume them, retaining
-  short-circuit reads and floating-point summation semantics. Agent execution and
-  accounting, network guard and scaffold helpers remain pending.
+  short-circuit reads and floating-point summation semantics. Supporting accounting,
+  network guard and scaffold helpers remain pending.
 - Copilot and Codex Web-Bench task wrappers use native superclass coordination,
   debug log persistence, capability snapshots, row metadata, compliance calls and
   task home pruning. SDK bindings resolve `super` from the original method's class
@@ -525,6 +525,14 @@ complete while any runtime component delegates production behaviour to Python.
   error truncation, pinned-template expansion and manual injection. Runtime template
   replacements retain their formatting calls. SDK bindings supply object protocols,
   hashing, JSON encoding and filesystem I/O while retaining raw argument references.
+- Web-Bench agent segments use native command coordination, environment assembly,
+  prompt delivery, transcript streaming, guard monitoring, deadlines, process-group
+  termination, wait handling, configuration-refusal checks and usage recovery for
+  Claude, Copilot and Codex. Claude session logs use native discovery, sorted reads,
+  concatenation and error boundaries. SDK bindings supply object protocols, files,
+  clocks, processes and pipes. Exception matching retains runtime class lookups and
+  active error contexts. Supporting argument builders, home and configuration helpers,
+  accounting hooks, network guard setup and scaffold backends remain pending.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -662,8 +670,9 @@ complete while any runtime component delegates production behaviour to Python.
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   Container guard binary deployment and registration, scaffold backends and
-  contexts, agent streaming, and Web-Bench accounting, network guard and
-  scaffold-exclusion helpers still need conversion.
+  contexts, SWE-bench agent streaming, and Web-Bench argument builders, home,
+  configuration, accounting, network guard and scaffold-exclusion helpers still
+  need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
@@ -2072,6 +2081,29 @@ complete while any runtime component delegates production behaviour to Python.
   bindings and remaining parity audits stay open. Simplification and performance
   passes remain at 0/3 each; final test conversion is pending.
 
+- Web-Bench agent segments and Claude session logs pass 1,160 source comparisons
+  covering command and getter order, environment assembly, repeated network
+  exclusions, resume requests, namespace arguments, raw object references, streaming,
+  falsey guards, timeouts, stderr limits, refusal errors, process cleanup, exception
+  class replacement and nested failure contexts. Real session files verify sorted
+  concatenation, replacement decoding and unreadable-entry handling. Eighteen owned
+  process checks exercise all three agents in source and native modes, including
+  normal completion, guard stops, deadlines and the two-second SIGTERM-to-SIGKILL
+  sequence. Claude recovers exact usage from real session files after a stop.
+  Six complete offline HTTP/process task pipelines now run the real segment methods
+  and usage parsers with owned Java agent stand-ins. No model or Playwright is called.
+  The 476-case task-loop, 360-case wrapper and 368-case run-contract regressions pass.
+  The full original suite, with installed-opencode tests enabled, passes with
+  1,561 passed and 30 skipped (71.81 seconds). Its record remains
+  `validation/experiment-task-calls.json`, including one Claude segment, seven Codex
+  segments, three Copilot segments and one Claude session-log call. All 24 Rust
+  checks, debug/release builds, Clippy, formatting and the 256-file reference check
+  pass. Original tests remain unchanged. IDE inspections remain unavailable because
+  this checkout is not open in the IDE. Live agents, Linux namespace execution and
+  Windows remain unverified. Supporting agent helpers, scaffold and host bindings,
+  and remaining production-parity audits stay open. Simplification and performance
+  passes remain at 0/3 each; final test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2197,6 +2229,9 @@ jbang validation/NudgeProbe.java
 jbang validation/FacadeProbe.java
 jbang validation/UsageProbe.java
 jbang validation/TaskProbe.java
+jbang validation/WebSegmentProbe.java
+jbang validation/WebSegmentProcessProbe.java
+jbang validation/WebTaskPipelineProbe.java
 jbang validation/GraderProbe.java
 jbang validation/SettingsProbe.java
 jbang validation/ContainerProbe.java

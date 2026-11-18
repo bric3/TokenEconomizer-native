@@ -320,6 +320,10 @@ fn verify(rt: &mut dyn Runtime) -> Result<Value> {
 pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
     let (agent, name) = method.split_once('.').unwrap_or(("", method));
     match name {
+        "segment_claude" if agent == "webbench" => super::web_segment::run(rt, "claude"),
+        "segment_copilot" if agent == "webbench" => super::web_segment::run(rt, "copilot"),
+        "segment_codex" if agent == "webbench" => super::web_segment::run(rt, "codex"),
+        "session_log" if agent == "webbench" => super::web_segment::session_log(rt),
         "write_run_config" if agent == "webbench" => super::web_contract::config(rt),
         "build_prompt" if agent == "webbench" => super::web_contract::prompt(rt),
         "strip_transport" if agent == "webbench" => super::web_contract::strip_transport(rt),

@@ -320,6 +320,21 @@ def install(runner_module=None):
                         called = getattr(module,parameters[0],getattr(builtins,parameters[0]))
                         # type() takes the new class's module from its caller's globals.
                         values["function"] = functools.partial(FunctionType(in_module.__code__,module.__dict__),called) if called is type else called
+                    elif method == "exception_matches":
+                        error = error_object(parameters[0])
+                        def matches():
+                            kinds = []
+                            for name in parameters[1]:
+                                parts = name.split(".")
+                                kind = getattr(module,parts[0],getattr(builtins,parts[0],None))
+                                for part in parts[1:]: kind = getattr(kind,part)
+                                kinds.append(kind)
+                            try: raise error
+                            except tuple(kinds): return True
+                            except BaseException: return False
+                        traceback = BaseException.__traceback__.__get__(error)
+                        try: value = with_exception(error,matches)
+                        finally: BaseException.__traceback__.__set__(error,traceback)
                     elif method == "eval_list": values[parameters[0]] = [values[key] for key in parameters[1]]
                     elif method == "eval_iter": values["iterator"] = iter(values["tasks"])
                     elif method == "eval_next":
@@ -454,13 +469,19 @@ def install(runner_module=None):
             replacements[original] = function(owner,original,domain,operation)
             setattr(owner,name,replacements[original])
         if domain == "webbench":
+            for cls_name,operation in (("WebBenchRunner","segment_claude"),("CopilotWebBenchRunner","segment_copilot"),("CodexWebBenchRunner","segment_codex")):
+                cls = getattr(owner,cls_name)
+                original = cls._segment
+                if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
+                replacements[original] = function(owner,original,"webbench",operation)
+                cls._segment = replacements[original]
             for cls_name,method,operation in (("WebBenchRunner","_write_run_config","write_run_config"),("WebBenchRunner","_make_guard","guard_claude"),("CodexWebBenchRunner","_make_guard","guard_codex")):
                 cls = getattr(owner,cls_name)
                 original = getattr(cls,method)
                 if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
                 replacements[original] = function(owner,original,"webbench",operation)
                 setattr(cls,method,replacements[original])
-            for name,operation in (("build_prompt","build_prompt"),("strip_transport_instructions","strip_transport")):
+            for name,operation in (("build_prompt","build_prompt"),("strip_transport_instructions","strip_transport"),("_session_log_text_host","session_log")):
                 original = getattr(owner,name)
                 if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
                 replacements[original] = function(owner,original,"webbench",operation)
