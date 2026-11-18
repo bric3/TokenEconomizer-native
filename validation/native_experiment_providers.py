@@ -34,7 +34,7 @@ def install(runner_module=None):
                 return original(*args,**kwargs)
             bound.apply_defaults()
             values = dict(bound.arguments)
-            deferred_errors = name in ("_log_optimizer_call","_log") or name.startswith("runner_") or agent in ("webbench","swebench")
+            deferred_errors = name in ("_log_optimizer_call","_log") or name.startswith(("runner_","invocation_")) or agent in ("webbench","swebench")
             if agent == "codex" and name == "optimizer_call":
                 from te_harness.swebench import _log, _log_optimizer_call
                 values["optimizer_log"] = _log
@@ -339,13 +339,15 @@ def install(runner_module=None):
                     elif method == "eval_generator":
                         # Create the iterator eagerly; Rust evaluates elements only when the caller consumes them.
                         iterator = iter(values[parameters[1]])
-                        def element(element): pass
-                        evaluate = bind_function(module,element,"webbench",parameters[2])
-                        def entries(iterator=iterator,evaluate=evaluate):
+                        def element(element,context=None): pass
+                        evaluate = bind_function(module,element,parameters[3] if len(parameters)>3 else "webbench",parameters[2])
+                        context_slot = parameters[4] if len(parameters)>4 else None
+                        def entries(iterator=iterator,evaluate=evaluate,context_slot=context_slot):
                             while True:
                                 try: item = next(iterator)
                                 except StopIteration: return
-                                yield from evaluate(item)
+                                # Captured loop values remain live when a callback retains the generator.
+                                yield from evaluate(item,values[context_slot] if context_slot is not None else None)
                         generator = entries()
                         generator.__name__ = "<genexpr>"
                         generator.__qualname__ = original.__qualname__+".<locals>.<genexpr>"
@@ -588,6 +590,14 @@ def install(runner_module=None):
         for name in names:
             original = getattr(module,name)
             replacements[original] = function(module,original,agent,name)
+            setattr(module,name,replacements[original])
+    for module,agent,methods in ((copilot,"copilot",(("build_argv","build"),("fatal_config_error","fatal"))),
+                                 (codex,"codex",(("build_argv","build"),("build_resume_argv","resume"),("run_env","env")))):
+        for name,suffix in methods:
+            original = getattr(module,name)
+            operation = "invocation_"+suffix
+            if getattr(original,"_te_provider_operation",None) == (agent,operation): continue
+            replacements[original] = function(module,original,agent,operation)
             setattr(module,name,replacements[original])
     webbench = sys.modules.get("te_harness.webbench")
     if webbench is not None:

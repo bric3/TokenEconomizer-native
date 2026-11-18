@@ -531,8 +531,7 @@ complete while any runtime component delegates production behaviour to Python.
   Claude, Copilot and Codex. Claude session logs use native discovery, sorted reads,
   concatenation and error boundaries. SDK bindings supply object protocols, files,
   clocks, processes and pipes. Exception matching retains runtime class lookups and
-  active error contexts. Supporting argument builders and scaffold backends remain
-  pending.
+  active error contexts. Supporting scaffold backends remain pending.
 - Web-Bench per-task home paths, scaffold execution environments and Copilot cache
   preparation use native policy. Copilot configuration seeding preserves an existing
   task home and copies only the three named configuration files. The Web-Bench Codex
@@ -550,6 +549,13 @@ complete while any runtime component delegates production behaviour to Python.
   iteration and standard `sum` and `any` calls. Hosts-file generation and namespace
   path quoting also use native policy. SDK bindings supply file contexts, JSON
   encoding, process I/O and object protocols.
+- Copilot and Codex argument builders use native flag order, exclusion selection,
+  optional arguments and hook-trust flags. Codex resume arguments preserve the
+  session, raw model reference and JSON effort setting. Codex environment additions
+  use native defaults and update coordination. Copilot configuration-refusal
+  detection uses native line selection, lazy pattern matching and truncation.
+  SDK bindings retain raw arguments and object protocols, including generator
+  captures that follow loop updates when callers retain a generator.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -687,8 +693,8 @@ complete while any runtime component delegates production behaviour to Python.
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   Container guard binary deployment and registration, scaffold backends and
-  contexts, SWE-bench agent streaming, and Web-Bench argument builders and
-  scaffold-exclusion helpers still need conversion.
+  contexts, SWE-bench agent streaming and Web-Bench scaffold-exclusion helpers
+  still need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
@@ -2170,6 +2176,28 @@ complete while any runtime component delegates production behaviour to Python.
   open. Simplification and performance passes remain at 0/3 each; final test
   conversion is pending.
 
+- Agent invocation helpers pass 961 source comparisons covering Copilot and Codex
+  flags, repeated exclusions, protected tools, optional model and effort settings,
+  MCP arguments, hook trust, resume sessions, JSON effort settings, environment
+  updates, refusal patterns, Unicode truncation, raw references and failure order.
+  Retained-generator checks verify live loop captures, including consumption after
+  the refusal helper returns. All 24 owned-process checks pass across source and
+  native modes. The Java agent stand-ins validate the consumed flags, resumed Codex
+  stdin and late Copilot/Codex configuration refusals, alongside normal streaming,
+  guard stops, deadlines and process cleanup. Six complete offline HTTP/process
+  pipelines confirm the native invocation helpers ran through the shared task loop.
+  The 1,823-case network-guard, 1,160-case segment and 279-case Copilot-host
+  regressions pass. The focused original tests pass with 69 passed. The full
+  original suite, with installed-opencode tests enabled, passes with 1,561 passed
+  and 30 skipped (70.42 seconds). Its record remains
+  `validation/experiment-task-calls.json` and includes the new invocation operations.
+  All 24 Rust checks, debug/release builds, Clippy, formatting and the 256-file
+  reference check pass. Original tests remain unchanged. IDE inspections remain
+  unavailable because this checkout is not open in the IDE. Live agent hook
+  invocation, Linux namespace execution and Windows remain unverified. Scaffold
+  integration, host bindings and remaining parity audits stay open. Simplification
+  and performance passes remain at 0/3 each; final test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2298,6 +2326,7 @@ jbang validation/TaskProbe.java
 jbang validation/WebSegmentProbe.java
 jbang validation/WebAgentProbe.java
 jbang validation/WebGuardProbe.java
+jbang validation/InvocationProbe.java
 jbang validation/WebSegmentProcessProbe.java
 jbang validation/WebTaskPipelineProbe.java
 jbang validation/GraderProbe.java

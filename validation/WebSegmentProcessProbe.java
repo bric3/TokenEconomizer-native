@@ -17,7 +17,7 @@ class WebSegmentProcessProbe {
       var binary=root.resolve("agent");
       Files.writeString(binary,"#!/bin/sh\nexec '"+Path.of(System.getProperty("java.home"),"bin/java")+"' -cp '"+root+"' WebAgentFixture \"$@\"\n");
       if(!binary.toFile().setExecutable(true))throw new AssertionError("fixture is not executable");
-      for(var agent:List.of("claude","copilot","codex"))for(var mode:List.of("normal","guard","timeout"))for(boolean nativeCode:List.of(false,true)) {
+      for(var agent:List.of("claude","copilot","codex"))for(var mode:agent.equals("claude")?List.of("normal","guard","timeout"):agent.equals("copilot")?List.of("normal","guard","timeout","config_error"):List.of("normal","guard","timeout","config_error","resume"))for(boolean nativeCode:List.of(false,true)) {
         var directory=Files.createDirectories(root.resolve((nativeCode?"native-":"source-")+agent+"-"+mode));
         Files.createDirectory(directory.resolve("workspace"));
         var command=new ArrayList<>(List.of(Path.of(".venv/bin/python").toAbsolutePath().toString(),"validation/web_segment_process_host.py",binary.toString(),directory.toString()));
@@ -33,6 +33,6 @@ class WebSegmentProcessProbe {
       }
       passed=true;
     } finally {if(passed)try(var paths=Files.walk(root)){for(var path:paths.sorted(Comparator.reverseOrder()).toList())Files.delete(path);}}
-    System.out.println("Source and native Web-Bench segments passed 18 owned process checks; real streaming, usage, falsey guard stops, deadlines and SIGTERM-to-SIGKILL cleanup passed across three agents");
+    System.out.println("Source and native Web-Bench segments passed 24 owned process checks; invocation flags, resumes, configuration refusals, streaming, usage, guard stops, deadlines and process cleanup passed across three agents");
   }
 }

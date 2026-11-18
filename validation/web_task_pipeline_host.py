@@ -86,6 +86,9 @@ if "--native" in sys.argv:
         assert native_plugin.CALLS["experiment.swebench.provider.webbench."+name] > 0,"pipeline bypassed native "+name
     assert native_plugin.CALLS["experiment.swebench.provider.webbench."+("guard_codex" if agent == "codex" else "guard_claude")] > 0
     assert native_plugin.CALLS["experiment.swebench.provider.webbench.segment_"+agent] == 1
+    if agent != "claude": assert native_plugin.CALLS["experiment.swebench.provider."+agent+".invocation_build"] == 1
+    if agent == "copilot": assert native_plugin.CALLS["experiment.swebench.provider.copilot.invocation_fatal"] == 1
+    if agent == "codex": assert native_plugin.CALLS["experiment.swebench.provider.codex.invocation_env"] == 1
     for name in ("network_install","network_verify","network_blocks"):
         assert native_plugin.CALLS["experiment.swebench.provider.webbench."+name] > 0,"pipeline bypassed native "+name
     assert native_plugin.CALLS["experiment.net_guard.process"] == 1

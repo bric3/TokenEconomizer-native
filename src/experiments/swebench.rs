@@ -23,6 +23,7 @@ pub mod controls;
 pub mod copilot_install;
 pub mod grading;
 pub mod guard_install;
+pub mod invocation;
 pub mod official;
 pub mod optimizer;
 pub mod optimizer_context;

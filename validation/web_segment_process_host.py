@@ -43,20 +43,25 @@ wb._log = lambda value:None
 swebench._log = lambda value:None
 try:
     with (root/"transcript").open("w", encoding="utf-8") as handle:
-        value = runner._segment(str(workspace), "fixture prompt é😀\n", handle, [], 8, Guard() if mode == "guard" else None)
+        prompt = {"session_id":"fixture-session","prompt":"fixture prompt é😀\n","effort":"low"} if mode == "resume" else "fixture prompt é😀\n"
+        try: value = runner._segment(str(workspace), prompt, handle, [], 8, Guard() if mode == "guard" else None)
+        except RuntimeError as error:
+            assert mode == "config_error" and str(error).startswith(agent+" refused"), str(error)
+        else: assert mode != "config_error", "refused configuration was accepted"
     assert len(processes) == 1
     process = processes[0]
     code = process.wait(timeout=5)
-    assert code == (0 if mode == "normal" else -9), (code, mode)
-    if agent == "claude":
+    assert code == (2 if mode == "config_error" else 0 if mode in ("normal","resume") else -9), (code, mode)
+    if mode == "config_error": pass
+    elif agent == "claude":
         assert value["usage"]["input_tokens"] == 10 and value["usage"]["output_tokens"] == 4, value
         if mode != "normal": assert value["num_turns_recovered"] and value["usage_recovered_from"] == "session_log" and not value["usage_incomplete"], value
     else:
-        assert value["input_tokens"] == (10 if mode == "normal" or agent == "copilot" else None), value
+        assert value["input_tokens"] == (10 if mode in ("normal","resume") or agent == "copilot" else None), value
         assert value["num_turns"] == 1, value
         if agent == "copilot": assert '"prompt_tokens":60' in value["_debug_log"]
     transcript = (root/"transcript").read_text(encoding="utf-8")
-    assert transcript.startswith('{"type":') and "\n   \n" not in transcript
+    assert transcript == "" if mode == "config_error" else transcript.startswith('{"type":') and "\n   \n" not in transcript
 finally:
     wb.subprocess.Popen = actual_popen
     for process in processes:
@@ -67,7 +72,10 @@ finally:
 if "--native" in sys.argv:
     import native_plugin
     assert native_plugin.CALLS["experiment.swebench.provider.webbench.segment_"+agent] == 1
-    if agent != "claude": assert native_plugin.CALLS["experiment.usage."+agent+".row_usage"] == 1
+    if agent != "claude":
+        assert native_plugin.CALLS["experiment.usage."+agent+".row_usage"] == (0 if mode == "config_error" else 1)
+        assert native_plugin.CALLS["experiment.swebench.provider."+agent+".invocation_"+("resume" if mode == "resume" else "build")] == 1
+    if agent == "copilot": assert native_plugin.CALLS["experiment.swebench.provider.copilot.invocation_fatal"] == 1
     if agent == "claude" and mode != "normal":
         assert native_plugin.CALLS["experiment.swebench.provider.webbench.session_log"] == 1
         assert native_plugin.CALLS["experiment.usage.claude.recovery.synthesize"] == 1
