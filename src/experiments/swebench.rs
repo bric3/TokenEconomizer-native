@@ -15,6 +15,7 @@ use std::{
 use crate::value::python_repr;
 
 pub mod codex_config;
+pub mod codex_install;
 pub mod codex_trace;
 pub mod containers;
 pub mod controls;

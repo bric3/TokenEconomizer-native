@@ -419,6 +419,10 @@ complete while any runtime component delegates production behaviour to Python.
   selection, constructor parameters, optional-parameter compatibility, continuation
   dispatch and telemetry fields. The SDK binding retains policies, callbacks,
   controller results and telemetry objects by reference.
+- Codex host installation policy is native: binary and vendor discovery, version
+  reporting, captured-prompt lookup, offline bundled-skills discovery, strict
+  configuration validation, process-group cleanup and temporary-directory retries.
+  The SDK binding supplies filesystem operations, process handles and clocks.
 
 ## Remaining production work
 
@@ -454,6 +458,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Include task turn caps outside i64 and task filesystem error diagnostics in
   the numeric and I/O parity audits.
   Include container timeouts outside JSON's integer range.
+  Include Codex probe timeouts and version objects outside the tested JSON schemas,
+  including non-finite numbers and custom numeric or string conversion methods.
 - Include CLI and ledger counts beyond i64 in the numeric parity audit.
 - Include `probe --sessions` integers outside i64 in that audit.
 - Include displayed tool counters in that audit, and audit CLI errors for malformed
@@ -481,13 +487,16 @@ complete while any runtime component delegates production behaviour to Python.
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   Constructors, provider configuration, global signal cleanup, container guard
-  binary deployment and registration, scaffold backends and contexts, installed
-  Codex discovery and validation, agent streaming, and the
+  binary deployment and registration, scaffold backends and contexts, agent
+  streaming, and the
   Web-Bench task lifecycle and wrappers still need conversion. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
   SWE-bench controller construction parameters, continuation and telemetry are
   native too.
+  Codex installation discovery, captured-prompt loading and offline probes are
+  native. Experiment asset packaging and host bindings still need to replace the
+  validation binding's reference-data paths.
   Process and SDK calls retain Python I/O bindings.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
@@ -1372,6 +1381,26 @@ complete while any runtime component delegates production behaviour to Python.
   connected IDE. Original tests remain unchanged. No paid model, live agent or
   container run was performed for this change. Production conversion and parity
   audits remain open; no simplification or performance pass is counted.
+
+- Codex installation policy passes 240 source comparisons. They cover binary
+  overrides and PATH lookup, sorted vendor selection, missing files, symlinks,
+  version output, captured prompts, error classes, cleanup retries, probe deadlines
+  and configuration diagnostics. Seven comparisons use the real filesystem:
+  three captured-prompt lookups, vendor discovery through a symlink, and three
+  offline process probes. A Java CLI fixture installs two skills, emits a strict
+  configuration error or waits past the timeout. Both source and native probes
+  terminate its child process and remove their temporary home on macOS.
+  Focused original tests pass with 69 passed and two Linux-only tests skipped.
+  The full original suite, with installed-opencode tests enabled, passes with
+  1,561 passed and 30 skipped (67.07 seconds). Its record is
+  `validation/experiment-task-calls.json`, including one native bundled-skills probe,
+  two configuration validations, three prompt lookups and their cleanup calls.
+  The 466-case Codex configuration regression, all 24 Rust checks, debug/release
+  builds, Clippy, formatting and the 256-file reference check pass. IDE inspections
+  remain unavailable because this checkout is not open in the connected IDE.
+  Original tests remain unchanged. Native Windows and Linux process-group behaviour,
+  experiment asset packaging, runner conversion and the remaining parity audits
+  are still pending. No simplification or performance pass is counted.
 
 ## Dependencies
 

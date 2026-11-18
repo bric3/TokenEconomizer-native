@@ -2,8 +2,8 @@ use super::job::{self, Channel};
 use serde_json::{Value, json};
 use std::path::Path;
 use tokeneconomizer::experiments::swebench::{
-    self, Failure, Runtime, Task, codex_config, codex_trace, containers, controls, grading,
-    guard_install, official, settings, wrappers,
+    self, Failure, Runtime, Task, codex_config, codex_install, codex_trace, containers, controls,
+    grading, guard_install, official, settings, wrappers,
 };
 
 struct Transport(Channel);
@@ -50,6 +50,14 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
         let method = method.to_owned();
         return job::start("swebench_control", move |channel| {
             controls::dispatch(&method, &args, &mut Transport(channel)).unwrap_or_else(failure)
+        })
+        .map(Some);
+    }
+    if let Some(method) = method.strip_prefix("install.") {
+        let args = args.clone();
+        let method = method.to_owned();
+        return job::start("codex_install", move |channel| {
+            codex_install::dispatch(&method, &args, &mut Transport(channel)).unwrap_or_else(failure)
         })
         .map(Some);
     }
