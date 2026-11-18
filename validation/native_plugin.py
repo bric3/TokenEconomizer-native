@@ -130,6 +130,8 @@ def native_package_module(loader, module):
     elif module.__name__ == "te_harness.webbench":
         from native_experiment_task import install_network
         install_experiment_harness().update(install_network(module))
+        from native_experiment_providers import install
+        EXPERIMENT_HARNESS_REPLACEMENTS.update(install(module))
 
 
 def install_experiment_harness():

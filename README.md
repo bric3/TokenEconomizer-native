@@ -96,7 +96,7 @@ and configuration validation also run in Rust, including process-group cleanup
 and temporary-directory retries. SDK bindings supply filesystem and process I/O.
 SWE-bench constructor coordination also runs in Rust for Claude, Copilot and Codex,
 including validation order, scaffold setup and configuration preflights.
-Runner call wrappers and scaffold backends still cross migration callbacks.
+Scaffold backends and Web-Bench task calls still cross migration callbacks.
 Provider routing, credential filtering, Copilot model normalisation and effort
 selection also run in Rust. Codex catalogue parsing, caching and model verification
 use native policy with mapping and HTTP bindings.
@@ -115,5 +115,8 @@ Web-Bench aliases. Shared optimizer log records and verbosity control also use
 native policy, with SDK bindings for files, clocks, streams and JSON encoding.
 The shared string binding preserves individual Python code points, including
 adjacent surrogates, during log truncation, classification and version reporting.
+Both domains' optimizer and preflight methods also use native routing, and their
+runner factories use native defaults and scaffold validation. SDK bindings retain
+argument, helper and constructor references, including when Web-Bench loads later.
 
 Installed host verification and the remaining migration gates are still in progress.

@@ -28,6 +28,7 @@ pub mod optimizer_context;
 pub mod optimizer_log;
 pub mod preflight;
 pub mod providers;
+pub mod runner_calls;
 pub mod settings;
 pub mod setup;
 #[cfg(test)]

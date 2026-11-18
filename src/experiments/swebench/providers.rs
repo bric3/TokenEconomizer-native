@@ -336,6 +336,13 @@ pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
         }
         "_log_optimizer_call" => super::optimizer_log::record(rt),
         "_log" => super::optimizer_log::verbose(rt),
+        "runner_optimizer_swebench" | "runner_optimizer_webbench" => {
+            super::runner_calls::optimizer(agent, name.ends_with("webbench"), rt)
+        }
+        "runner_preflight" => super::runner_calls::preflight(agent, rt),
+        "runner_factory_swebench" | "runner_factory_webbench" => {
+            super::runner_calls::factory(name.ends_with("webbench"), rt)
+        }
         "agent_credential_env" => {
             for key in names(rt, "IGNORED_ANTHROPIC_VARS")? {
                 rt.call("provider_env_pop", json!([key]))?;

@@ -427,7 +427,7 @@ complete while any runtime component delegates production behaviour to Python.
   model and effort selection, optimizer-override rejection, scaffold setup,
   configuration probes, initial state and validation order. The SDK binding
   retains argument, scaffold, profile, routing and configuration objects.
-  Runner call wrappers and scaffold backends remain
+  Web-Bench task calls and scaffold backends remain
   callbacks until their implementations are ported.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
@@ -477,6 +477,16 @@ complete while any runtime component delegates production behaviour to Python.
   Shared exact-string bindings use code point arrays so adjacent surrogates stay
   distinct from astral characters. Classification, Copilot version reporting,
   log excerpts, character counts and printed messages preserve that distinction.
+- Optimizer and preflight methods use native routing for both domains. All six
+  optimizer methods and five owned preflight methods preserve getter order,
+  captured helpers, argument identity and ignored preflight results. Codex
+  SWE-bench accepts explicit model overrides; Codex Web-Bench uses its runner
+  model. Codex SWE-bench retains its inherited Claude preflight method when that
+  method is called directly.
+  Both runner factories use native agent defaults, registry checks, scaffold
+  defaults and Web-Bench scaffold validation. Signal cleanup is invoked in the
+  source order and remains a helper callback. Constructor results are retained
+  by reference. The SDK also binds methods when Web-Bench loads after SWE-bench.
 - The shared JSON reader supplies syntax messages, Unicode positions and line
   and column information. Catalogue HTTP contexts receive reconstructed
   `JSONDecodeError` objects with the source fields. The grader loader uses those
@@ -552,8 +562,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Web-Bench constructors, runner call wrappers,
-  factories, global signal cleanup, container guard binary deployment and
+  Web-Bench constructors, global signal cleanup, container guard binary deployment and
   registration, scaffold backends and contexts, agent streaming, and the
   Web-Bench task lifecycle and wrappers still need conversion. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
@@ -1633,6 +1642,28 @@ complete while any runtime component delegates production behaviour to Python.
   not open in the connected IDE. No external provider or paid model was called.
   Runner conversion, host bindings and the remaining parity audits stay open.
   No simplification or performance pass is counted.
+
+- Runner call wrappers and factories pass 914 source comparisons. They cover all
+  six optimizer methods, five owned preflight methods and inherited preflight
+  behaviour, API/CLI selection, model labels and overrides, malformed endpoints,
+  repeated endpoint getters, callable replacement, opaque identities, keyword
+  order, ignored results, factory defaults, scaffold support, Unicode registry
+  keys and ordinary and fatal failures. Twelve comparisons run the actual
+  optimizer and preflight helpers with HTTP I/O and pricing fixtures. Web-Bench
+  bindings are installed after SWE-bench and a repeated install preserves method
+  identity.
+  The full original suite, with installed-opencode tests enabled, passes with
+  1,561 passed and 30 skipped (67.41 seconds). Its record remains
+  `validation/experiment-task-calls.json`; it includes four SWE-bench factory
+  calls and six Web-Bench factory calls. The new probe supplies the optimizer
+  and preflight method coverage. The 483-case constructor and 241-case shared
+  preflight regressions, all 24 Rust checks, debug/release builds, Clippy,
+  formatting and the 256-file reference check pass. Original tests remain
+  unchanged. IDE inspections remain unavailable because this checkout is not open
+  in the connected IDE. No external provider or paid model was called.
+  Web-Bench constructors and task calls, signal cleanup, host bindings and the
+  remaining parity audits stay open. No simplification or performance pass is
+  counted.
 
 ## Dependencies
 

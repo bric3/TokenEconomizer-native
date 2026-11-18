@@ -10,7 +10,7 @@ from native_plugin import invoke
 from native_experiment_task import checked, data
 
 
-def install():
+def install(runner_module=None):
     from te_harness import swebench, copilot, codex
     replacements = {}
     def function(module,original,agent,name):
@@ -20,7 +20,7 @@ def install():
             bound = signature.bind(*args,**kwargs)
             bound.apply_defaults()
             values = dict(bound.arguments)
-            deferred_errors = name in ("_log_optimizer_call","_log")
+            deferred_errors = name in ("_log_optimizer_call","_log") or name.startswith("runner_")
             if agent == "codex" and name == "optimizer_call":
                 from te_harness.swebench import _log, _log_optimizer_call
                 values["optimizer_log"] = _log
@@ -223,6 +223,23 @@ def install():
                     elif method == "logger_capture_print": values["print"] = getattr(module,"print",builtins.print)
                     elif method == "logger_print": values["print"]("".join(map(chr,parameters[0])),flush=True)
                     elif method == "logger_flush": module.sys.stdout.flush()
+                    elif method == "runner_function":
+                        called = module
+                        for part in parameters[0].split("."): called = getattr(called,part)
+                        values["function"] = called
+                    elif method == "runner_member": values[parameters[1]] = getattr(values["self"],parameters[0])
+                    elif method == "runner_invoke": values["called"] = values["function"](*[values[key] for key in parameters[0]],**{key:values[slot] for key,slot in parameters[1]})
+                    elif method == "runner_label": value = values["model"] in tuple(parameters[0])
+                    elif method == "runner_endpoint": values["base"],values["api_key"],values["bearer"] = values["endpoint"]
+                    elif method == "runner_keys":
+                        values["keys"] = list(getattr(module,parameters[0]))
+                        value = [list(map(ord,key)) if type(key) is str else None for key in values["keys"]]
+                    elif method == "runner_sorted_keys": value = list(map(ord,", ".join(sorted(values["keys"]))))
+                    elif method == "runner_repr": value = list(map(ord,repr(values[parameters[0]])))
+                    elif method == "runner_registered": value = values["agent"] in module.RUNNERS
+                    elif method == "runner_supported": value = values["scaffold"] in module.WEBBENCH_SCAFFOLDS
+                    elif method == "runner_raise": raise RuntimeError("".join(map(chr,parameters[0])))
+                    elif method == "runner_construct": values["called"] = module.RUNNERS[values["agent"]](agent=values["agent"],scaffold=values["scaffold"],**values["kwargs"])
                     elif method == "preflight_format": value = format(values[parameters[0]],parameters[1])
                     elif method == "preflight_log":
                         values["preflight_call_log"](*parameters)
@@ -252,7 +269,26 @@ def install():
             if isinstance(result,dict) and "provider_points" in result: return "".join(map(chr,result["provider_points"]))
             if isinstance(result,dict) and "provider_encoded" in result: result = json.loads(result["provider_encoded"])
             return tuple(result) if name in ("verify_model","anthropic_optimizer_call","optimizer_call") else result
+        native._te_provider_operation = agent,name
         return native
+    def runner_calls(owner,domain,classes):
+        if owner is None or not hasattr(owner,"RUNNERS"): return
+        for cls_name,agent in zip(classes,("claude","copilot","codex")):
+            cls = getattr(owner,cls_name)
+            for method,operation in (("optimizer_call","runner_optimizer_"+domain),("_preflight_optimizer_endpoint","runner_preflight")):
+                if method not in cls.__dict__: continue
+                original = getattr(cls,method)
+                if getattr(original,"_te_provider_operation",None) == (agent,operation): continue
+                replacements[original] = function(owner,original,agent,operation)
+                setattr(cls,method,replacements[original])
+        original = owner.make_runner
+        operation = "runner_factory_"+domain
+        if getattr(original,"_te_provider_operation",None) != ("claude",operation):
+            replacements[original] = function(owner,original,"claude",operation)
+            owner.make_runner = replacements[original]
+    if runner_module is not None:
+        runner_calls(runner_module,"webbench",("WebBenchRunner","CopilotWebBenchRunner","CodexWebBenchRunner"))
+        return replacements
     for module,agent,names in ((swebench,"claude",("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call","optimizer_log_path","_cell_of","set_optimizer_context","optimizer_call_kind","_log_optimizer_call","_log")),
                               (copilot,"copilot",("auth_env","byok_active","provider_base","anthropic_optimizer_endpoint","provider_env","provider_secret_names","normalize_model","effort_applies","validate_priceable","optimizer_call","copilot_bin","cli_version","require_install","run_env")),
                               (codex,"codex",("resolve_codex_routing","validate_priceable","fetch_catalog","verify_model","preflight_optimizer","optimizer_call","_responses_text"))):
@@ -265,4 +301,7 @@ def install():
         for name in ("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call","set_optimizer_context","_cell_of","_log"):
             original = getattr(webbench,name,None)
             if original in replacements: setattr(webbench,name,replacements[original])
+    for owner,domain,classes in ((swebench,"swebench",("ClaudeSwebenchRunner","CopilotSwebenchRunner","CodexSwebenchRunner")),
+                                 (webbench,"webbench",("WebBenchRunner","CopilotWebBenchRunner","CodexWebBenchRunner"))):
+        runner_calls(owner,domain,classes)
     return replacements
