@@ -24,9 +24,6 @@ if "--native" in sys.argv:
 
 for line in sys.stdin:
     request=json.loads(line)
-    if "--native" in sys.argv:
-        import native_plugin
-        native_probes_before=native_plugin.CALLS["experiment.net_guard.process"]
     calls,counts,managers,written,removed,mutations=[],{},[],{},[],{}
     absent=object()
     saved={name:getattr(wb,name,absent) for name in ("os","json","sys","net_guard","subprocess","open","_log","any","sum")}
@@ -137,9 +134,6 @@ for line in sys.stdin:
     def run(*args,**kwargs):
         record("run",[args,list(kwargs),kwargs])
         if request.get("real_process"):
-            if "--native" in sys.argv:
-                from native_plugin import native_cli_process
-                return native_cli_process(*args,**kwargs)
             return subprocess.run(*args,**kwargs)
         return Completed()
     def aggregate(name):
@@ -173,8 +167,8 @@ for line in sys.stdin:
         if name in inputs: inputs[name]=Token(name)
         else: object.__setattr__(runner,name,Token(name))
     try:
-        paths=Namespace("path",join=callback("join",implementation=os.path.join),dirname=callback("dirname",implementation=os.path.dirname))
-        wb.os=Namespace("os",path=paths,makedirs=mkdir,remove=remove,environ=request.get("env",{}))
+        paths=Namespace("path",join=callback("join",implementation=os.path.join),dirname=callback("dirname",implementation=os.path.dirname),abspath=callback("abspath",implementation=os.path.abspath))
+        wb.os=Namespace("os",path=paths,makedirs=mkdir,remove=remove,environ=request.get("env",{}),chmod=callback("chmod",implementation=os.chmod if request.get("real_files") else None))
         wb.json=Namespace("json",load=load,dump=dump,dumps=dumps)
         wb.sys=Namespace("sys",executable=sys.executable if request.get("real_process") else "/fixture/python")
         wb.net_guard=Namespace("net_guard",__file__=saved["net_guard"].__file__ if request.get("real_process") else "/fixture/net_guard.py",LOG_ENV="TE_NET_GUARD_LOG",hosts_block=callback("hosts_block",implementation=saved["net_guard"].hosts_block) if request.get("real_process") else callback("hosts_block","# fixture hosts\n0.0.0.0 github.com"))
@@ -192,9 +186,14 @@ for line in sys.stdin:
         elif operation == "class_log": value=base._net_guard_log(inputs["home"])
         else: value=runner._net_guard_log(inputs["home"])
         result={"value":value}
-        if "--native" in sys.argv and request.get("real_process") and operation in ("install","verify") and value is True:
-            import native_plugin
-            assert native_plugin.CALLS["experiment.net_guard.process"] == native_probes_before+1,"guard probe bypassed the native executable"
+        if request.get("inspect") and value is True:
+            with builtins.open(runner.net_guard_settings_path(inputs["home"],inputs["run_dir_path"]),encoding="utf-8") as file: doc=json.load(file)
+            entry=doc["hooks"][runner.NET_GUARD_HOOK_KEY][-1]
+            command=entry["command"] if agent == "copilot" else entry["hooks"][0]["command"]
+            result["guard_command"]=command
+            if "payload" in request:
+                dispatched=subprocess.run(["/bin/sh","-c",command],input=json.dumps(request["payload"]),capture_output=True,text=True,timeout=10,env={"PATH":"","TE_NET_GUARD_LOG":str(Path(inputs["home"])/"net_guard_blocks.jsonl")})
+                result["dispatch_code"]=dispatched.returncode
     except BaseException as error:
         result={"raised":type(error).__name__,"message":str(error)}
         if request.get("exception_chain"):

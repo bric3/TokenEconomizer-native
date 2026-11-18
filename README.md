@@ -107,7 +107,10 @@ preserves existing hooks and verifies an actual refusal before reporting success
 The validation binding supplies this build directory; experiment packaging still
 needs to ship it. Scaffold merges invoke this helper too; SWE-bench deploys it
 when a merge needs it, and WebBench uses the host binary beside the experiment
-executable. WebBench guard installation still selects its Python command.
+executable. WebBench guards use a per-task executable `net_guard.py` launcher
+that calls the native helper. The filename preserves the existing hook contract;
+the launcher needs a POSIX shell and the native helper beside the experiment
+executable. Verification executes that launcher and removes its probe telemetry.
 SWE-bench controller selection, constructor parameters, continuation dispatch and
 telemetry fields run in Rust for all three agents. SDK bindings retain controller,
 callback and telemetry objects across the native calls.

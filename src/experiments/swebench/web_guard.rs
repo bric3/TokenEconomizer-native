@@ -144,6 +144,35 @@ fn load(rt: &mut dyn Runtime) -> Result<()> {
     let body = apply(rt, "json.load", &["settings_handle"], "settings");
     exit(rt, "settings", body).map(|_| ())
 }
+fn launcher(rt: &mut dyn Runtime) -> Result<()> {
+    join(rt, "home", "net_guard.py")?;
+    copy(rt, "launcher", "called")?;
+    apply(rt, "os.path.abspath", &["launcher"], "launcher")
+}
+fn command(rt: &mut dyn Runtime) -> Result<()> {
+    let path = formatted(rt, "launcher")?;
+    let mut command = Text::default();
+    if !path.0.is_empty()
+        && path.0.iter().all(|point| {
+            u8::try_from(*point)
+                .is_ok_and(|byte| byte.is_ascii_alphanumeric() || b"_@%+=:,./-".contains(&byte))
+        })
+    {
+        command = path;
+    } else {
+        push(&mut command, "'");
+        for point in path.0 {
+            if point == 39 {
+                push(&mut command, "'\"'\"'");
+            } else {
+                command.0.push(point);
+            }
+        }
+        push(&mut command, "'");
+    }
+    rt.call("logger_literal", json!(["command", command.0]))
+        .map(|_| ())
+}
 fn install(rt: &mut dyn Runtime) -> Result<Value> {
     own(
         rt,
@@ -162,14 +191,8 @@ fn install(rt: &mut dyn Runtime) -> Result<Value> {
         result => result?,
     }
     member(rt, "net_guard_hook_entry", "hook_entry")?;
-    function(rt, "sys.executable")?;
-    copy(rt, "executable", "function")?;
-    let mut command = formatted(rt, "executable")?;
-    push(&mut command, " ");
-    function(rt, "net_guard.__file__")?;
-    copy(rt, "guard_file", "function")?;
-    command.0.extend(formatted(rt, "guard_file")?.0);
-    rt.call("logger_literal", json!(["command", command.0]))?;
+    launcher(rt)?;
+    command(rt)?;
     call(rt, "hook_entry", &["command"], "entry")?;
     rt.call("workspace_local", json!(["settings", "settings_value"]))?;
     rt.call(
@@ -239,11 +262,19 @@ fn verify(rt: &mut dyn Runtime) -> Result<Value> {
     let ran: Result<()> = (|| {
         function(rt, "subprocess.run")?;
         copy(rt, "run", "function")?;
-        function(rt, "sys.executable")?;
-        copy(rt, "executable", "function")?;
-        function(rt, "net_guard.__file__")?;
-        copy(rt, "guard_file", "function")?;
-        rt.call("eval_list", json!(["argv", ["executable", "guard_file"]]))?;
+        launcher(rt)?;
+        let helper = std::env::current_exe()?
+            .with_file_name(format!("te-net-guard{}", std::env::consts::EXE_SUFFIX));
+        let helper = helper
+            .to_str()
+            .ok_or_else(|| Failure::new("UnicodeError", "native guard path must be UTF-8"))?;
+        // Keep the public filename while executing the native guard without a Python runtime.
+        let program = format!(
+            "#!/bin/sh\nexec {} \"$@\"\n",
+            super::container_helper::quote(helper)
+        );
+        rt.call("host_guard_write", json!(["launcher", program]))?;
+        rt.call("eval_list", json!(["argv", ["launcher"]]))?;
         literal(rt, "true", json!(true))?;
         literal(rt, "timeout", json!(60))?;
         copy(rt, "function", "run")?;

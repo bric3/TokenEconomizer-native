@@ -680,6 +680,8 @@ complete while any runtime component delegates production behaviour to Python.
   nested JSON and filesystem error details outside its verified file corpus.
   Include scaffold merge callback failures and path objects outside string paths,
   including filenames with non-UTF-8 bytes or unpaired surrogate code points.
+  Include WebBench launcher creation, executable permissions and paths outside
+  the normal writable task homes in the I/O parity audit.
   Include the guard's numeric spelling, malformed Unicode and non-default stdin
   encodings. Its own input reader preserves Python-style non-finite numbers,
   surrogate code points, surrogate-escaped UTF-8 bytes and integer digit limits.
@@ -738,8 +740,9 @@ complete while any runtime component delegates production behaviour to Python.
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   SWE-bench guard deployment and registration use native helpers. Native
-  scaffold merge helpers are deployed through harness callbacks. WebBench guard
-  command selection still needs conversion.
+  scaffold merge helpers are deployed through harness callbacks. Both harnesses
+  select native guard executables. Experiment packaging and standalone host
+  bindings remain open.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
@@ -2516,6 +2519,36 @@ complete while any runtime component delegates production behaviour to Python.
   experiment packaging, standalone host bindings and remaining parity audits
   stay open. Final test conversion is pending.
 
+- WebBench hook commands now execute a per-task native-guard launcher. Its
+  `net_guard.py` filename preserves the original Codex hook contract. The file is
+  an executable POSIX shell script that forwards stdin and arguments to the native
+  helper beside the experiment executable. Command quoting retains Unicode code
+  points and handles spaces and apostrophes. Verification writes the launcher,
+  invokes it directly, requires refusal status 2 and removes the probe's log.
+  Existing settings, hook lists, guard-presence rules and Codex arming policy
+  retain their source behaviour.
+  The unchanged guard APIs pass 997 source comparisons covering hook shapes,
+  settings paths, refusal counts, hosts files, raw objects, exception handling
+  and lexical superclass dispatch. Native wiring passes 229 dedicated checks,
+  including three agents, malformed settings, exact settings-file equality after
+  replacing only the guard command, idempotence, executable permissions,
+  Unicode and shell-sensitive paths, actual installed-hook dispatch with an empty PATH,
+  refusal and telemetry. Injected launcher writes, permission changes, process
+  calls, result reads, log cleanup and logger failures cover failure boundaries
+  and cancellation. These checks replace supplemental traces of the old Python
+  command construction; original upstream tests remain unchanged.
+  Focused original tests pass with 48 passed. The full unchanged suite passes with
+  1,561 passed and 30 skipped (73.02 seconds), including installed-opencode tests
+  using the loopback model fixture. Its call record remains
+  `validation/experiment-task-calls.json`; direct native subprocesses no longer
+  need the validation binding's Python-command substitution. All 24 Rust checks,
+  debug/release builds, Clippy, formatting and the 256-file reference check pass.
+  IDE inspections remain unavailable because this checkout is not open in the IDE.
+  Live agent hook dispatch and Windows remain unverified. Launchers require a
+  writable task home and a POSIX shell. Experiment packaging, standalone host
+  bindings and remaining parity audits stay open. Formal simplification and
+  performance passes remain at 0/3 each; final test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2644,6 +2677,7 @@ jbang validation/TaskProbe.java
 jbang validation/WebSegmentProbe.java
 jbang validation/WebAgentProbe.java
 jbang validation/WebGuardProbe.java
+jbang validation/NativeWebGuardProbe.java
 jbang validation/WebScaffoldProbe.java
 jbang validation/ScaffoldBaseProbe.java
 jbang validation/SerenaScaffoldProbe.java

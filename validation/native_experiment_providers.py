@@ -296,6 +296,9 @@ def install(runner_module=None,scaffold_module=None):
                     elif method == "stream_set": setattr(values["self"],parameters[0],values[parameters[1]])
                     elif method == "scaffold_setattr": setattr(values[parameters[0]],parameters[1],values[parameters[2]])
                     elif method == "container_helper_root": value = str(ROOT/"target/container-helpers")
+                    elif method == "host_guard_write":
+                        with getattr(module,"open",builtins.open)(values[parameters[0]],"w",encoding="utf-8") as file: file.write(parameters[1])
+                        module.os.chmod(values[parameters[0]],0o755)
                     elif method == "_exec":
                         completed=values["self"]._exec(parameters[0],parameters[1],**parameters[2])
                         value={key:getattr(completed,key) for key in ("returncode","stdout","stderr")}
