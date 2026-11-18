@@ -508,8 +508,8 @@ complete while any runtime component delegates production behaviour to Python.
   preserve the source's stream rule. SDK bindings retain raw session, queue, file,
   guard, prompt and result objects, and supply object and numeric protocols.
   Guard attributes remain lazy while standard `any` and `sum` consume them, retaining
-  short-circuit reads and floating-point summation semantics. Supporting accounting,
-  network guard and scaffold helpers remain pending.
+  short-circuit reads and floating-point summation semantics. Supporting network
+  guard and scaffold helpers remain pending.
 - Copilot and Codex Web-Bench task wrappers use native superclass coordination,
   debug log persistence, capability snapshots, row metadata, compliance calls and
   task home pruning. SDK bindings resolve `super` from the original method's class
@@ -531,8 +531,17 @@ complete while any runtime component delegates production behaviour to Python.
   Claude, Copilot and Codex. Claude session logs use native discovery, sorted reads,
   concatenation and error boundaries. SDK bindings supply object protocols, files,
   clocks, processes and pipes. Exception matching retains runtime class lookups and
-  active error contexts. Supporting argument builders, home and configuration helpers,
-  accounting hooks, network guard setup and scaffold backends remain pending.
+  active error contexts. Supporting argument builders, network guard setup and
+  scaffold backends remain pending.
+- Web-Bench per-task home paths, scaffold execution environments and Copilot cache
+  preparation use native policy. Copilot configuration seeding preserves an existing
+  task home and copies only the three named configuration files. The Web-Bench Codex
+  configuration writer uses native lean-token metadata, argument assembly and file
+  coordination with the existing native Codex configuration functions. Accounting
+  hooks use native merge coordination, evaluator usage selection and row metadata
+  for all three agents. SDK bindings retain raw values, comparisons, helper results
+  and context managers. Copilot cache and configuration-directory discovery also use
+  native environment selection with path-library bindings.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -670,9 +679,8 @@ complete while any runtime component delegates production behaviour to Python.
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   Container guard binary deployment and registration, scaffold backends and
-  contexts, SWE-bench agent streaming, and Web-Bench argument builders, home,
-  configuration, accounting, network guard and scaffold-exclusion helpers still
-  need conversion.
+  contexts, SWE-bench agent streaming, and Web-Bench argument builders, network
+  guard and scaffold-exclusion helpers still need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
@@ -2104,6 +2112,31 @@ complete while any runtime component delegates production behaviour to Python.
   and remaining production-parity audits stay open. Simplification and performance
   passes remain at 0/3 each; final test conversion is pending.
 
+- Web-Bench agent support passes 1,681 source comparisons covering home paths,
+  static method binding, execution environments, Copilot configuration seeding and
+  cache preparation, Codex configuration writes, lean-token metadata and accounting
+  hooks. The corpus retains raw usage values, helper return identities, custom row
+  mappings, comparison objects, repeated truth checks and nested error contexts.
+  Real-file checks verify configuration and instructions output, the three-file
+  Copilot copy rule, preservation of existing task settings and operator files,
+  and cache symlink reuse. Copilot host helpers pass 279 comparisons including the
+  new cache and configuration-directory discovery paths. Six offline HTTP/process
+  task pipelines now use the native homes, configuration writer and accounting hooks.
+  Codex's trusted workspace, instructions path and lean-token count are checked
+  against the generated files; Copilot's source settings remain unchanged.
+  The 1,160-case segment, 476-case task-loop, 360-case wrapper and 368-case
+  run-contract regressions pass, as do all 18 owned segment-process checks.
+  The full original suite, with installed-opencode tests enabled, passes with
+  1,561 passed and 30 skipped (69.77 seconds). Its record remains
+  `validation/experiment-task-calls.json` and includes the new home, configuration
+  and accounting operations. All 24 Rust checks, debug/release builds, Clippy,
+  formatting and the 256-file reference check pass. Original tests remain unchanged.
+  IDE inspections remain unavailable because this checkout is not open in the IDE.
+  Live agents, Linux namespace execution and Windows remain unverified. Argument
+  builders, network guard and scaffold integration, host bindings and remaining
+  parity audits stay open. Simplification and performance passes remain at 0/3
+  each; final test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2230,6 +2263,7 @@ jbang validation/FacadeProbe.java
 jbang validation/UsageProbe.java
 jbang validation/TaskProbe.java
 jbang validation/WebSegmentProbe.java
+jbang validation/WebAgentProbe.java
 jbang validation/WebSegmentProcessProbe.java
 jbang validation/WebTaskPipelineProbe.java
 jbang validation/GraderProbe.java

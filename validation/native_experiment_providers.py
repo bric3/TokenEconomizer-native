@@ -469,6 +469,20 @@ def install(runner_module=None):
             replacements[original] = function(owner,original,domain,operation)
             setattr(owner,name,replacements[original])
         if domain == "webbench":
+            for cls_name,methods in (
+                ("WebBenchRunner",(("agent_home","home_claude"),("scaffold_bin_dir","bin_dir"),("scaffold_exec_env","exec_env_claude"),("prepare_agent_home","prepare_claude"),("_merge_segments","merge_claude"),("_segment_usage","usage_claude"),("_row_from_segment","row_claude"))),
+                ("CopilotWebBenchRunner",(("scaffold_exec_env","exec_env_copilot"),("prepare_agent_home","prepare_copilot"),("scaffold_copilot_home","copilot_home"),("_merge_segments","merge_copilot"),("_segment_usage","usage_copilot"),("_row_from_segment","row_copilot"))),
+                ("CodexWebBenchRunner",(("agent_home","home_codex"),("scaffold_exec_env","exec_env_codex"),("_write_config","config_codex"),("_merge_segments","merge_codex"),("_segment_usage","usage_codex"),("_row_from_segment","row_codex"))),
+            ):
+                cls = getattr(owner,cls_name)
+                for name,suffix in methods:
+                    descriptor = inspect.getattr_static(cls,name)
+                    original = descriptor.__func__ if isinstance(descriptor,staticmethod) else getattr(cls,name)
+                    operation = "agent_"+suffix
+                    if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
+                    replacement = function(owner,original,"webbench",operation)
+                    replacements[original] = replacement
+                    setattr(cls,name,staticmethod(replacement) if isinstance(descriptor,staticmethod) else replacement)
             for cls_name,operation in (("WebBenchRunner","segment_claude"),("CopilotWebBenchRunner","segment_copilot"),("CodexWebBenchRunner","segment_codex")):
                 cls = getattr(owner,cls_name)
                 original = cls._segment
@@ -538,7 +552,7 @@ def install(runner_module=None):
         runner_calls(runner_module,"webbench",("WebBenchRunner","CopilotWebBenchRunner","CodexWebBenchRunner"))
         return replacements
     for module,agent,names in ((swebench,"claude",("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call","optimizer_log_path","_cell_of","set_optimizer_context","optimizer_call_kind","_log_optimizer_call","_log")),
-                              (copilot,"copilot",("auth_env","byok_active","provider_base","anthropic_optimizer_endpoint","provider_env","provider_secret_names","normalize_model","effort_applies","validate_priceable","optimizer_call","copilot_bin","cli_version","require_install","run_env")),
+                              (copilot,"copilot",("auth_env","byok_active","provider_base","anthropic_optimizer_endpoint","provider_env","provider_secret_names","normalize_model","effort_applies","validate_priceable","optimizer_call","copilot_bin","copilot_cache","copilot_config","cli_version","require_install","run_env")),
                               (codex,"codex",("resolve_codex_routing","validate_priceable","fetch_catalog","verify_model","preflight_optimizer","optimizer_call","_responses_text"))):
         for name in names:
             original = getattr(module,name)

@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
@@ -10,6 +11,8 @@ from te_harness import swebench
 if "--native" in sys.argv:
     from native_experiment_usage import install as install_usage
     install_usage()
+    from native_experiment_task import install as install_task
+    install_task()
     from native_experiment_providers import install
     install()
 from te_harness import webbench as wb
@@ -17,6 +20,10 @@ if "--native" in sys.argv: install(wb)
 
 binary,repository,destination = sys.argv[1:4]
 run = Path(destination)
+operator_config = run.parent/"operator-config"
+operator_config.mkdir()
+(operator_config/"settings.json").write_text('{"fixture":"operator"}',encoding="utf-8")
+os.environ["COPILOT_HOME"] = str(operator_config)
 agent = os.environ.get("TE_FIXTURE_AGENT","claude")
 task = {"instance_id":"init","repo":"@web-bench/project","problem_statement":"implement"}
 wb._log = lambda value:None
@@ -26,15 +33,11 @@ class Runner(base):
     def session_for(self,project):
         assert project == "project"
         return session
-    def agent_home(self,path): return os.path.join(path,".home")
     def _install_net_guard(self,*args): return True
-    def _write_config(self,*args): pass
-    def scaffold_copilot_home(self,path): return os.path.join(path,".copilot-home")
-    def scaffold_bin_dir(self,path): return os.path.join(path,"bin")
     def _net_guard_blocks(self,*args): return 0
     def scaffold_answer_excludes(self): return frozenset()
 runner = object.__new__(Runner)
-for key,value in {"model":"gpt-5.4","agent":agent,"effort":"high","cli_version":"fixture-cli","agent_bin":os.environ["TE_FIXTURE_AGENT_BIN"],"claude":os.environ["TE_FIXTURE_AGENT_BIN"],"copilot":os.environ["TE_FIXTURE_AGENT_BIN"],"api_key":"fixture-key","_net_guard_armed":False,"routing_base":"https://fixture.invalid","optimizer_model":"fixture-optimizer","protected_tools":frozenset({"Bash"}),"repo":repository,"_stream_broken":False,"retry":2,"start_timeout":5,"verdict_timeout":5,"task_timeout":240,"max_workers":1,"node":binary,"keep_workspaces":True,"scaffold":None,"scaffold_name":None,"_lean_instructions_tokens":8,"answer_key_ns":False}.items(): setattr(runner,key,value)
+for key,value in {"model":"gpt-5.4","agent":agent,"effort":"high","cli_version":"fixture-cli","agent_bin":os.environ["TE_FIXTURE_AGENT_BIN"],"claude":os.environ["TE_FIXTURE_AGENT_BIN"],"copilot":os.environ["TE_FIXTURE_AGENT_BIN"],"api_key":"fixture-key","_net_guard_armed":False,"routing_base":"https://fixture.invalid","routing":{"base_url":"https://fixture.invalid"},"base_prompt":"# Using skills\nFixture skills\n# Task\nImplement fixture task\n","system_skills":["fixture-skill"],"optimizer_model":"fixture-optimizer","protected_tools":frozenset({"Bash"}),"repo":repository,"_stream_broken":False,"retry":2,"start_timeout":5,"verdict_timeout":5,"task_timeout":240,"max_workers":1,"node":binary,"keep_workspaces":True,"scaffold":None,"scaffold_name":None,"_lean_instructions_tokens":8,"answer_key_ns":False}.items(): setattr(runner,key,value)
 try:
     row,out = runner.run_task(task,arm="baseline",injected=None,exclude_tools=[],run_dir_path=str(run),codex_config_capabilities=["skills"])
     assert out == str(run) and row["resolved"] is True and row["resolved_p1"] is True and row["resolved_p2"] is True
@@ -51,9 +54,17 @@ try:
     assert config["spiral"]["guard_per_attempt"] is True and config["tools"]["protected"] == ["Bash"]
     if agent == "copilot":
         assert "_debug_log" not in row and '"prompt_tokens":60' in Path(run,"copilot_debug.log").read_text(encoding="utf-8")
+        assert Path(run,".copilot-home/settings.json").read_text(encoding="utf-8") == '{"fixture":"operator"}'
     if agent == "codex":
         assert row["turns_basis"] == "codex_steps" and row["codex_config_capabilities"] == ["skills"]
-        assert row["codex_lean_instructions_tokens"] == 8 and row["answer_key_hosts_blocked"] is False
+        home=Path(run,".codex-home")
+        instructions=home.joinpath("instructions.md").read_text(encoding="utf-8")
+        assert row["codex_lean_instructions_tokens"] == len(instructions)//4 > 0 and row["answer_key_hosts_blocked"] is False
+        settings=tomllib.loads(home.joinpath("config.toml").read_text(encoding="utf-8"))
+        assert settings["model_instructions_file"] == str(home/"instructions.md")
+        assert settings["projects"][str(run/"ws-attempt1")]["trust_level"] == "trusted"
+        assert "# Using skills" not in instructions and "Implement fixture task" in instructions
+    assert operator_config.joinpath("settings.json").read_text(encoding="utf-8") == '{"fixture":"operator"}'
     session._reader.join(5)
     assert not session._reader.is_alive()
     assert session.proc.wait(timeout=5) == 0
@@ -71,4 +82,13 @@ if "--native" in sys.argv:
         assert native_plugin.CALLS["experiment.swebench.provider.webbench."+name] > 0,"pipeline bypassed native "+name
     assert native_plugin.CALLS["experiment.swebench.provider.webbench."+("guard_codex" if agent == "codex" else "guard_claude")] > 0
     assert native_plugin.CALLS["experiment.swebench.provider.webbench.segment_"+agent] == 1
+    for name in ("agent_home_codex" if agent == "codex" else "agent_home_claude","agent_bin_dir","agent_row_"+agent,"agent_usage_"+agent):
+        assert native_plugin.CALLS["experiment.swebench.provider.webbench."+name] > 0,"pipeline bypassed native "+name
+    if agent == "copilot":
+        assert native_plugin.CALLS["experiment.swebench.provider.webbench.agent_copilot_home"] > 0
+        assert native_plugin.CALLS["experiment.swebench.provider.copilot.copilot_config"] > 0
+    if agent == "codex":
+        assert native_plugin.CALLS["experiment.swebench.provider.webbench.agent_config_codex"] == 1
+        assert native_plugin.CALLS["experiment.swebench.codex.config_toml"] == 1
+        assert native_plugin.CALLS["experiment.swebench.codex.lean_instructions"] == 1
 print("Offline Web-Bench task passed: HTTP request, task policy, workspace edit, usage reply, verdict, transcript and resource cleanup",flush=True)

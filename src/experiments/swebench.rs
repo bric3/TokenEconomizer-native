@@ -34,6 +34,7 @@ pub mod settings;
 pub mod setup;
 #[cfg(test)]
 mod tests;
+pub mod web_agent;
 pub mod web_close;
 pub mod web_contract;
 pub mod web_host;

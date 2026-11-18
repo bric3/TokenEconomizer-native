@@ -18,6 +18,14 @@ fn function(rt: &mut dyn Runtime, name: &str, slot: &str) -> Result<()> {
 fn returned(slot: &str) -> Value {
     json!({"provider_ref":slot})
 }
+fn directory(rt: &mut dyn Runtime, variable: &str, fallback: &str) -> Result<Value> {
+    capture(rt, "directory", variable, None)?;
+    if !boolean(rt, "directory")? {
+        literal(rt, "directory", json!(fallback))?;
+        path(rt, "expanduser", "directory", "directory")?;
+    }
+    Ok(returned("directory"))
+}
 fn binary(rt: &mut dyn Runtime) -> Result<Value> {
     capture(rt, "binary", "COPILOT_HOST_BIN", None)?;
     if boolean(rt, "binary")? {
@@ -144,6 +152,8 @@ fn environment(rt: &mut dyn Runtime) -> Result<Value> {
 }
 pub fn run(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
     match method {
+        "copilot_cache" => directory(rt, "COPILOT_HOST_CACHE", "~/.cache/copilot"),
+        "copilot_config" => directory(rt, "COPILOT_HOME", "~/.copilot"),
         "copilot_bin" => binary(rt),
         "cli_version" => version(rt),
         "require_install" => require(rt),

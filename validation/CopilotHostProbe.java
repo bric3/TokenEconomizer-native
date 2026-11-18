@@ -21,6 +21,13 @@ class CopilotHostProbe {
       for(var value:List.of("null","false","0","\"\"","\"relative/copilot\"","[]","{}","[1]"))for(boolean accessible:List.of(false,true))for(var which:List.of("null","\"/path/copilot\""))
         compare(nativeCode,source,"\"env\":{\"COPILOT_HOST_BIN\":"+value+"},\"accessible\":"+accessible+",\"which\":"+which);
       compare(nativeCode,source,"\"objects\":[\"COPILOT_HOST_BIN\"]");
+      for(var method:List.of("copilot_cache","copilot_config")) {
+        var variable=method.equals("copilot_cache")?"COPILOT_HOST_CACHE":"COPILOT_HOME";
+        compare(nativeCode,source,"\"method\":"+q(method));
+        for(var value:List.of("null","false","0","\"\"","\"relative path é😀\"","[]","{}","[1]","\"\\ud800\\udc00\""))compare(nativeCode,source,"\"method\":"+q(method)+",\"env\":{"+q(variable)+":"+value+"}");
+        for(boolean truthy:List.of(false,true))compare(nativeCode,source,"\"method\":"+q(method)+",\"objects\":["+q(variable)+"],\"truthy\":"+truthy);
+        for(var phase:List.of("get","expanduser"))for(var error:List.of("OSError","RuntimeError","KeyboardInterrupt"))compare(nativeCode,source,"\"method\":"+q(method)+",\"fail\":"+q(phase)+",\"error\":"+q(error));
+      }
       for(boolean seed:List.of(false,true))for(int mask=0;mask<8;mask++) {
         var paths=new java.util.ArrayList<String>();if((mask&1)>0)paths.add(q("/bin/copilot"));if((mask&2)>0)paths.add(q("/cache"));if((mask&4)>0)paths.add(q("/config"));
         compare(nativeCode,source,"\"method\":\"require_install\",\"arguments\":{\"need_container_seed\":"+seed+"},\"missing\":["+String.join(",",paths)+"]");

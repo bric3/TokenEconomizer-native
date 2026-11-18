@@ -128,8 +128,11 @@ coordination and task home pruning also run in Rust. Web-Bench agent segments us
 native environment assembly, streaming, guard stops, deadlines, process cleanup
 and usage-recovery coordination for Claude, Copilot and Codex. Claude session-log
 discovery and read-error handling also run in Rust. SDK bindings supply processes,
-pipes, clocks, files and object protocols. Supporting command, home, configuration,
-accounting, network guard and scaffold helpers still cross migration callbacks.
+pipes, clocks, files and object protocols. Per-task homes, Copilot configuration
+seeding and cache links, the Web-Bench Codex configuration writer and accounting
+hooks also use native policy. Copilot cache and configuration-directory discovery
+run in Rust too. Supporting argument builders, network guard and scaffold helpers
+still cross migration callbacks.
 Run configuration, prompt construction, transport-instruction filtering
 and both guard constructors now use native policy. The pinned prompt text is
 embedded in the native library; SDK bindings retain runtime values and object APIs.

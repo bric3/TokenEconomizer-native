@@ -320,6 +320,9 @@ fn verify(rt: &mut dyn Runtime) -> Result<Value> {
 pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
     let (agent, name) = method.split_once('.').unwrap_or(("", method));
     match name {
+        name if agent == "webbench" && name.starts_with("agent_") => {
+            super::web_agent::dispatch(&name[6..], rt)
+        }
         "segment_claude" if agent == "webbench" => super::web_segment::run(rt, "claude"),
         "segment_copilot" if agent == "webbench" => super::web_segment::run(rt, "copilot"),
         "segment_codex" if agent == "webbench" => super::web_segment::run(rt, "codex"),
@@ -377,7 +380,10 @@ pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
         "optimizer_call" if agent == "codex" => super::optimizer::run(true, rt),
         "optimizer_call" if agent == "copilot" => super::optimizer::copilot(rt),
         "_responses_text" if agent == "codex" => super::optimizer::response_text_call(rt),
-        "copilot_bin" | "cli_version" | "require_install" | "run_env" if agent == "copilot" => {
+        "copilot_bin" | "copilot_cache" | "copilot_config" | "cli_version" | "require_install"
+        | "run_env"
+            if agent == "copilot" =>
+        {
             super::copilot_install::run(name, rt)
         }
         "optimizer_log_path" | "_cell_of" | "set_optimizer_context" | "optimizer_call_kind" => {
