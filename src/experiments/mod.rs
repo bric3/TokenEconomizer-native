@@ -1,4 +1,5 @@
 pub mod adapters;
+pub mod bundle;
 pub mod codex_spiral;
 pub mod facade;
 pub mod net_guard;

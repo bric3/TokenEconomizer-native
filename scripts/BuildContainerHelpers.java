@@ -39,6 +39,7 @@ class BuildContainerHelpers {
     var context=Files.createTempDirectory(output,"source-");
     try {
       Files.copy(root.resolve("Cargo.toml"),context.resolve("Cargo.toml"));Files.copy(root.resolve("Cargo.lock"),context.resolve("Cargo.lock"));
+      Files.copy(root.resolve("LICENSE"),context.resolve("LICENSE"));
       copyTree(root.resolve("src"),context.resolve("src"));Files.createDirectory(context.resolve("validation"));
       Files.copy(root.resolve("validation/console_probe.rs"),context.resolve("validation/console_probe.rs"));
       Files.copy(root.resolve("scripts/container-helpers.Dockerfile"),context.resolve("Dockerfile"));

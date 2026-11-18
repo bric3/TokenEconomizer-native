@@ -741,8 +741,9 @@ complete while any runtime component delegates production behaviour to Python.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   SWE-bench guard deployment and registration use native helpers. Native
   scaffold merge helpers are deployed through harness callbacks. Both harnesses
-  select native guard executables. Experiment packaging and standalone host
-  bindings remain open.
+  select native guard executables. The runtime bundle ships executables and
+  assets. Standalone host bindings, runtime asset selection and the benchmark
+  entry point remain open.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
@@ -2549,6 +2550,37 @@ complete while any runtime component delegates production behaviour to Python.
   bindings and remaining parity audits stay open. Formal simplification and
   performance passes remain at 0/3 each; final test conversion is pending.
 
+- `te-package --experiments --container-helpers PATH` builds a native experiment
+  runtime payload from five host executables, static Linux arm64 and amd64 helpers,
+  the captured Codex base prompt and the WebBench Node preload. Prompt and preload
+  bytes are embedded in the packager. The mode reads its explicit binary/helper
+  inputs and requires no upstream checkout at runtime. It snapshots all payload
+  inputs before creating a fresh output directory, validates Linux architecture,
+  ELF linkage, manifest and dependency hashes, and matching third-party notices.
+  The manifest records every payload file's SHA-256. Optional ZIP output reuses
+  native archive generation and preserves executable permissions.
+  Dedicated validation passes 103 checks with an empty PATH: asset byte equality,
+  manifest hashes, ZIP contents, relocation, native JSON-lines services, default
+  helper discovery inside the relocated bundle, CLI and merge execution, invalid
+  helper rejection, existing-output preservation and input/output overlap guards.
+  The default output is `dist/experiments` under the caller's working directory.
+  ZIP names append `.zip`, including when the output directory has a suffix.
+  Both Linux helpers rebuild with the embedded licence and assets in their minimal
+  Docker context and pass all 18 scratch-container checks. Existing marketplace
+  and Droid packaging, ZIP permissions, host launchers, relocation and output
+  guards pass their regression probe.
+  The full unchanged upstream suite passes with 1,561 passed and 30 skipped
+  (74.84 seconds), including installed-opencode tests using the loopback model
+  fixture. Its call record remains `validation/experiment-task-calls.json`.
+  All 24 Rust checks, debug/release builds, Clippy, formatting and the 256-file
+  reference check pass. IDE inspections remain unavailable because this checkout
+  is not open in the IDE. Windows bundle execution and live agents remain
+  unverified.
+  The bundle README describes its current scope. Standalone experiment host
+  bindings, runtime asset selection, the benchmark entry point and remaining
+  parity audits stay open. Formal simplification and performance passes remain
+  at 0/3 each; final test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2724,6 +2756,7 @@ jbang validation/GeneratorProbe.java
 jbang validation/HookProbe.java
 jbang validation/NativeHookProbe.java
 jbang validation/PackageProbe.java
+jbang validation/ExperimentBundleProbe.java
 jbang validation/HermesGatewayProbe.java
 jbang validation/PiSdkProbe.java
 jbang validation/OpencodeSdkProbe.java

@@ -28,7 +28,7 @@ pub(super) fn root(path: Option<&str>) -> Result<PathBuf> {
         None => std::env::current_exe()?.with_file_name("container-helpers"),
     })
 }
-fn artifact(root: &Path, architecture: &str) -> Result<PathBuf> {
+pub(in crate::experiments) fn artifact(root: &Path, architecture: &str) -> Result<PathBuf> {
     let (architecture, machine) = match architecture {
         "x86_64" | "amd64" => ("amd64", 62u16),
         "aarch64" | "arm64" => ("arm64", 183u16),

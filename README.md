@@ -50,7 +50,8 @@ target/release/te-package --out dist/marketplace --zip
 target/release/te-package --droid --out dist/droid
 ```
 
-The bundler reads the pinned host assets from `reference/upstream` and copies
+The marketplace bundler reads the pinned host assets from `reference/upstream`
+and copies
 `te`, `te-hook` and `te-repomap-gen` from beside itself. `--binaries` selects another
 binary directory. The resulting plugin directory can move independently of this
 checkout and carries no Python core package or bootstrap.
@@ -104,13 +105,30 @@ checksums, compiler details and third-party notices land under
 selects the container architecture, validates the manifest hash and static ELF,
 copies the helper and registers its hook after scaffold setup. Registration
 preserves existing hooks and verifies an actual refusal before reporting success.
-The validation binding supplies this build directory; experiment packaging still
-needs to ship it. Scaffold merges invoke this helper too; SWE-bench deploys it
+The validation binding supplies this build directory. The experiment runtime
+bundle ships the same helper layout beside its executables. Scaffold merges
+invoke this helper too; SWE-bench deploys it
 when a merge needs it, and WebBench uses the host binary beside the experiment
 executable. WebBench guards use a per-task executable `net_guard.py` launcher
 that calls the native helper. The filename preserves the existing hook contract;
 the launcher needs a POSIX shell and the native helper beside the experiment
 executable. Verification executes that launcher and removes its probe telemetry.
+
+Package the experiment runtime engine and assets:
+
+```sh
+jbang scripts/BuildContainerHelpers.java
+cargo build --release --locked
+target/release/te-package --experiments --container-helpers target/container-helpers \
+  --out dist/experiments --zip
+```
+
+This mode embeds the pinned Codex prompt, WebBench Node preload, licence and
+notices. It copies five native executables and both static Linux helpers, records
+file hashes and preserves executable permissions. It requires a fresh output
+directory. Standalone experiment host bindings, runtime asset selection and a
+benchmark command remain pending; this bundle supplies their engine and assets.
+
 SWE-bench controller selection, constructor parameters, continuation dispatch and
 telemetry fields run in Rust for all three agents. SDK bindings retain controller,
 callback and telemetry objects across the native calls.

@@ -14,7 +14,17 @@ use zip::{CompressionMethod, DateTime as ZipTime, ZipWriter, write::SimpleFileOp
 pub mod cli;
 
 pub type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
-const NOTICES: &str = include_str!("package/THIRD-PARTY-NOTICES.txt");
+pub(crate) const NOTICES: &str = include_str!("package/THIRD-PARTY-NOTICES.txt");
+
+pub(crate) fn validate_notices() -> Result<()> {
+    let hash = format!("{:x}", Sha256::digest(include_bytes!("../Cargo.lock")));
+    if !NOTICES.contains(&format!("\nCargo.lock SHA-256: {hash}\n")) {
+        return Err(
+            "third-party notices are stale; run jbang scripts/ThirdPartyNotices.java".into(),
+        );
+    }
+    Ok(())
+}
 
 fn ignored(name: &str, droid: bool) -> bool {
     matches!(name, "__pycache__" | ".pytest_cache" | ".DS_Store" | "lib")
@@ -110,12 +120,7 @@ pub fn build(source: &Path, binaries: Option<&Path>, out: &Path, droid: bool) ->
         return Err("missing plugin source payload".into());
     }
     let suffix = if let Some(binaries) = binaries {
-        let hash = format!("{:x}", Sha256::digest(include_bytes!("../Cargo.lock")));
-        if !NOTICES.contains(&format!("\nCargo.lock SHA-256: {hash}\n")) {
-            return Err(
-                "third-party notices are stale; run jbang scripts/ThirdPartyNotices.java".into(),
-            );
-        }
+        validate_notices()?;
         let binaries = fs::canonicalize(binaries)?;
         if binaries.starts_with(&plugin) {
             return Err("bundle output contains its binary inputs".into());
@@ -306,7 +311,7 @@ pub fn archive(plugin: &Path) -> Result<PathBuf> {
     Ok(path)
 }
 
-fn archive_tree(zip: &mut ZipWriter<File>, root: &Path, path: &Path) -> Result<()> {
+pub(crate) fn archive_tree(zip: &mut ZipWriter<File>, root: &Path, path: &Path) -> Result<()> {
     let name = path
         .strip_prefix(root)?
         .to_str()
