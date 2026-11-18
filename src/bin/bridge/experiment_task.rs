@@ -1,7 +1,9 @@
 use super::job::{self, Channel};
 use serde_json::{Value, json};
 use std::path::Path;
-use tokeneconomizer::experiments::swebench::{self, Failure, Runtime, Task, grading, official};
+use tokeneconomizer::experiments::swebench::{
+    self, Failure, Runtime, Task, grading, official, settings,
+};
 
 struct Transport(Channel);
 impl Runtime for Transport {
@@ -38,13 +40,23 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
     }
     if matches!(
         method,
-        "run_task" | "grade" | "eval_exec_failed" | "grader.eval_script" | "grader.score"
+        "run_task"
+            | "grade"
+            | "eval_exec_failed"
+            | "grader.eval_script"
+            | "grader.score"
+            | "write_run_config"
+            | "patch_excludes"
     ) {
         let args = args.clone();
         let method = method.to_owned();
         return job::start("swebench_task", move |channel| {
             let mut runtime = Transport(channel);
             let result = match method.as_str() {
+                "patch_excludes" => settings::patch_excludes(&mut runtime),
+                "write_run_config" => serde_json::from_value::<settings::RunConfig>(args)
+                    .map_err(|e| Failure::new("ValueError", e.to_string()))
+                    .and_then(|input| settings::write_run_config(&input, &mut runtime)),
                 "grader.eval_script" => official::eval_script(&args["instance_id"], &mut runtime),
                 "grader.score" => official::score(
                     &args["instance_id"],
@@ -67,6 +79,25 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
         .map(Some);
     }
     Ok(Some(match method {
+        "env_activation_enabled" => json!(settings::env_activation_enabled(
+            args["env"].as_object().ok_or("expected environment")?
+        )),
+        "network_tool_block" => json!(settings::network_tool_block(
+            args["env"].as_object().ok_or("expected environment")?
+        )),
+        "_cpu_limit_args" => {
+            settings::cpu_limit_args(args["env"].as_object().ok_or("expected environment")?)
+                .map(|args| json!(args))
+                .unwrap_or_else(failure)
+        }
+        "choose_project_env" => {
+            settings::choose_project_env(&args["env_bins"]).unwrap_or_else(failure)
+        }
+        "activation_env" => settings::activation_env(&args["env_bin"], &args["container_path"])
+            .unwrap_or_else(failure),
+        "image_for" => settings::image_for(&args["instance_id"])
+            .map(|image| json!(image))
+            .unwrap_or_else(failure),
         "default_grading_path" => {
             official::default_grading_path(args["env"].as_object().ok_or("expected environment")?)
                 .map(|path| json!(path))

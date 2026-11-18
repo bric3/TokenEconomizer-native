@@ -70,5 +70,8 @@ The shared SWE-bench task lifecycle and grading flow also run in Rust, with host
 callbacks for container commands, scaffolds, streams and the external grader.
 The grader wrapper loads and normalises tables, builds predictions and selects
 reports in Rust. Its Python binding imports and calls the official SWE-bench SDK.
+SWE-bench run configuration, CPU and thread limits, environment helpers and scaffold
+patch exclusions also run in Rust. Both benchmark harnesses use the native network
+tool block.
 
 Installed host verification and the remaining migration gates are still in progress.

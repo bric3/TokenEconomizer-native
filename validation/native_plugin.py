@@ -49,6 +49,7 @@ NATIVE_HOOK_HOSTS = {}
 NATIVE_PROBE_GIT_ENV = {}
 ORIGINAL_SUBPROCESS_RUN = subprocess.run
 ORIGINAL_SOURCE_EXEC_MODULE = SourceFileLoader.exec_module
+EXPERIMENT_HARNESS_REPLACEMENTS = {}
 
 
 def native_cli_process(*args, **kwargs):
@@ -113,6 +114,20 @@ def native_package_module(loader, module):
             "source": module.REPO, "out": str(out), "droid": True})
     elif str(loader.path) == str(ROOT / "reference/upstream/plugin/hermes/__init__.py"):
         install_hermes_gateway(module)
+    elif module.__name__ == "te_harness.swebench":
+        install_experiment_harness()
+    elif module.__name__ == "te_harness.webbench":
+        from native_experiment_task import install_network
+        install_experiment_harness().update(install_network(module))
+
+
+def install_experiment_harness():
+    if not EXPERIMENT_HARNESS_REPLACEMENTS:
+        from native_experiment_task import install
+        EXPERIMENT_HARNESS_REPLACEMENTS.update(install())
+        from native_experiment_usage import install
+        EXPERIMENT_HARNESS_REPLACEMENTS.update(install())
+    return EXPERIMENT_HARNESS_REPLACEMENTS
 
 
 def install_hermes_gateway(module):
@@ -2929,11 +2944,7 @@ def install_opencode_sdk(module):
 
 def pytest_collection_modifyitems(items):
     if "te_harness.swebench" in sys.modules:
-        from native_experiment_task import install
-        install()
-    if "te_harness.swebench" in sys.modules:
-        from native_experiment_usage import install
-        replacements = install()
+        replacements = install_experiment_harness()
         for module in list(sys.modules.values()):
             if module:
                 for name, value in list(vars(module).items()):

@@ -16,6 +16,7 @@ use crate::value::python_repr;
 
 pub mod grading;
 pub mod official;
+pub mod settings;
 #[cfg(test)]
 mod tests;
 

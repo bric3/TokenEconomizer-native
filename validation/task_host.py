@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "reference/upstream"), str(ROOT / "reference/upstream/experiments")]
-from te_harness import swebench as sw
+from te_harness import swebench as sw, webbench as wb
 
 if "--native" in sys.argv:
     from native_experiment_task import install
@@ -24,7 +24,8 @@ def data(value):
     if isinstance(value, (list,tuple)): return [data(item) for item in value]
     if isinstance(value, float) and value.is_integer(): return int(value)
     if callable(value): return "callable"
-    return value
+    if value is None or isinstance(value,(str,int,float,bool)): return value
+    return str(value)
 
 
 class TransientFailure(RuntimeError):
@@ -36,6 +37,10 @@ class EvalTimeout(subprocess.TimeoutExpired):
 ShadowRuntimeError = type("RuntimeError", (Exception,), {})
 ShadowTimeoutExpired = type("TimeoutExpired", (Exception,), {})
 
+class StableValue:
+    def __bool__(self): return False
+    def __str__(self): return "fixture value é😀"
+
 
 for line in sys.stdin:
     request = json.loads(line)
@@ -45,6 +50,7 @@ for line in sys.stdin:
     original_time, original_log, previous_cwd = sw.time.time, sw._log, os.getcwd()
     original_import = sw._import_swebench
     grading_env = {key:os.environ.get(key) for key in ("TE_SWEBENCH_GRADING","DATA","TE_SWEBENCH_REPO")}
+    settings_env = {key:os.environ.get(key) for key in ("TE_ENV_ACTIVATION","TE_ALLOW_NETWORK_TOOLS","TE_SWEBENCH_MAX_CPUS")}
     saved_env = os.environ.get("TE_MAX_TURNS")
     def record(method, args=()):
         calls.append({"method":method,"args":data(args)})
@@ -146,13 +152,69 @@ for line in sys.stdin:
         def _grade(self,*args):
             record("_grade",args)
             return sw.ClaudeSwebenchRunner._grade(self,*args)
+    class ConfigRunner(Runner):
+        def __init__(self):
+            self._record_config = False
+            super().__init__()
+            for key,value in request.get("metadata",{}).items(): setattr(self,key,value)
+            self.agent_bin = Path("/fixture/agent é😀")
+            self.routing_base = "https://fixture.invalid"
+            self.optimizer_model = "fixture-optimizer"
+            if "optimizer_transport" in request: self.optimizer_transport = request["optimizer_transport"]
+            self.protected_tools = frozenset(request.get("protected",["Bash","Edit","Write","Read"]))
+            self.task_timeout,self.eval_timeout = request.get("task_timeout",1800),request.get("eval_timeout",900)
+            self.grader = types.SimpleNamespace(path=Path("fixture-grading.json"))
+            self.scaffold_profile = types.SimpleNamespace(patch_excludes=request.get("profile_excludes",["CLAUDE.md"]))
+            if self.scaffold is not None:
+                class Scaffold:
+                    name = "fixture-scaffold"
+                    patch_excludes = request.get("scaffold_excludes",["fixture.txt","CLAUDE.md"])
+                    def __bool__(self): return not request.get("falsey_scaffold",False)
+                self.scaffold = Scaffold()
+        def __getattribute__(self,name):
+            if name in ("agent","model","effort","cli_version","agent_bin","routing_base","optimizer_model","optimizer_transport","protected_tools","scaffold","scaffold_profile","task_timeout","eval_timeout","grader") and object.__getattribute__(self,"_record_config"):
+                record("attr:"+name)
+            return super().__getattribute__(name)
+        def _write_run_config(self,path,task,arm,injected,excluded,turns,kwargs,guard):
+            record("_write_run_config",[path,task,arm,injected,excluded,turns,kwargs,guard is not None])
+            self._record_config = True
+            try: return sw.ClaudeSwebenchRunner._write_run_config(self,path,task,arm,injected,excluded,turns,kwargs,guard)
+            finally: self._record_config = False
+        def _patch_excludes(self):
+            record("_patch_excludes")
+            return sw.ClaudeSwebenchRunner._patch_excludes(self)
     try:
         sw.time.time, sw._log = clock, logs.append
         if "max_turns_env" in request: os.environ["TE_MAX_TURNS"] = request["max_turns_env"]
         if "cwd" in request: os.chdir(request["cwd"])
         with contextlib.redirect_stdout(stdout):
             kind = request.get("kind","task")
-            if kind in ("official","grading_setting"):
+            if kind in ("runner_setting","run_config","configured_task"):
+                for key in settings_env:
+                    if key in request.get("env",{}): os.environ[key] = request["env"][key]
+                    else: os.environ.pop(key,None)
+                if kind == "runner_setting":
+                    module = wb if request.get("domain") == "webbench" else sw
+                    value = getattr(module,request["method"])(**request.get("arguments",{}))
+                else:
+                    root = Path(request["root"])
+                    if not request.get("missing_run_dir"): root.mkdir(parents=True,exist_ok=True)
+                    if request.get("config_is_directory"): (root/"run_config.json").mkdir()
+                    if request.get("local_cwd"): os.chdir(root)
+                    run_dir = os.path.relpath(root) if request.get("run_dir_relative") else str(root)
+                    if "run_dir" in request: run_dir = request["run_dir"]
+                    task = request.get("task",{"instance_id":"acme__widget-1","repo":"acme/widget","problem_statement":"Fix this task"})
+                    kwargs = dict(request.get("kwargs",{}))
+                    for key in request.get("object_kwargs",[]): kwargs[key] = StableValue()
+                    runner = ConfigRunner()
+                    if kind == "configured_task":
+                        value = runner.run_task(task,arm="trimech",injected=request.get("injected"),exclude_tools=request.get("excluded"),run_dir_path=run_dir,**kwargs)
+                    else:
+                        guard = Guard() if request.get("guard") else None
+                        if guard is not None:
+                            for key,value in request.get("guard_attributes",{}).items(): setattr(guard,key,value)
+                        value = runner._write_run_config(run_dir,task,"trimech",request.get("injected"),request.get("excluded"),request.get("max_turns",80),kwargs,guard)
+            elif kind in ("official","grading_setting"):
                 root = Path(request["root"])
                 root.mkdir(parents=True,exist_ok=True)
                 for key in grading_env:
@@ -241,6 +303,9 @@ for line in sys.stdin:
         sw.time.time, sw._log = original_time, original_log
         sw._import_swebench = original_import
         for key,value in grading_env.items():
+            if value is None: os.environ.pop(key,None)
+            else: os.environ[key] = value
+        for key,value in settings_env.items():
             if value is None: os.environ.pop(key,None)
             else: os.environ[key] = value
         os.chdir(previous_cwd)

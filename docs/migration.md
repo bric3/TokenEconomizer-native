@@ -386,6 +386,10 @@ complete while any runtime component delegates production behaviour to Python.
   grading rows, builds predictions and selects instance reports in Rust. Its host
   binding imports and calls the external SWE-bench SDK and retains opaque test
   specifications across callbacks.
+- SWE-bench runner provenance is native, including the applied tool mask, manual
+  fingerprint, CPU quota and thread caps, spiral parameters and scaffold paths.
+  Project environment selection and activation variables also run in Rust.
+  SWE-bench and Web-Bench share the native network-tool policy.
 
 ## Remaining production work
 
@@ -401,6 +405,7 @@ complete while any runtime component delegates production behaviour to Python.
   Include dataset IDs outside the documented string schemas and exact JSON error
   diagnostics in that audit.
   Include grading-table string keys and JSON error wording and positions.
+  Include non-string protected tool names and scaffold paths in the schema audit.
   Include malformed judge/writer token totals and partial threshold dictionaries
   in the exception-diagnostics audit.
   Configuration numeric coercion still needs Unicode decimal digits and integers
@@ -408,6 +413,7 @@ complete while any runtime component delegates production behaviour to Python.
   errors from repository identity too.
 - Complete named-user and Windows tilde expansion for extra history directories
   in the path parity audit.
+  Include the project environment helpers, which currently use POSIX path rules.
 - Include native OS arguments, environment values and paths outside UTF-8 in
   that audit. The CLI currently rejects them with a diagnostic.
 - Include history, folding, controller, host replay and experiment counters beyond
@@ -432,6 +438,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit configuration reference sharing and mutations made by callbacks in the
   original API alongside the remaining production parity checks.
   Include nested grading-row values passed to SDK callbacks.
+  Include side effects when configuration objects are converted to strings.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
@@ -1169,6 +1176,32 @@ complete while any runtime component delegates production behaviour to Python.
   remain unchanged. The external SDK uses local stand-ins; no live Docker or
   official grading run was performed. No improvement pass is counted.
 
+- SWE-bench settings and provenance match the source in 196 comparisons. They cover
+  CPU quotas and matching thread caps, Unicode decimal digits, large finite
+  limits, infinity errors, environment selection, activation variables, network
+  masks, manual fingerprints and scaffold exclusions. Configuration files match
+  byte for byte, including Unicode and `default=str` values. Metadata reads,
+  default attributes, hook failures, file errors and configuration recording
+  inside task execution preserve the observed call order.
+  The focused original tests pass with 46 passed. Their call record confirms four
+  native environment selections, two activation environments, nine network-block
+  checks and seven container names. The validation import hook installs harness
+  bindings when modules finish importing, so these tests exercise native helpers
+  when they import the harness inside test functions.
+  The full original suite with installed-opencode tests enabled passes with
+  1,561 passed and 30 skipped (67.30 seconds). Its call record,
+  `validation/experiment-task-calls.json`, includes eleven native network-block
+  checks, four environment selections and two activation environments. The
+  configuration writer is exercised by the differential probe; the original
+  configuration test inspects the reference AST.
+  All 20 Rust library checks, the callback replay check, debug/release builds,
+  Clippy, formatting, the 262-case task regression, 92-case grader regression and
+  256-file reference check pass. The grader probe still records three JSON
+  diagnostic differences separately. Original tests remain unchanged. Windows
+  path semantics, non-string tool/path schemas and object-conversion side effects
+  remain in the production-parity audit. No Docker, paid model or live grading
+  calls were run. No improvement pass is counted.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -1295,6 +1328,7 @@ jbang validation/FacadeProbe.java
 jbang validation/UsageProbe.java
 jbang validation/TaskProbe.java
 jbang validation/GraderProbe.java
+jbang validation/SettingsProbe.java
 jbang validation/BridgeProbe.java
 jbang validation/QueueProbe.java
 jbang validation/ContextProbe.java

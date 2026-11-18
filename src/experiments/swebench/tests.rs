@@ -232,3 +232,38 @@ fn grading_instances_decode_test_lists_and_preserve_the_table() {
     assert_eq!(error.kind, "KeyError");
     assert_eq!(error.message, "missing not in grading.json");
 }
+
+#[test]
+fn cpu_quota_and_worker_thread_limits_agree() {
+    let env = json!({"TE_SWEBENCH_MAX_CPUS":"١٢.٩"});
+    assert_eq!(
+        settings::cpu_limit_args(env.as_object().unwrap()).unwrap(),
+        [
+            "--cpus",
+            "12",
+            "-e",
+            "OMP_NUM_THREADS=12",
+            "-e",
+            "MKL_NUM_THREADS=12",
+            "-e",
+            "OPENBLAS_NUM_THREADS=12",
+            "-e",
+            "NUMEXPR_NUM_THREADS=12",
+            "-e",
+            "LOKY_MAX_CPU_COUNT=12",
+        ]
+    );
+    let disabled = json!({"TE_SWEBENCH_MAX_CPUS":"0.9"});
+    assert!(
+        settings::cpu_limit_args(disabled.as_object().unwrap())
+            .unwrap()
+            .is_empty()
+    );
+    let infinite = json!({"TE_SWEBENCH_MAX_CPUS":"inf"});
+    assert_eq!(
+        settings::cpu_limit_args(infinite.as_object().unwrap())
+            .unwrap_err()
+            .kind,
+        "OverflowError"
+    );
+}

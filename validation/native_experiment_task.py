@@ -3,6 +3,8 @@ import dataclasses
 import functools
 import json
 import os
+import inspect
+import sys
 
 from native_plugin import invoke
 from native_experiment_spiral import checked as checked_value
@@ -30,12 +32,28 @@ def data(value):
     return value
 
 
+def install_network(module):
+    original = module.network_tool_block
+    @functools.wraps(original)
+    def native():
+        env = {key:os.environ[key] for key in ("TE_ALLOW_NETWORK_TOOLS",) if key in os.environ}
+        return tuple(checked(invoke("experiment.swebench.network_tool_block",{"env":env})))
+    module.network_tool_block = native
+    return {original:native}
+
+
 def install():
     from te_harness import swebench as module
     cls = module.ClaudeSwebenchRunner
-    def drive(self, result, run_kwargs):
+    replacements = {}
+    def config_value(value, representation):
+        if representation == "bool": return bool(value)
+        if representation == "present": return value is not None
+        if representation == "list": return list(value)
+        # shortcut: object strings are captured per callback; audit conversion side effects before release.
+        return json.loads(json.dumps(value,default=str))
+    def drive(self, result, run_kwargs, guard=None):
         errors = []
-        guard = None
         transcript = None
         spec = None
         while isinstance(result,dict) and "callback" in result:
@@ -54,6 +72,13 @@ def install():
                 elif method == "_guard_continuation": value = self._guard_continuation(guard,*args)
                 elif method == "_guard_row": value = self._guard_row(guard)
                 elif method == "_write_run_config": value = self._write_run_config(*args,run_kwargs,guard)
+                elif method == "config_attr":
+                    owner, name, representation, *default = args
+                    target = self if owner == "runner" else guard if owner == "guard" else getattr(self,owner)
+                    value = config_value(getattr(target,name,*default),representation)
+                elif method == "config_kwarg": value = config_value(run_kwargs.get(args[0]),args[1])
+                elif method == "config_function": value = getattr(module,args[0])(*args[1])
+                elif method == "config_patch_excludes": value = list(self._patch_excludes())
                 elif method == "_record_env_activation":
                     row = args[2]
                     self._record_env_activation(args[0],args[1],row)
@@ -102,6 +127,35 @@ def install():
                         "environment":{key:os.environ[key] for key in ("TE_MAX_TURNS",) if key in os.environ}, "process_cwd":os.getcwd()})
         return drive(self,result,run_kwargs), run_dir_path
     cls.run_task = run_task
+    original_config = cls._write_run_config
+    @functools.wraps(original_config)
+    def write_run_config(self,run_dir_path,task,arm,injected,exclude_tools,max_turns,run_kwargs,guard):
+        result = invoke("experiment.swebench.write_run_config",{"run_dir":os.fspath(run_dir_path),"task":data(task),"arm":arm,
+                        "injected":injected,"exclude_tools":data(exclude_tools),"max_turns":max_turns,"process_cwd":os.getcwd()})
+        return drive(self,result,run_kwargs,guard)
+    cls._write_run_config = write_run_config
+    original_excludes = cls._patch_excludes
+    @functools.wraps(original_excludes)
+    def patch_excludes(self):
+        return tuple(drive(self,invoke("experiment.swebench.patch_excludes",{}),{}))
+    cls._patch_excludes = patch_excludes
+    def helper(original,operation):
+        signature = inspect.signature(original)
+        @functools.wraps(original)
+        def native(*args,**kwargs):
+            bound = signature.bind(*args,**kwargs)
+            bound.apply_defaults()
+            arguments = data(dict(bound.arguments))
+            arguments["env"] = {key:os.environ[key] for key in ("TE_ENV_ACTIVATION","TE_ALLOW_NETWORK_TOOLS","TE_SWEBENCH_MAX_CPUS") if key in os.environ}
+            value = checked(invoke("experiment.swebench."+operation,arguments))
+            return tuple(value) if operation == "network_tool_block" else value
+        replacements[original] = native
+        return native
+    for name in ("env_activation_enabled","network_tool_block","_cpu_limit_args","choose_project_env","activation_env","image_for"):
+        setattr(module,name,helper(getattr(module,name),name))
+    webbench = sys.modules.get("te_harness.webbench")
+    if webbench is not None and hasattr(webbench,"network_tool_block"):
+        replacements.update(install_network(webbench))
     original_grade = cls._grade
     @functools.wraps(original_grade)
     def grade(self, name, instance_id, patch, run_dir_path):
@@ -171,3 +225,4 @@ def install():
                 return checked(invoke("experiment.swebench.row_from_segment", {"agent":domain,"result":result}))
             return native
         klass._row_from_segment = row_method(original_row,agent)
+    return replacements
