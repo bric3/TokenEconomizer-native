@@ -443,6 +443,11 @@ complete while any runtime component delegates production behaviour to Python.
   SDK bindings supply filesystem and process I/O, URI encoding and Python object
   protocols. Native decimal arithmetic preserves arbitrary-size integer results
   without introducing an extra Python integer-to-string digit-limit check.
+- Web-Bench stream start, session ownership checks and session close coordination
+  are native for all three agents. Project selection, directory checks, evaluator
+  arguments and partial state after errors follow the source order. Task lists,
+  sessions, helper references and unchanged project strings retain their references.
+  The evaluator process and its queues still use the source implementation.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -578,7 +583,8 @@ complete while any runtime component delegates production behaviour to Python.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   Global signal cleanup, container guard binary deployment and
   registration, scaffold backends and contexts, agent streaming, and the
-  Web-Bench task lifecycle and wrappers still need conversion. Per-task container
+  Web-Bench evaluator lifecycle, task calls and wrappers still need conversion.
+  Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
   SWE-bench controller construction parameters, continuation and telemetry are
@@ -1720,6 +1726,24 @@ complete while any runtime component delegates production behaviour to Python.
   isolation, Web-Bench task lifecycle, signal cleanup, host bindings and the
   remaining parity audits stay open. Simplification and performance passes
   remain at 0/3 each; final test conversion is pending.
+
+- Web-Bench stream coordination passes 519 source comparisons across the three
+  runner classes. They cover task iteration, project fallback, unchanged project
+  references, real project-directory checks, evaluator arguments, result-root
+  fallback, session ownership, close overrides, exception timing and partial state.
+  Cases also cover callback replacement, arbitrary-size reply-timeout arithmetic,
+  foreign object protocols and adjacent surrogate code points.
+  Evaluator creation uses a recording fixture; no evaluator or paid model runs.
+  The full original suite, with installed-opencode tests enabled, passes with
+  1,561 passed and 30 skipped (70.96 seconds). Its updated call record remains
+  `validation/experiment-task-calls.json`. Original tests do not call the new
+  stream methods; the focused corpus supplies their runtime coverage.
+  The 680-case host-helper and 861-case constructor regressions pass. All 24 Rust
+  checks, debug/release builds, Clippy, formatting and the 256-file reference check
+  pass. IDE inspections remain unavailable because this checkout is not open in
+  the connected IDE. The evaluator lifecycle, task calls, agent streaming, host
+  bindings and remaining parity audits stay open. Original tests remain unchanged;
+  simplification and performance passes remain at 0/3 each.
 
 ## Dependencies
 

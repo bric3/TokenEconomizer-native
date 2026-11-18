@@ -253,6 +253,10 @@ def install(runner_module=None):
                     elif method == "web_stringify": values[parameters[1]] = str(values[parameters[0]])
                     elif method == "web_run": values["completed"] = module.subprocess.run(parameters[0],**parameters[1])
                     elif method == "web_returncode": values["returncode"] = values["completed"].returncode
+                    elif method == "stream_list_function": values["function"] = getattr(module,"list",builtins.list)
+                    elif method == "stream_set": setattr(values["self"],parameters[0],values[parameters[1]])
+                    elif method == "stream_item": values[parameters[2]] = values[parameters[0]][parameters[1]]
+                    elif method == "stream_close_function": values["function"] = values["session"].close
                     elif method == "preflight_format": value = format(values[parameters[0]],parameters[1])
                     elif method == "preflight_log":
                         values["preflight_call_log"](*parameters)
@@ -300,6 +304,11 @@ def install(runner_module=None):
             replacements[original] = function(owner,original,"claude",operation)
             owner.make_runner = replacements[original]
         if domain == "webbench":
+            for name in ("begin_stream","end_stream","session_for","close_session"):
+                original = getattr(owner.WebBenchRunner,name)
+                if getattr(original,"_te_provider_operation",None) == ("webbench",name): continue
+                replacements[original] = function(owner,original,"webbench",name)
+                setattr(owner.WebBenchRunner,name,replacements[original])
             for name in ("webbench_repo","node_bin","webbench_undici_abort","webbench_task_timeout","webbench_undici_env"):
                 original = getattr(owner,name)
                 if getattr(original,"_te_provider_operation",None) == ("webbench",name): continue

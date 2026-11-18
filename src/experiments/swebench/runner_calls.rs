@@ -6,13 +6,13 @@ use super::{
 use crate::{python_json::Text, value::truthy};
 use serde_json::{Value, json};
 
-fn function(rt: &mut dyn Runtime, name: &str) -> Result<()> {
+pub(super) fn function(rt: &mut dyn Runtime, name: &str) -> Result<()> {
     rt.call("runner_function", json!([name])).map(|_| ())
 }
-fn member(rt: &mut dyn Runtime, name: &str, target: &str) -> Result<()> {
+pub(super) fn member(rt: &mut dyn Runtime, name: &str, target: &str) -> Result<()> {
     rt.call("runner_member", json!([name, target])).map(|_| ())
 }
-fn invoke(rt: &mut dyn Runtime, args: &[&str], kwargs: &[(&str, &str)]) -> Result<()> {
+pub(super) fn invoke(rt: &mut dyn Runtime, args: &[&str], kwargs: &[(&str, &str)]) -> Result<()> {
     rt.call("runner_invoke", json!([args, kwargs])).map(|_| ())
 }
 fn label(rt: &mut dyn Runtime, labels: &[&str]) -> Result<bool> {

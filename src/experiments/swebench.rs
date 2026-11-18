@@ -34,6 +34,7 @@ pub mod setup;
 #[cfg(test)]
 mod tests;
 pub mod web_host;
+pub mod web_stream;
 pub mod wrappers;
 
 pub const TASK_TEMPLATE: &str = include_str!("swebench/task-prompt.txt");
