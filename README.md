@@ -105,8 +105,9 @@ selects the container architecture, validates the manifest hash and static ELF,
 copies the helper and registers its hook after scaffold setup. Registration
 preserves existing hooks and verifies an actual refusal before reporting success.
 The validation binding supplies this build directory; experiment packaging still
-needs to ship it. Scaffold merges and WebBench guard installation still select
-their Python paths.
+needs to ship it. Scaffold merges invoke this helper too; SWE-bench deploys it
+when a merge needs it, and WebBench uses the host binary beside the experiment
+executable. WebBench guard installation still selects its Python command.
 SWE-bench controller selection, constructor parameters, continuation dispatch and
 telemetry fields run in Rust for all three agents. SDK bindings retain controller,
 callback and telemetry objects across the native calls.
@@ -157,8 +158,9 @@ additions, and Copilot configuration-refusal detection also run in Rust.
 Web-Bench scaffold profiles, context construction, retained execution and copy
 callbacks, setup coordination and answer exclusions also run in Rust. Scaffold
 profile and context constructors, instructions, MCP configuration and merge-helper
-staging use native policy too. The generated merge program still uses Python;
-native container-helper deployment remains open. Scaffold registry lookup,
+staging use native policy too. Merges stage a shell invocation with a quoted JSON
+payload and execute the native helper. Experiment helper packaging remains open.
+Scaffold registry lookup,
 repo-map identifier selection, archive filtering, generator orchestration and
 cleanup also use native policy. SDK bindings supply archive extraction, Unicode
 properties, process I/O and the generator command until native experiment packaging

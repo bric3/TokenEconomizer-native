@@ -10,7 +10,7 @@ import sys
 from decimal import Decimal
 from types import FunctionType
 
-from native_plugin import invoke
+from native_plugin import ROOT, invoke
 from native_cleanup_transport import isolated_invoke
 from native_experiment_task import checked, data
 
@@ -294,6 +294,14 @@ def install(runner_module=None,scaffold_module=None):
                     elif method == "web_returncode": values["returncode"] = values["completed"].returncode
                     elif method == "stream_list_function": values["function"] = getattr(module,"list",builtins.list)
                     elif method == "stream_set": setattr(values["self"],parameters[0],values[parameters[1]])
+                    elif method == "scaffold_setattr": setattr(values[parameters[0]],parameters[1],values[parameters[2]])
+                    elif method == "container_helper_root": value = str(ROOT/"target/container-helpers")
+                    elif method == "_exec":
+                        completed=values["self"]._exec(parameters[0],parameters[1],**parameters[2])
+                        value={key:getattr(completed,key) for key in ("returncode","stdout","stderr")}
+                    elif method == "container_run":
+                        completed=module._run(parameters[0],timeout=parameters[1])
+                        value={key:getattr(completed,key) for key in ("returncode","stdout","stderr")}
                     elif method == "stream_item": values[parameters[2]] = values[parameters[0]][parameters[1]]
                     elif method == "scaffold_item": values[parameters[2]] = values[parameters[0]][values[parameters[1]]]
                     elif method == "scaffold_pair": values[parameters[1]],values[parameters[2]] = values[parameters[0]]
@@ -378,8 +386,10 @@ def install(runner_module=None,scaffold_module=None):
                             callback.__doc__ = next(item.co_consts[0] for item in original.__code__.co_consts if getattr(item,"co_name",None) == "read_bytes")
                         elif kind == "logger":
                             def callback(msg): pass
+                        elif kind == "merge_helper":
+                            def callback(): pass
                         else: raise AssertionError("unknown closure signature: "+kind)
-                        callback.__name__ = {"mcp":"<lambda>","host":"_host","exec":"exec_","place":"_place","copy":"copy_in","container_copy":"copy_in","container_read":"read_bytes","logger":"<lambda>"}[kind]
+                        callback.__name__ = {"mcp":"<lambda>","host":"_host","exec":"exec_","place":"_place","copy":"copy_in","container_copy":"copy_in","container_read":"read_bytes","logger":"<lambda>","merge_helper":"merge_helper"}[kind]
                         callback.__qualname__ = original.__qualname__+".<locals>."+callback.__name__
                         callback.__module__ = module.__name__
                         # Scaffolds can retain callbacks after the creating method returns.

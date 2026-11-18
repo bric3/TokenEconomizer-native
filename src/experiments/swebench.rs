@@ -19,6 +19,7 @@ pub mod cleanup;
 pub mod codex_config;
 pub mod codex_install;
 pub mod codex_trace;
+mod container_helper;
 pub mod containers;
 pub mod controls;
 pub mod copilot_install;

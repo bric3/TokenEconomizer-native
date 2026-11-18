@@ -1,3 +1,4 @@
+use super::container_helper::quote;
 use super::{
     Failure, Result, Runtime,
     codex_config::{integer, sequence},
@@ -59,18 +60,6 @@ fn sliced_message(value: &Value, n: usize) -> Result<String> {
             "TypeError",
             format!("'{}' object is not subscriptable", python_type(value)),
         )),
-    }
-}
-fn quote(text: &str) -> String {
-    if text.is_empty() {
-        "''".into()
-    } else if text
-        .bytes()
-        .all(|c| c.is_ascii_alphanumeric() || b"_@%+=:,./-".contains(&c))
-    {
-        text.into()
-    } else {
-        format!("'{}'", text.replace('\'', "'\"'\"'"))
     }
 }
 fn exec(rt: &mut dyn Runtime, name: &Value, script: String) -> Result<Value> {

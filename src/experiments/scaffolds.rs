@@ -247,20 +247,46 @@ fn mcp(rt: &mut dyn Runtime) -> Result<Value> {
     })
 }
 
-// shortcut: the generated program uses Python until native container helpers are deployed.
-const MERGE_BODY: &str = "os.makedirs(os.path.dirname(p), exist_ok=True)\ntry:\n    cur = json.load(open(p))\nexcept Exception:\n    cur = {}\nfor k, v in patch.items():\n    if isinstance(v, dict) and isinstance(cur.get(k), dict):\n        cur[k].update(v)\n    else:\n        cur[k] = v\njson.dump(cur, open(p, 'w'), indent=2)\nprint('merged')\n";
-
 fn merge(rt: &mut dyn Runtime) -> Result<Value> {
-    let mut program = Text::from("import json, os, sys\np = ");
-    program.0.extend(formatted(rt, "path", "!r")?.0);
-    push(&mut program, "\npatch = json.loads(");
-    function(rt, "json.dumps")?;
-    copy(rt, "dumps", "function")?;
     apply(rt, "json.dumps", &["patch"], "encoded")?;
-    call(rt, "dumps", &["encoded"], "encoded")?;
+    let helper = (|| -> Result<()> {
+        builtin(rt, "getattr")?;
+        literal(rt, "helper_attribute", json!("_native_merge_helper"))?;
+        literal(rt, "none", Value::Null)?;
+        invoke(rt, &["self", "helper_attribute", "none"], &[])?;
+        copy(rt, "resolver", "called")?;
+        if truthy(&rt.call("provider_is_none", json!(["resolver"]))?) {
+            let path = std::env::current_exe()?
+                .with_file_name(format!("te-net-guard{}", std::env::consts::EXE_SUFFIX));
+            literal(rt, "helper", json!(path))?;
+        } else {
+            call(rt, "resolver", &[], "helper")?;
+        }
+        Ok(())
+    })();
+    if let Err(error) = helper {
+        if !truthy(&rt.call("exception_matches", json!([error, ["Exception"]]))?) {
+            return Err(error);
+        }
+        let mut message = Text::from("scaffold merge helper staging FAILED: ");
+        message
+            .0
+            .extend(code_points(rt.call("logger_error_format", json!([error]))?)?.0);
+        text(rt, "message", message)?;
+        member(rt, "log", "function")?;
+        invoke(rt, &["message"], &[])?;
+        return Ok(json!(false));
+    }
+    apply(rt, "shlex.quote", &["helper"], "quoted_helper")?;
+    apply(rt, "shlex.quote", &["path"], "quoted_path")?;
+    let mut program = Text::from("exec ");
+    program.0.extend(formatted(rt, "quoted_helper", "")?.0);
+    push(&mut program, " --merge-json ");
+    program.0.extend(formatted(rt, "quoted_path", "")?.0);
+    // JSON encoding escapes line breaks, so patch data cannot close the quoted here-document.
+    push(&mut program, " /dev/stdin <<'TE_SCAFFOLD_PATCH'\n");
     program.0.extend(formatted(rt, "encoded", "")?.0);
-    push(&mut program, ")\n");
-    push(&mut program, MERGE_BODY);
+    push(&mut program, "\nTE_SCAFFOLD_PATCH\n");
     text(rt, "text", program)?;
     function(rt, "hashlib.sha1")?;
     copy(rt, "sha1", "function")?;
@@ -278,23 +304,24 @@ fn merge(rt: &mut dyn Runtime) -> Result<Value> {
     rt.call("logger_slice", json!(["hexdigest", null, 12, "stamp"]))?;
     let mut remote = Text::from("/tmp/_scaffold_merge_");
     remote.0.extend(formatted(rt, "stamp", "")?.0);
-    push(&mut remote, ".py");
+    push(&mut remote, ".sh");
     text(rt, "remote", remote)?;
     function(rt, "os.path.join")?;
     copy(rt, "join", "function")?;
     member(rt, "run_dir", "run_dir")?;
     let mut filename = Text::from("_scaffold_merge_");
     filename.0.extend(formatted(rt, "stamp", "")?.0);
-    push(&mut filename, ".py");
+    push(&mut filename, ".sh");
     text(rt, "filename", filename)?;
     call(rt, "join", &["run_dir", "filename"], "tmp")?;
     write(rt, false)?;
     copy_tmp(rt, "remote")?;
     member(rt, "exec_", "exec")?;
-    let mut command = Text::from("python3 ");
-    command.0.extend(formatted(rt, "remote", "")?.0);
+    apply(rt, "shlex.quote", &["remote"], "quoted_remote")?;
+    let mut command = Text::from("bash ");
+    command.0.extend(formatted(rt, "quoted_remote", "")?.0);
     push(&mut command, "; rm -f ");
-    command.0.extend(formatted(rt, "remote", "")?.0);
+    command.0.extend(formatted(rt, "quoted_remote", "")?.0);
     text(rt, "command", command)?;
     literal(rt, "timeout", json!(60))?;
     copy(rt, "function", "exec")?;

@@ -77,7 +77,44 @@ fn context(rt: &mut dyn Runtime) -> Result<Value> {
             ("log", "log"),
         ],
     )?;
-    Ok(returned("called"))
+    copy(rt, "context", "called")?;
+    rt.call(
+        "eval_closure",
+        json!([
+            "merge_helper",
+            "merge_helper",
+            "scaffold_helper",
+            [["self", "self"], ["name", "name"], ["profile", "profile"]],
+            "swebench"
+        ]),
+    )?;
+    rt.call(
+        "scaffold_setattr",
+        json!(["context", "_native_merge_helper", "merge_helper"]),
+    )?;
+    Ok(returned("context"))
+}
+fn helper(rt: &mut dyn Runtime) -> Result<Value> {
+    attr(rt, "profile", "home", "home")?;
+    let home = rt.call("provider_data", json!(["home"]))?;
+    let name = rt.call("provider_data", json!(["name"]))?;
+    let root = rt.call("container_helper_root", json!([]))?;
+    let root = super::container_helper::root(root.as_str())?;
+    let path = super::container_helper::copy(
+        &root,
+        home.as_str()
+            .ok_or_else(|| Failure::new("TypeError", "agent home must be text"))?,
+        &name,
+        rt,
+    )?;
+    let chmod = rt.call("_exec", json!([name, format!("chmod 755 {}", super::container_helper::quote(&path)), {"timeout":60}]))?;
+    if chmod["returncode"] != 0 {
+        return Err(Failure::new(
+            "RuntimeError",
+            "could not make the scaffold merge helper executable",
+        ));
+    }
+    Ok(json!(path))
 }
 fn exec(rt: &mut dyn Runtime) -> Result<Value> {
     literal(rt, "cmd", json!(["docker", "exec", "-w", "/testbed"]))?;
@@ -177,6 +214,7 @@ fn read(rt: &mut dyn Runtime) -> Result<Value> {
 pub fn dispatch(operation: &str, rt: &mut dyn Runtime) -> Result<Value> {
     match operation {
         "context" => context(rt),
+        "helper" => helper(rt),
         "exec" => exec(rt),
         "copy" => copy_in(rt),
         "read" => read(rt),

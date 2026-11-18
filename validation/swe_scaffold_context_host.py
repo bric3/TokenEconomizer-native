@@ -34,7 +34,7 @@ for line in sys.stdin:
         def __str__(self): record("error.str");return "SWE scaffold context failure é😀"
     def encode(value):
         if isinstance(value,Token): return {"ref":value.name}
-        if isinstance(value,Context): return {key:encode(item) for key,item in vars(value).items()}
+        if isinstance(value,Context): return {key:encode(item) for key,item in vars(value).items() if key != "_native_merge_helper"}
         if isinstance(value,bytes): return {"bytes":list(value)}
         if isinstance(value,dict): return {key:encode(item) for key,item in dict.items(value)}
         if isinstance(value,(list,tuple)): return [encode(item) for item in value]

@@ -577,8 +577,9 @@ complete while any runtime component delegates production behaviour to Python.
 - Shared scaffold profile and context constructors, read/log callbacks, instruction
   writes, MCP configuration and merge-helper staging use native policy. SDK bindings
   retain raw objects, file contexts, JSON encoding and process I/O. The staged merge
-  program still uses Python; native container-helper deployment remains a production
-  gate.
+  invocation calls the native helper with a quoted JSON payload. SWE-bench deploys
+  the architecture-matched helper lazily; WebBench uses the host helper beside the
+  executable. Experiment helper packaging remains a production gate.
 - Serena installation policy, version reporting, MCP server configuration, Codex
   server handoff and navigation instructions use native policy. SDK bindings
   retain callback results, server references and file I/O. The install command
@@ -677,6 +678,8 @@ complete while any runtime component delegates production behaviour to Python.
   Include the Hermes redirect helper's raw JSON validation in that audit.
   Include the native scaffold merge command's invalid-UTF-8 diagnostics, deeply
   nested JSON and filesystem error details outside its verified file corpus.
+  Include scaffold merge callback failures and path objects outside string paths,
+  including filenames with non-UTF-8 bytes or unpaired surrogate code points.
   Include the guard's numeric spelling, malformed Unicode and non-default stdin
   encodings. Its own input reader preserves Python-style non-finite numbers,
   surrogate code points, surrogate-escaped UTF-8 bytes and integer digit limits.
@@ -735,7 +738,8 @@ complete while any runtime component delegates production behaviour to Python.
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   SWE-bench guard deployment and registration use native helpers. Native
-  merge-helper deployment and WebBench guard command selection still need conversion.
+  scaffold merge helpers are deployed through harness callbacks. WebBench guard
+  command selection still needs conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
@@ -2474,6 +2478,44 @@ complete while any runtime component delegates production behaviour to Python.
   guard command selection and remaining parity audits stay open. Simplification
   and performance passes remain at 0/3 each; final test conversion is pending.
 
+- Shared scaffold merging now stages a shell invocation of the native helper with
+  a quoted JSON payload. The generated Python merge program is removed. The
+  existing unique temporary names and cleanup remain, and shell-sensitive paths,
+  substitutions, backticks, newlines and delimiter text stay data.
+  SWE-bench contexts retain a lazy helper callback. It applies the guard installer's
+  architecture, manifest and ELF checks, copies the helper into the retained agent
+  profile's home and makes it executable. Guard registration still
+  follows scaffold setup. WebBench and standalone contexts use the host helper
+  beside the native executable. Deployment exceptions log a failure and return
+  `false`; cancellation exceptions propagate.
+  Shared scaffold APIs pass 496 source comparisons. Merge staging passes 185
+  file/process comparisons against the source, checking exact bytes and failure
+  effects. These replace the supplemental comparisons of generated Python text;
+  original upstream tests remain unchanged. SWE-bench's retained callbacks pass
+  their 820 source comparisons; the new private helper callback is excluded from
+  that state comparison and exercised by the deployment pipeline.
+  The final pipeline passes 21 checks across three WebBench agents and three
+  SWE-bench agents in a Python-free, network-disabled arm64 container. It covers
+  existing keys, one-level updates, quoted paths and payloads, temporary-file
+  cleanup, guard registration after merging, retained profile state, helper
+  failures and cancellation. Both static Linux helpers rebuild from the final
+  source and pass all 18 scratch-container checks. Guard regressions pass all 59
+  staging checks, 289 source comparisons and two native checks.
+  The unchanged original suite passes with 1,561 passed and 30 skipped
+  (81.16 seconds), including installed-opencode tests using the loopback model
+  fixture. Its call record remains `validation/experiment-task-calls.json`.
+  The private container-helper callback is covered by the dedicated pipeline.
+  All 24 Rust checks, host debug/release builds, Clippy, formatting and the
+  256-file reference check pass. IDE inspections remain unavailable because this
+  checkout is not open in the IDE. Live agent hook dispatch, Windows and normal
+  amd64 task-container staging remain unverified; scratch tests exercise amd64
+  through Docker's cross-architecture execution on the arm64 host.
+  Native helper deployment is shared by scaffold merges and guard installation.
+  This extraction is part of production migration; formal simplification and
+  performance passes remain at 0/3 each. WebBench guard command selection,
+  experiment packaging, standalone host bindings and remaining parity audits
+  stay open. Final test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2612,6 +2654,8 @@ jbang validation/SweScaffoldContextProbe.java
 jbang validation/SweSegmentProbe.java
 jbang validation/SweSegmentProcessProbe.java
 jbang validation/ScaffoldMergeHelperProbe.java
+jbang validation/ScaffoldMergeHelperProbe.java --context
+jbang validation/ScaffoldMergeStagingProbe.java --docker
 jbang scripts/BuildContainerHelpers.java
 jbang validation/ContainerHelperProbe.java
 jbang validation/InvocationProbe.java
