@@ -18,7 +18,11 @@ def install(runner_module=None):
         signature = inspect.signature(original)
         @functools.wraps(original)
         def native(*args,**kwargs):
-            bound = signature.bind(*args,**kwargs)
+            try: bound = signature.bind(*args,**kwargs)
+            except TypeError: bound = None
+            if bound is None:
+                # Python reports argument errors before the original body can run.
+                return original(*args,**kwargs)
             bound.apply_defaults()
             values = dict(bound.arguments)
             deferred_errors = name in ("_log_optimizer_call","_log") or name.startswith("runner_") or agent == "webbench"
@@ -257,6 +261,7 @@ def install(runner_module=None):
                     elif method == "stream_set": setattr(values["self"],parameters[0],values[parameters[1]])
                     elif method == "stream_item": values[parameters[2]] = values[parameters[0]][parameters[1]]
                     elif method == "stream_close_function": values["function"] = values["session"].close
+                    elif method == "session_get_function": values["function"] = values["queue"].get
                     elif method == "preflight_format": value = format(values[parameters[0]],parameters[1])
                     elif method == "preflight_log":
                         values["preflight_call_log"](*parameters)
@@ -304,6 +309,11 @@ def install(runner_module=None):
             replacements[original] = function(owner,original,"claude",operation)
             owner.make_runner = replacements[original]
         if domain == "webbench":
+            for name in ("next_event","next_request"):
+                original = getattr(owner._EvalSession,name)
+                if getattr(original,"_te_provider_operation",None) == ("webbench",name): continue
+                replacements[original] = function(owner,original,"webbench",name)
+                setattr(owner._EvalSession,name,replacements[original])
             for name in ("begin_stream","end_stream","session_for","close_session"):
                 original = getattr(owner.WebBenchRunner,name)
                 if getattr(original,"_te_provider_operation",None) == ("webbench",name): continue

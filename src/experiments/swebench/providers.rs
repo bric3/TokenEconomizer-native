@@ -320,6 +320,9 @@ fn verify(rt: &mut dyn Runtime) -> Result<Value> {
 pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
     let (agent, name) = method.split_once('.').unwrap_or(("", method));
     match name {
+        "next_event" | "next_request" if agent == "webbench" => {
+            super::web_session::poll(name == "next_request", rt)
+        }
         "begin_stream" | "end_stream" | "session_for" | "close_session" if agent == "webbench" => {
             super::web_stream::run(name, rt)
         }

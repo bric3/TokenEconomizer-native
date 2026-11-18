@@ -447,7 +447,12 @@ complete while any runtime component delegates production behaviour to Python.
   are native for all three agents. Project selection, directory checks, evaluator
   arguments and partial state after errors follow the source order. Task lists,
   sessions, helper references and unchanged project strings retain their references.
-  The evaluator process and its queues still use the source implementation.
+  Evaluator startup, stdout parsing and process cleanup still use the source
+  implementation.
+- Web-Bench evaluator event and request waits use native deadlines, five-second
+  polling bounds, empty-queue handling, completion checks and event selection.
+  SDK bindings supply clocks, queue I/O and numeric, mapping and formatting
+  protocols, retaining raw queue results by reference.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -583,7 +588,8 @@ complete while any runtime component delegates production behaviour to Python.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   Global signal cleanup, container guard binary deployment and
   registration, scaffold backends and contexts, agent streaming, and the
-  Web-Bench evaluator lifecycle, task calls and wrappers still need conversion.
+  Web-Bench evaluator startup, stdout parsing, process cleanup, task calls and
+  wrappers still need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
@@ -1744,6 +1750,26 @@ complete while any runtime component delegates production behaviour to Python.
   the connected IDE. The evaluator lifecycle, task calls, agent streaming, host
   bindings and remaining parity audits stay open. Original tests remain unchanged;
   simplification and performance passes remain at 0/3 each.
+
+- Web-Bench evaluator waits pass 272 source comparisons for event and request
+  queues: deadlines, clock changes, polling bounds, empty-queue retries, completion
+  checks, exit events, skipped-event logs, repeated mapping reads and raw result
+  identities. Cases cover foreign numeric and mapping protocols, non-finite
+  values, callback replacement, adjacent surrogate code points and exception
+  boundaries. Real local queues cover successful reads and timeout handling.
+  The shared SDK binding also preserves Python's invalid-argument messages and
+  exception context; invalid calls fail before the original function body runs.
+  The full original suite, with installed-opencode tests enabled, passes with
+  1,561 passed and 30 skipped (68.27 seconds). Its updated call record remains
+  `validation/experiment-task-calls.json`. Original tests do not call these waits;
+  the focused corpus supplies their runtime coverage. The 519-case stream,
+  914-case runner and 235-case HTTP regressions pass, as do all 24 Rust checks,
+  debug/release builds, Clippy, formatting and the 256-file reference check.
+  Original tests remain unchanged. IDE inspections remain unavailable because
+  this checkout is not open in the connected IDE. Evaluator startup, stdout
+  parsing, process cleanup, task calls, host bindings and remaining parity audits
+  stay open. No live evaluator or provider is called. Simplification and
+  performance passes remain at 0/3 each; final test conversion is pending.
 
 ## Dependencies
 
