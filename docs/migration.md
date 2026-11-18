@@ -427,8 +427,16 @@ complete while any runtime component delegates production behaviour to Python.
   model and effort selection, optimizer-override rejection, scaffold setup,
   configuration probes, initial state and validation order. The SDK binding
   retains argument, scaffold, profile, routing and configuration objects.
-  Provider helpers, endpoint preflights and scaffold backends remain callbacks
+  Endpoint preflights, optimizer calls and scaffold backends remain callbacks
   until their implementations are ported.
+- Provider routing and credential policy are native for Claude, Copilot and Codex.
+  This includes in-place credential filtering, forwarding auth and provider
+  variables, Copilot model normalisation and effort applicability, and the pricing
+  validation call. Codex catalogue parsing, caching and model verification also
+  use native policy. The binding retains mappings, opaque credentials, frozen
+  catalogue objects and HTTP response handles.
+  The guard and catalogue now share the Python-compatible JSON reader; guard
+  command search and refusal-log formatting remain with the guard.
 
 ## Remaining production work
 
@@ -447,6 +455,9 @@ complete while any runtime component delegates production behaviour to Python.
   Include dataset IDs outside the documented string schemas and exact JSON error
   diagnostics in that audit.
   Include grading-table string keys and JSON error wording and positions.
+  Include catalogue syntax-error messages and positions supplied to custom HTTP
+  context managers. The catalogue API catches those errors, while its binding
+  currently supplies placeholder diagnostics to the context manager.
   Include non-string protected tool names and scaffold paths in the schema audit.
   Include malformed judge/writer token totals and partial threshold dictionaries
   in the exception-diagnostics audit.
@@ -495,7 +506,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Web-Bench constructors, provider configuration and preflight helpers, runner
+  Web-Bench constructors, provider preflight and optimizer-call helpers, runner
   factories, global signal cleanup, container guard binary deployment and
   registration, scaffold backends and contexts, agent streaming, and the
   Web-Bench task lifecycle and wrappers still need conversion. Per-task container
@@ -503,6 +514,9 @@ complete while any runtime component delegates production behaviour to Python.
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
   SWE-bench controller construction parameters, continuation and telemetry are
   native too, along with constructor coordination for all three agents.
+  Provider routing, credential filtering, model normalisation, catalogue reads and
+  model verification are native. Endpoint preflight and optimizer-call helpers
+  still need conversion.
   Codex installation discovery, captured-prompt loading and offline probes are
   native. Experiment asset packaging and host bindings still need to replace the
   validation binding's reference-data paths.
@@ -1433,6 +1447,30 @@ complete while any runtime component delegates production behaviour to Python.
   stand-ins; no live provider or agent run was performed for this change. Provider
   helpers, factories, global cleanup, streaming and the remaining parity audits
   stay open. No simplification or performance pass is counted.
+
+- Provider policy passes 266 source comparisons across fifteen helper functions.
+  They cover explicit and process environments, credential identity and in-place
+  mutations, mapping access order, auth precedence, provider secrets by name,
+  model normalisation, effort applicability, ordinary and fatal errors, HTTP
+  context cleanup, catalogue cache identity, sorting and the twelve-model sample.
+  The shared JSON reader handles non-finite metadata, integer digit limits,
+  5,000-level metadata and escaped surrogate IDs. Model-verification messages
+  preserve those IDs through the binding's JSON codec.
+  A Java HTTP server verifies two real loopback requests with the expected
+  authorization header; subsequent source and native cache hits make no request
+  and retain the frozen catalogue object.
+  Focused original tests pass with 56 passed and two skipped. The full original
+  suite, with installed-opencode tests enabled, passes with 1,561 passed and 30
+  skipped (69.39 seconds). `validation/experiment-task-calls.json` records the
+  provider calls, including three catalogue reads and three model verifications.
+  The 483-case constructor and 417-case guard regressions, 289 guard-integration
+  comparisons and two native checks, all 24 Rust checks, debug/release builds,
+  Clippy, formatting and the 256-file reference check pass. Original tests remain
+  unchanged. No external provider, paid model or Docker run was performed for this
+  change. IDE inspections remain unavailable because this checkout is not open in
+  the connected IDE. Exact syntax-error diagnostics for custom HTTP contexts,
+  remaining provider calls, runner conversion and the parity audits stay open.
+  No simplification or performance pass is counted.
 
 ## Dependencies
 

@@ -142,6 +142,8 @@ def install_experiment_harness():
         EXPERIMENT_HARNESS_REPLACEMENTS.update(install())
         from native_runner_setup import install
         EXPERIMENT_HARNESS_REPLACEMENTS.update(install())
+        from native_experiment_providers import install
+        EXPERIMENT_HARNESS_REPLACEMENTS.update(install())
     return EXPERIMENT_HARNESS_REPLACEMENTS
 
 

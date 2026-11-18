@@ -14,6 +14,8 @@ if "--native" in sys.argv:
     install()
     from native_runner_setup import install
     install()
+    from native_experiment_providers import install
+    install()
 
 for line in sys.stdin:
     request = json.loads(line)
