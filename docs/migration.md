@@ -675,6 +675,8 @@ complete while any runtime component delegates production behaviour to Python.
   Audit remaining JSON object and exception-message codecs for adjacent surrogate
   code points; the shared exact-string and logging-format bindings preserve them.
   Include the Hermes redirect helper's raw JSON validation in that audit.
+  Include the native scaffold merge command's invalid-UTF-8 diagnostics, deeply
+  nested JSON and filesystem error details outside its verified file corpus.
   Include the guard's numeric spelling, malformed Unicode and non-default stdin
   encodings. Its own input reader preserves Python-style non-finite numbers,
   surrogate code points, surrogate-escaped UTF-8 bytes and integer digit limits.
@@ -2412,6 +2414,36 @@ complete while any runtime component delegates production behaviour to Python.
   parity audits stay open. Simplification and performance passes remain at 0/3
   each; final test conversion is pending.
 
+- The native guard executable now accepts `--merge-json <path> <patch-file>`.
+  Its merge policy matches the source-generated program in 185 file/process
+  comparisons, including one-level dictionary updates, preserved keys, malformed
+  and invalid-UTF-8 destination files, non-object data, Unicode and surrogate
+  escapes, non-finite numbers, integer limits, JSON diagnostics and failure effects.
+  This command is independent of the generated Python program; harness staging
+  still selects that program and remains a deployment gate.
+  `scripts/BuildContainerHelpers.java` builds static arm64 and amd64 Linux helpers
+  from a minimal Docker context. The builder uses a digest-pinned Rust 1.100 Alpine
+  image and locked Cargo dependencies. It checks the ELF architecture and absence
+  of a dynamic interpreter, records binary and lockfile hashes, and supplies
+  compiler details and matching third-party notices. Local validation still uses
+  Homebrew Rust 1.99.1. Build artifacts remain under `target/container-helpers/`.
+  Both architectures pass nine scratch-container checks each: native merging,
+  hook preservation and idempotence for all three agents, actual refusal and
+  telemetry. The scratch images contain only the helper executable and run with
+  no Python, shell or network. These checks establish helper execution on Linux;
+  amd64 runs through Docker's cross-architecture execution on the arm64 host.
+  complete task-container installation and live agent hook invocation remain open.
+  The full original suite, with installed-opencode tests using the loopback model
+  fixture, passes with 1,561 passed and 30 skipped (78.13 seconds). Its call record
+  remains `validation/experiment-task-calls.json`; the new command has dedicated
+  file/process and container coverage. All 24 Rust checks, host debug/release
+  builds, Clippy, formatting and the 256-file reference check pass. Original tests
+  remain unchanged. IDE inspections remain unavailable because this checkout is
+  not open in the IDE. Native helper staging, experiment packaging, host bindings
+  and remaining parity audits stay open. Live model-backed agents and Windows
+  remain unverified. Simplification and performance passes remain at 0/3 each;
+  final test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2549,6 +2581,9 @@ jbang validation/RepoMapScaffoldProbe.java
 jbang validation/SweScaffoldContextProbe.java
 jbang validation/SweSegmentProbe.java
 jbang validation/SweSegmentProcessProbe.java
+jbang validation/ScaffoldMergeHelperProbe.java
+jbang scripts/BuildContainerHelpers.java
+jbang validation/ContainerHelperProbe.java
 jbang validation/InvocationProbe.java
 jbang validation/WebSegmentProcessProbe.java
 jbang validation/WebTaskPipelineProbe.java

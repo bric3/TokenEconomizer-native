@@ -7,9 +7,11 @@ use super::swebench::{
 use crate::{python_json::Text, value::truthy};
 use serde_json::{Value, json};
 
+mod merge;
 mod registry;
 mod repomap;
 mod rtk;
+pub use merge::merge_json_file;
 
 fn attr(rt: &mut dyn Runtime, object: &str, name: &str, target: &str) -> Result<()> {
     rt.call("stdout_member", json!([object, name, target]))

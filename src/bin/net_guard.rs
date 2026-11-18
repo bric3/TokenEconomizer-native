@@ -10,6 +10,31 @@ fn main() {
         .filter(|n| *n == 0 || *n >= 640)
         .unwrap_or(4300);
     let args = env::args_os().skip(1).collect::<Vec<_>>();
+    if args.first().is_some_and(|arg| arg == "--merge-json") {
+        if args.len() != 3 {
+            eprintln!("usage: te-net-guard --merge-json <path> <patch-file>");
+            std::process::exit(2);
+        }
+        let result = std::fs::read(&args[2])
+            .map_err(|error| format!("OSError: {error}"))
+            .and_then(|patch| {
+                tokeneconomizer::experiments::scaffolds::merge_json_file(
+                    &PathBuf::from(&args[1]),
+                    &patch,
+                    int_max_digits,
+                )
+            });
+        match result {
+            Ok(()) => {
+                println!("merged");
+                return;
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+        }
+    }
     if args.first().is_some_and(|a| a == "--install-hook") {
         if args.len() != 4 {
             eprintln!("usage: te-net-guard --install-hook <claude|copilot|codex> <path> <command>");
