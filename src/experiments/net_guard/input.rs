@@ -22,8 +22,14 @@ impl Text {
         python_string_repr(self.0.iter().copied())
     }
     pub(super) fn record(&self) -> String {
-        let mut out = String::from("{\"command\": \"");
-        for point in self.0.iter().take(400).copied() {
+        format!("{{\"command\": {}}}\n", self.json_prefix(400))
+    }
+    pub(super) fn json(&self) -> String {
+        self.json_prefix(self.0.len())
+    }
+    fn json_prefix(&self, limit: usize) -> String {
+        let mut out = String::from("\"");
+        for point in self.0.iter().take(limit).copied() {
             match point {
                 8 => out.push_str("\\b"),
                 9 => out.push_str("\\t"),
@@ -46,10 +52,11 @@ impl Text {
                 }
             }
         }
-        out.push_str("\"}\n");
+        out.push('"');
         out
     }
 }
+#[derive(PartialEq)]
 pub(super) enum Node {
     Null,
     Bool(bool),
@@ -212,6 +219,109 @@ impl Node {
             }
         }
         out
+    }
+    pub(super) fn json(&self, pretty: bool) -> String {
+        enum Part<'a> {
+            Node(&'a Node, usize),
+            Text(String),
+        }
+        let mut stack = vec![Part::Node(self, 0)];
+        let mut out = String::new();
+        while let Some(part) = stack.pop() {
+            let (node, level) = match part {
+                Part::Node(node, level) => (node, level),
+                Part::Text(text) => {
+                    out.push_str(&text);
+                    continue;
+                }
+            };
+            match node {
+                Self::Null => out.push_str("null"),
+                Self::Bool(true) => out.push_str("true"),
+                Self::Bool(false) => out.push_str("false"),
+                Self::String(v) => out.push_str(&v.json()),
+                Self::Number(v, _) => out.push_str(match v.as_str() {
+                    "nan" => "NaN",
+                    "inf" => "Infinity",
+                    "-inf" => "-Infinity",
+                    _ => v,
+                }),
+                Self::List(items) => {
+                    if items.is_empty() {
+                        out.push_str("[]");
+                        continue;
+                    }
+                    out.push('[');
+                    if pretty {
+                        out.push('\n');
+                    }
+                    stack.push(Part::Text(if pretty {
+                        format!("\n{}]", "  ".repeat(level))
+                    } else {
+                        String::from("]")
+                    }));
+                    for (i, v) in items.iter().enumerate().rev() {
+                        stack.push(Part::Node(v, level + 1));
+                        if pretty {
+                            stack.push(Part::Text("  ".repeat(level + 1)));
+                        }
+                        if i > 0 {
+                            stack.push(Part::Text(if pretty {
+                                String::from(",\n")
+                            } else {
+                                String::from(", ")
+                            }));
+                        }
+                    }
+                }
+                Self::Dict(items) => {
+                    if items.is_empty() {
+                        out.push_str("{}");
+                        continue;
+                    }
+                    out.push('{');
+                    if pretty {
+                        out.push('\n');
+                    }
+                    stack.push(Part::Text(if pretty {
+                        format!("\n{}}}", "  ".repeat(level))
+                    } else {
+                        String::from("}")
+                    }));
+                    for (i, (k, v)) in items.iter().enumerate().rev() {
+                        stack.push(Part::Node(v, level + 1));
+                        stack.push(Part::Text(format!("{}: ", k.json())));
+                        if pretty {
+                            stack.push(Part::Text("  ".repeat(level + 1)));
+                        }
+                        if i > 0 {
+                            stack.push(Part::Text(if pretty {
+                                String::from(",\n")
+                            } else {
+                                String::from(", ")
+                            }));
+                        }
+                    }
+                }
+            }
+        }
+        out
+    }
+    pub(super) fn kind(&self) -> &'static str {
+        match self {
+            Self::Null => "NoneType",
+            Self::Bool(_) => "bool",
+            Self::String(_) => "str",
+            Self::List(_) => "list",
+            Self::Dict(_) => "dict",
+            Self::Number(v, _) => {
+                if v.contains(['.', 'e']) || matches!(v.as_str(), "nan" | "inf" | "-inf") {
+                    "float"
+                } else {
+                    "int"
+                }
+            }
+        }
     }
     fn scalar(&self) -> Text {
         match self {
@@ -533,7 +643,7 @@ impl Parser {
         }
     }
 }
-pub(super) fn command(bytes: &[u8], int_max_digits: usize) -> Option<Text> {
+pub(super) fn parse(bytes: &[u8], int_max_digits: usize) -> Option<Node> {
     let mut text = Vec::new();
     let mut rest = bytes;
     while !rest.is_empty() {
@@ -566,5 +676,8 @@ pub(super) fn command(bytes: &[u8], int_max_digits: usize) -> Option<Text> {
     if parser.at != parser.text.len() {
         return None;
     }
-    Some(value.hook_command())
+    Some(value)
+}
+pub(super) fn command(bytes: &[u8], int_max_digits: usize) -> Option<Text> {
+    parse(bytes, int_max_digits).map(|v| v.hook_command())
 }

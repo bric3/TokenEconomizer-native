@@ -18,6 +18,7 @@ pub mod codex_config;
 pub mod codex_trace;
 pub mod containers;
 pub mod grading;
+pub mod guard_install;
 pub mod official;
 pub mod settings;
 #[cfg(test)]

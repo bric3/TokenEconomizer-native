@@ -8,6 +8,8 @@ use std::{
     sync::LazyLock,
 };
 mod input;
+mod install;
+pub use install::install_hook;
 
 pub const ANSWER_KEY_HOSTS: &[&str] = &[
     "github.com",

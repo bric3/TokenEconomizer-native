@@ -410,6 +410,11 @@ complete while any runtime component delegates production behaviour to Python.
   standalone executable is `te-net-guard`; original guard subprocess assertions
   execute it through the validation adapter. Container hook installation remains
   part of the runner conversion.
+- SWE-bench DNS guard installation, resolver checks, refusal probes, refusal counts
+  and graded-diff commands are native. The hook configuration merger is available
+  through `te-net-guard --install-hook` for all three agents. It preserves existing
+  hooks and recognises an identical native entry when the executable name uses
+  hyphens. Container binary deployment and runner registration still need conversion.
 
 ## Remaining production work
 
@@ -464,12 +469,14 @@ complete while any runtime component delegates production behaviour to Python.
   Include nested grading-row values passed to SDK callbacks.
   Include side effects when configuration objects are converted to strings.
   Include Codex capability collections with non-string elements and custom mappings.
+  Include guard refusal counts outside JSON's native integer range in complete
+  task rows; the direct method binding transports normalised decimal strings.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Constructors, provider configuration, global signal cleanup, guard installation
-  and DNS verification, scaffold backends
-  and contexts, installed Codex discovery and validation, agent streaming, and the
+  Constructors, provider configuration, global signal cleanup, container guard
+  binary deployment and registration, scaffold backends and contexts, installed
+  Codex discovery and validation, agent streaming, and the
   Web-Bench task lifecycle and wrappers still need conversion. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
@@ -1314,6 +1321,30 @@ complete while any runtime component delegates production behaviour to Python.
   Native Windows, non-default input encodings and the remaining production-parity
   audits remain open; no improvement pass is counted.
 
+- Guard integration passes 291 source comparisons and two native checks. They
+  cover DNS command order, resolver failure, ordinary and fatal errors, refusal
+  payloads, exact decimal counts and configured integer limits, lazy patch
+  exclusions, hook entries for three agents, idempotency, malformed configuration,
+  Unicode, non-finite values, metadata preservation and unchanged files on schema
+  errors. The native checks reject unknown agents before creating directories and
+  prevent duplicate entries for the native executable name.
+  Two source comparisons run the DNS installation in an isolated Docker container
+  using the local `eclipse-temurin:25-jdk-noble` image (`95e350ad1eb7`, Linux arm64).
+  Network access is disabled. `/etc/hosts` bytes match the source, `github.com`
+  resolves to `127.0.0.1`, and repeated installation preserves the file. The probe
+  removes its container. This does not verify an agent invoking the native hook or
+  deployment into an official SWE-bench image.
+  The focused original tests pass with 79 passed. The full original suite with
+  installed-opencode tests enabled passes with 1,561 passed and 30 skipped
+  (71.19 seconds). Its call record remains `validation/experiment-task-calls.json`;
+  runtime coverage of the new runner methods and merger comes from the new probe.
+  All 24 Rust checks, debug/release builds, Clippy, formatting, the 417-case guard,
+  282-case task and 196-case settings regressions and the 256-file reference check
+  pass. The three grader JSON diagnostic differences remain open. Original tests
+  remain unchanged. Linux guard binary packaging, actual agent hook invocation,
+  native Windows and the remaining production-parity audits are still pending.
+  No simplification or performance pass is counted.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -1445,6 +1476,7 @@ jbang validation/ContainerProbe.java
 jbang validation/CodexConfigProbe.java
 jbang validation/RunnerWrapperProbe.java
 jbang validation/NetGuardProbe.java
+jbang validation/GuardInstallProbe.java --docker
 jbang validation/BridgeProbe.java
 jbang validation/QueueProbe.java
 jbang validation/ContextProbe.java
