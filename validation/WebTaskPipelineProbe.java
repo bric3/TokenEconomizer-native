@@ -20,12 +20,13 @@ class WebTaskPipelineProbe {
       var binary=root.resolve("node");
       Files.writeString(binary,"#!/bin/sh\nexec '"+Path.of(System.getProperty("java.home"),"bin/java")+"' -cp '"+root+"' WebEvaluatorFixture \"$@\"\n");
       if(!binary.toFile().setExecutable(true))throw new AssertionError("fixture is not executable");
-      for(boolean nativeCode:List.of(false,true)) {
-        var directory=Files.createDirectories(root.resolve(nativeCode?"native":"source"));
+      for(var agent:List.of("claude","copilot","codex"))for(boolean nativeCode:List.of(false,true)) {
+        var directory=Files.createDirectories(root.resolve((nativeCode?"native-":"source-")+agent));
         var command=new ArrayList<>(List.of(Path.of(".venv/bin/python").toAbsolutePath().toString(),"validation/web_task_pipeline_host.py",binary.toString(),root.resolve("repo").toString(),directory.resolve("run").toString()));
         if(nativeCode)command.add("--native");
         var builder=new ProcessBuilder(command).redirectOutput(directory.resolve("stdout").toFile()).redirectError(directory.resolve("stderr").toFile());
         builder.environment().put("TE_FIXTURE_TASK_LOOP","1");
+        builder.environment().put("TE_FIXTURE_AGENT",agent);
         var process=builder.start();
         try {
           if(!process.waitFor(20,TimeUnit.SECONDS))throw new AssertionError("offline task timed out: "+directory);
@@ -36,6 +37,6 @@ class WebTaskPipelineProbe {
       }
       passed=true;
     } finally {if(passed)try(var paths=Files.walk(root)){for(var path:paths.sorted(Comparator.reverseOrder()).toList())Files.delete(path);}}
-    System.out.println("Source and native Web-Bench tasks passed 2 offline HTTP/process pipelines; evaluator startup, real queues, workspace round trip, usage accounting, verdicts and cleanup passed without a model or Playwright");
+    System.out.println("Source and native Web-Bench tasks passed 6 offline HTTP/process pipelines across three agents; evaluator startup, real queues, workspace round trip, usage accounting, wrappers, verdicts and cleanup passed without a model or Playwright");
   }
 }

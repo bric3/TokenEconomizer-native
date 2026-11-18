@@ -508,8 +508,15 @@ complete while any runtime component delegates production behaviour to Python.
   preserve the source's stream rule. SDK bindings retain raw session, queue, file,
   guard, prompt and result objects, and supply object and numeric protocols.
   Guard attributes remain lazy while standard `any` and `sum` consume them, retaining
-  short-circuit reads and floating-point summation semantics. Agent wrappers and
-  execution, run-configuration writing and guard/scaffold helpers remain pending.
+  short-circuit reads and floating-point summation semantics. Agent execution,
+  run-configuration writing and guard/scaffold helpers remain pending.
+- Copilot and Codex Web-Bench task wrappers use native superclass coordination,
+  debug log persistence, capability snapshots, row metadata, compliance calls and
+  task home pruning. SDK bindings resolve `super` from the original method's class
+  and retain parent result references. Copilot error formatting and logging observe
+  the handled file error. Codex pruning preserves provenance files, the workspace
+  retention flag and error boundaries for each entry. Context-manager bindings evaluate
+  an exit result's truthiness while the handled exception remains active.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -647,7 +654,7 @@ complete while any runtime component delegates production behaviour to Python.
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   Container guard binary deployment and registration, scaffold backends and
-  contexts, agent streaming, and the Web-Bench agent wrappers, run-configuration,
+  contexts, agent streaming, and the Web-Bench run-configuration,
   prompt, guard and scaffold-exclusion helpers still need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
@@ -2009,6 +2016,31 @@ complete while any runtime component delegates production behaviour to Python.
   and scaffold helpers, host bindings and remaining parity audits stay open.
   Simplification and performance passes remain at 0/3 each; final test conversion
   is pending.
+
+- Web-Bench agent wrappers and task home pruning pass 360 source comparisons
+  covering multiple inheritance, parent result and argument identities, capability
+  snapshots, large counters, partial row updates, debug log writes, file errors,
+  exception chains, retained provenance, cleanup order and symlinks. Real files
+  verify UTF-8 debug output, preserved instructions, removed CLI state and retained
+  workspaces. A comparison exposed a shared context binding gap: `__exit__` return
+  values must run `__bool__` in the handled exception's scope. The binding now keeps
+  the exit call and truth test in that scope, including errors from either call.
+  The 476-case task loop, 217-case task loader, 307-case optimizer logging,
+  333-case workspace and 413-case startup regressions pass with the binding fix.
+  Six source/native offline HTTP/process pipelines cover Claude, Copilot and Codex,
+  including native wrappers calling the native shared loop, actual file edits,
+  evaluator replies, Copilot debug output and Codex metadata. Native-operation
+  counts confirm the converted entry points ran. No model or Playwright is called.
+  The focused original tests pass with 19 passed. The full original suite, with
+  installed-opencode tests enabled, passes with 1,561 passed and 30 skipped
+  (74.07 seconds). Its record remains `validation/experiment-task-calls.json` and
+  includes two native Codex wrapper calls and three native home-pruning calls.
+  All 24 Rust checks, debug/release builds, Clippy, formatting and the 256-file
+  reference check pass. Original tests remain unchanged. IDE inspections remain
+  unavailable because this checkout is not open in the IDE. Agent execution,
+  configuration, prompt, guard and scaffold helpers, host bindings and remaining
+  parity audits stay open. Simplification and performance passes remain at 0/3
+  each; final test conversion is pending.
 
 ## Dependencies
 

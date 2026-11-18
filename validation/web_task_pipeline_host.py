@@ -15,10 +15,12 @@ if "--native" in sys.argv: install(wb)
 
 binary,repository,destination = sys.argv[1:4]
 run = Path(destination)
+agent = os.environ.get("TE_FIXTURE_AGENT","claude")
 task = {"instance_id":"init","repo":"@web-bench/project","problem_statement":"implement"}
 wb._log = lambda value:None
 session = wb._EvalSession("project",repository,str(run/"evaluator"),retry=2,tasks=[task],node=binary,reply_timeout=5)
-class Runner(wb.WebBenchRunner):
+base = {"claude":wb.WebBenchRunner,"copilot":wb.CopilotWebBenchRunner,"codex":wb.CodexWebBenchRunner}[agent]
+class Runner(base):
     def session_for(self,project):
         assert project == "project"
         return session
@@ -33,13 +35,17 @@ class Runner(wb.WebBenchRunner):
         assert path.read_text(encoding="utf-8") == "original"
         path.write_text("fixture answer",encoding="utf-8")
         handle.write('{"fixture":"agent segment"}\n');handle.flush()
-        return {"usage":{"input_tokens":10,"cache_read_input_tokens":20,"cache_creation_input_tokens":30,"output_tokens":4},"num_turns":1}
+        usage = {"input_tokens":10,"cache_read_input_tokens":20,"cache_creation_input_tokens":30,"output_tokens":4}
+        if agent == "claude": return {"usage":usage,"num_turns":1}
+        result = {**usage,"num_turns":1,"tokens_source":"debug_log" if agent == "copilot" else "stream_usage"}
+        if agent == "copilot": result["_debug_log"] = "fixture debug log é😀\n"
+        return result
     def _net_guard_blocks(self,*args): return 0
     def scaffold_answer_excludes(self): return frozenset()
 runner = object.__new__(Runner)
-for key,value in {"model":"claude-opus-4-8","agent":"claude","effort":"high","cli_version":"fixture-cli","repo":repository,"_stream_broken":False,"retry":2,"start_timeout":5,"verdict_timeout":5,"keep_workspaces":True,"scaffold":None}.items(): setattr(runner,key,value)
+for key,value in {"model":"claude-opus-4-8","agent":agent,"effort":"high","cli_version":"fixture-cli","repo":repository,"_stream_broken":False,"retry":2,"start_timeout":5,"verdict_timeout":5,"keep_workspaces":True,"scaffold":None,"scaffold_name":None,"_lean_instructions_tokens":8,"answer_key_ns":True}.items(): setattr(runner,key,value)
 try:
-    row,out = runner.run_task(task,arm="baseline",injected=None,exclude_tools=[],run_dir_path=str(run))
+    row,out = runner.run_task(task,arm="baseline",injected=None,exclude_tools=[],run_dir_path=str(run),codex_config_capabilities=["skills"])
     assert out == str(run) and row["resolved"] is True and row["resolved_p1"] is True and row["resolved_p2"] is True
     assert row["webbench_attempts"] == 1 and row["webbench_answered_files"] == [["src/a.js"]]
     assert row["net_guard_installed"] is True and row["net_guard_blocks"] == 0
@@ -48,6 +54,11 @@ try:
     assert Path(run,"ws-attempt1/src/a.js").read_text(encoding="utf-8") == "fixture answer"
     request = json.loads(Path(run,"agent_request_1.json").read_text(encoding="utf-8"))
     assert request == {"type":"task","task":"init","error":None,"files":["src/a.js"]}
+    if agent == "copilot":
+        assert "_debug_log" not in row and Path(run,"copilot_debug.log").read_text(encoding="utf-8") == "fixture debug log é😀\n"
+    if agent == "codex":
+        assert row["turns_basis"] == "codex_steps" and row["codex_config_capabilities"] == ["skills"]
+        assert row["codex_lean_instructions_tokens"] == 8 and row["answer_key_hosts_blocked"] is True
     session._reader.join(5)
     assert not session._reader.is_alive()
     assert session.proc.wait(timeout=5) == 0
@@ -60,5 +71,7 @@ assert session.finished and session._log_fh.closed
 if "--native" in sys.argv:
     import native_plugin
     for name in ("run_task","eval_start","http_post","materialize","collect","load_ignore_globs","ancestors","next_event","next_request","_read_stdout","eval_close"):
+        assert native_plugin.CALLS["experiment.swebench.provider.webbench."+name] > 0,"pipeline bypassed native "+name
+    for name in (["copilot_task"] if agent == "copilot" else ["codex_task","prune_home"] if agent == "codex" else []):
         assert native_plugin.CALLS["experiment.swebench.provider.webbench."+name] > 0,"pipeline bypassed native "+name
 print("Offline Web-Bench task passed: HTTP request, task policy, workspace edit, usage reply, verdict, transcript and resource cleanup",flush=True)

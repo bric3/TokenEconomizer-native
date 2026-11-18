@@ -74,7 +74,10 @@ def install(runner_module=None):
                 if info is None: return exit_method(None,None,None)
                 error = error_object(info)
                 traceback = BaseException.__traceback__.__get__(error)
-                return with_exception(error,exit_method,type(error),error,traceback)
+                # The return value's __bool__ also observes the handled exception.
+                def exit_with_error():
+                    return bool(exit_method(type(error),error,traceback))
+                return with_exception(error,exit_with_error)
             def in_module(function,*args,**kwargs): return function(*args,**kwargs)
             def attributes(items,name,*default):
                 # Keep attribute reads lazy so any() stops before later guard getters.
@@ -355,6 +358,14 @@ def install(runner_module=None):
                         values[parameters[0]+"_handle"] = special(values["called"],"__enter__")()
                     elif method == "task_exit": values["exit_result"] = context_exit(values[parameters[0]+"_exit"],parameters[1])
                     elif method == "task_attributes": values["attribute_values"] = attributes(values[parameters[0]],parameters[1],*parameters[2:])
+                    elif method == "task_super":
+                        lexical_class = inspect.getclosurevars(original).nonlocals["__class__"]
+                        values["function"] = super(lexical_class,values["self"]).run_task
+                    elif method == "task_call_kwargs":
+                        values["called"] = values["function"](*[values[key] for key in parameters[0]],**{key:values[slot] for key,slot in parameters[1]},**values[parameters[2]])
+                    elif method == "task_caught_log":
+                        values["caught_error"] = values["error"] = error_object(parameters[0])
+                        values["active_log"] = with_exception(values["error"],getattr,module,"_log")
                     elif method == "workspace_next":
                         try: values[parameters[1]] = next(values[parameters[0]])
                         except StopIteration: value = False
@@ -439,6 +450,12 @@ def install(runner_module=None):
             replacements[original] = function(owner,original,domain,operation)
             setattr(owner,name,replacements[original])
         if domain == "webbench":
+            for cls_name,method,operation in (("CopilotWebBenchRunner","run_task","copilot_task"),("CodexWebBenchRunner","run_task","codex_task"),("CodexWebBenchRunner","_prune_agent_home","prune_home")):
+                cls = getattr(owner,cls_name)
+                original = getattr(cls,method)
+                if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
+                replacements[original] = function(owner,original,"webbench",operation)
+                setattr(cls,method,replacements[original])
             for name,operation in (("_load_ignore_globs","load_ignore_globs"),("_ancestors","ancestors"),("_ignored","ignored")):
                 original = getattr(owner,name)
                 if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue

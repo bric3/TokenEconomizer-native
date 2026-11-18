@@ -321,6 +321,9 @@ pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
     let (agent, name) = method.split_once('.').unwrap_or(("", method));
     match name {
         "run_task" if agent == "webbench" => super::web_task::run(rt),
+        "copilot_task" if agent == "webbench" => super::web_task::copilot(rt),
+        "codex_task" if agent == "webbench" => super::web_task::codex(rt),
+        "prune_home" if agent == "webbench" => super::web_task::prune_home(rt),
         "materialize" if agent == "webbench" => super::web_workspace::materialize(rt),
         "collect" if agent == "webbench" => super::web_workspace::collect(rt),
         "load_ignore_globs" if agent == "webbench" => super::web_workspace::load_ignore_globs(rt),

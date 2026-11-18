@@ -739,3 +739,153 @@ pub fn run(rt: &mut dyn Runtime) -> Result<Value> {
     rt.call("provider_tuple", json!(["row", "run_dir_path"]))?;
     Ok(json!({"provider_ref":"tuple"}))
 }
+
+fn parent(rt: &mut dyn Runtime) -> Result<()> {
+    rt.call("task_super", json!([]))?;
+    rt.call(
+        "task_call_kwargs",
+        json!([
+            ["task"],
+            [
+                ["arm", "arm"],
+                ["injected", "injected"],
+                ["exclude_tools", "exclude_tools"],
+                ["run_dir_path", "run_dir_path"]
+            ],
+            "run_kwargs"
+        ]),
+    )?;
+    rt.call("workspace_pair", json!(["called", "row", "out_dir"]))?;
+    Ok(())
+}
+fn returned(rt: &mut dyn Runtime) -> Result<Value> {
+    rt.call("provider_tuple", json!(["row", "out_dir"]))?;
+    Ok(json!({"provider_ref":"tuple"}))
+}
+
+pub fn copilot(rt: &mut dyn Runtime) -> Result<Value> {
+    parent(rt)?;
+    rt.call(
+        "provider_method",
+        json!(["row", "pop", ["_debug_log", ""], "log_text"]),
+    )?;
+    if boolean(rt, "log_text")? {
+        let saved: Result<()> = (|| {
+            builtin(rt, "open")?;
+            copy(rt, "open", "function")?;
+            literal(rt, "filename", json!("copilot_debug.log"))?;
+            apply(rt, "os.path.join", &["out_dir", "filename"], "debug_path")?;
+            open(rt, "debug", "debug_path", true)?;
+            let written = method(rt, "debug_handle", "write", &["log_text"], "written");
+            exit(rt, "debug", written)
+        })();
+        if let Err(error) = saved {
+            if !error.is_a("builtins.OSError") {
+                return Err(error);
+            }
+            rt.call("task_caught_log", json!([error]))?;
+            let mut message = Text::from("could not save copilot_debug.log: ");
+            message
+                .0
+                .extend(code_points(rt.call("handler_format", json!(["error"]))?)?.0);
+            rt.call("logger_literal", json!(["error_log", message.0]))?;
+            copy(rt, "function", "active_log")?;
+            rt.call("handler_invoke", json!([["error_log"], []]))?;
+        }
+    }
+    returned(rt)
+}
+
+pub fn codex(rt: &mut dyn Runtime) -> Result<Value> {
+    builtin(rt, "tuple")?;
+    copy(rt, "tuple_function", "function")?;
+    get(rt, "run_kwargs", "codex_config_capabilities", "caps")?;
+    if !boolean(rt, "caps")? {
+        rt.call("provider_tuple", json!([]))?;
+        copy(rt, "caps", "tuple")?;
+    }
+    call(rt, "tuple_function", &["caps"], "capabilities")?;
+    assign(rt, "_capabilities", "capabilities")?;
+    parent(rt)?;
+    literal(rt, "basis", json!("codex_steps"))?;
+    row(rt, "turns_basis", "basis")?;
+    builtin(rt, "list")?;
+    copy(rt, "list", "function")?;
+    member(rt, "_capabilities", "capabilities")?;
+    call(rt, "list", &["capabilities"], "capabilities_list")?;
+    row(rt, "codex_config_capabilities", "capabilities_list")?;
+    builtin(rt, "int")?;
+    copy(rt, "int", "function")?;
+    member(rt, "_lean_instructions_tokens", "lean")?;
+    fallback(rt, "lean", json!(0))?;
+    call(rt, "int", &["lean"], "lean_integer")?;
+    row(rt, "codex_lean_instructions_tokens", "lean_integer")?;
+    builtin(rt, "bool")?;
+    copy(rt, "bool", "function")?;
+    member(rt, "answer_key_ns", "answer_key_ns")?;
+    call(rt, "bool", &["answer_key_ns"], "hosts_blocked")?;
+    row(rt, "answer_key_hosts_blocked", "hosts_blocked")?;
+    member(rt, "scaffold_name", "scaffold_name")?;
+    literal(rt, "rtk", json!("rtk"))?;
+    if compare(rt, "eq", "scaffold_name", "rtk")? {
+        attribute(rt, "row", "update", "update")?;
+        function(rt, "codex.rtk_compliance")?;
+        copy(rt, "compliance", "function")?;
+        literal(rt, "filename", json!("transcript.jsonl"))?;
+        apply(rt, "os.path.join", &["out_dir", "filename"], "transcript")?;
+        call(rt, "compliance", &["transcript"], "compliance_row")?;
+        call(rt, "update", &["compliance_row"], "updated")?;
+    }
+    own(rt, "_prune_agent_home", &["run_dir_path"], "pruned")?;
+    returned(rt)
+}
+
+pub fn prune_home(rt: &mut dyn Runtime) -> Result<Value> {
+    own(rt, "agent_home", &["run_dir_path"], "home")?;
+    member(rt, "keep_workspaces", "keep_workspaces")?;
+    if boolean(rt, "keep_workspaces")? {
+        return Ok(Value::Null);
+    }
+    apply(rt, "os.path.isdir", &["home"], "is_directory")?;
+    if !boolean(rt, "is_directory")? {
+        return Ok(Value::Null);
+    }
+    apply(rt, "os.listdir", &["home"], "names")?;
+    iter(rt, "names", "names_iter")?;
+    while next(rt, "names_iter", "name")? {
+        member(rt, "_AGENT_HOME_KEEP", "keep")?;
+        if truthy(&rt.call("provider_contains", json!(["name", "keep"]))?) {
+            continue;
+        }
+        apply(rt, "os.path.join", &["home", "name"], "path")?;
+        let removed: Result<()> = (|| {
+            apply(rt, "os.path.isdir", &["path"], "is_directory")?;
+            let remove = if boolean(rt, "is_directory")? {
+                "shutil.rmtree"
+            } else {
+                "os.remove"
+            };
+            apply(rt, remove, &["path"], "removed")
+        })();
+        match removed {
+            Err(error) if error.is_a("builtins.OSError") => {}
+            result => result?,
+        }
+    }
+    let removed: Result<()> = (|| {
+        function(rt, "shutil.rmtree")?;
+        copy(rt, "remove_host", "function")?;
+        literal(rt, "host_home", json!(".host-home"))?;
+        apply(
+            rt,
+            "os.path.join",
+            &["run_dir_path", "host_home"],
+            "host_path",
+        )?;
+        call(rt, "remove_host", &["host_path"], "removed")
+    })();
+    match removed {
+        Err(error) if error.is_a("builtins.OSError") => Ok(Value::Null),
+        result => result.map(|_| Value::Null),
+    }
+}
