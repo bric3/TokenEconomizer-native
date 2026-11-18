@@ -111,6 +111,7 @@ for line in sys.stdin:
             return handle
         def __exit__(self,kind,error,tb):
             record("exit",kind.__name__ if kind else None)
+            if request.get("exception_state"): record("exit.state",{"active_error":sys.exception() is error,"same_traceback":error is None or error.__traceback__ is tb})
             if request.get("exit_error"): raise getattr(builtins,request["exit_error"])("fixture exit failure")
             return Token("exit_result") if request.get("opaque_exit") else request.get("suppress",False)
     if request.get("static_context"):
@@ -122,10 +123,11 @@ for line in sys.stdin:
             def __get__(self,instance,owner): record("lookup:"+self.name);return self.method
         FileContext.__enter__ = Method("enter",lambda:(record("enter"),handle)[1])
         FileContext.__exit__ = Method("exit",lambda *args:record("exit",args[0].__name__ if args[0] else None))
+    if request.get("missing_special"): delattr(FileContext,request["missing_special"])
     def open_log(*args,**kwargs):
         record("open",[args,kwargs])
         assert args[0] is path,"log path identity changed"
-        return builtins.open(*args,**kwargs) if request.get("real_file") else FileContext()
+        return builtins.open(*args,**kwargs) if request.get("real_file") else request["file_context"] if "file_context" in request else FileContext()
     def error_log(message):
         record("error.log",message)
         if request.get("paired_error"): record("error.points",list(map(ord,message)))
@@ -145,7 +147,9 @@ for line in sys.stdin:
         with contextlib.redirect_stdout(stream) if request.get("real_print") else contextlib.nullcontext():
             value = getattr(owner,"_log" if mode == "verbose" else "_log_optimizer_call")(**arguments)
         result = {"value":encode(value)}
-    except BaseException as error: result = {"raised":type(error).__name__,"message":str(error)}
+    except BaseException as error:
+        result = {"raised":type(error).__name__,"message":str(error)}
+        if request.get("exception_state"): result["context"] = type(error.__context__).__name__ if error.__context__ is not None else None
     finally:
         for name,value in saved.items():
             if value is ABSENT:

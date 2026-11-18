@@ -30,7 +30,7 @@ fn set(rt: &mut dyn Runtime, name: &str, slot: &str) -> Result<()> {
 fn field(rt: &mut dyn Runtime, name: &str, slot: &str) -> Result<()> {
     rt.call("provider_collect", json!([name, slot])).map(|_| ())
 }
-fn strip(rt: &mut dyn Runtime, end_only: bool, target: &str) -> Result<()> {
+pub(super) fn strip(rt: &mut dyn Runtime, end_only: bool, target: &str) -> Result<()> {
     if let Some(text) = string(rt, "line")? {
         let whitespace = |point: &u32| {
             char::from_u32(*point)

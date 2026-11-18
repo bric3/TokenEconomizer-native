@@ -103,6 +103,9 @@ and event-selection policy, with SDK bindings for clocks, queues and object prot
 Evaluator stdout logging, attempt parsing, event publication and exit-state
 updates also run in Rust. Evaluator startup and process cleanup still use source
 callbacks.
+Evaluator task-file loading uses native path assembly, line filtering, ID
+collection and file-error handling. SDK bindings provide file contexts and JSON
+library decoding while retaining ID values by reference.
 Web-Bench repository and Node discovery, evaluator abort and task-timeout policy,
 preload environment assembly and namespace-probe decisions also run in Rust.
 SDK bindings supply paths, process I/O and Python object protocols.

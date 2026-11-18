@@ -47,9 +47,22 @@ def install(runner_module=None):
                 index = (info.get("details") or {}).get("provider_error_index")
                 return errors[index] if index is not None else getattr(builtins,info["kind"])(info["message"])
             def special(instance,name):
-                method = inspect.getattr_static(type(instance),name)
+                missing = object()
+                method = inspect.getattr_static(type(instance),name,missing)
+                if method is missing:
+                    kind = type.__getattribute__(type(instance),"__name__")
+                    raise TypeError(f"'{kind}' object does not support the context manager protocol (missed {name} method)")
                 descriptor = getattr(type(method),"__get__",None)
                 return descriptor(method,instance,type(instance)) if descriptor is not None else method
+            def context_exit(exit_method,info):
+                if info is None: return exit_method(None,None,None)
+                error = error_object(info)
+                traceback = BaseException.__traceback__.__get__(error)
+                try: raise error
+                except BaseException:
+                    # __exit__ observes the handled exception through sys.exception().
+                    BaseException.__traceback__.__set__(error,traceback)
+                    return exit_method(type(error),error,traceback)
             result = invoke("experiment.swebench.provider."+agent+"."+name,{})
             while isinstance(result,dict) and "callback" in result:
                 method,parameters = result["method"],result["args"]
@@ -219,10 +232,9 @@ def install(runner_module=None):
                     elif method == "logger_encode": value = json.dumps(values["row"])
                     elif method == "logger_write": values["write"](parameters[0])
                     elif method == "logger_close":
-                        if parameters[0] is None: values["log_exit"](None,None,None)
+                        if parameters[0] is None: context_exit(values["log_exit"],None)
                         else:
-                            error = error_object(parameters[0])
-                            if not values["log_exit"](type(error),error,error.__traceback__): raise error
+                            if not context_exit(values["log_exit"],parameters[0]): raise error_object(parameters[0])
                     elif method == "logger_error_format": value = list(map(ord,format(error_object(parameters[0]),"")))
                     elif method == "logger_format": value = list(map(ord,format(values[parameters[0]],"")))
                     elif method == "logger_report": values["active_log"]("".join(map(chr,parameters[0])))
@@ -277,6 +289,14 @@ def install(runner_module=None):
                     elif method == "stdout_group": values[parameters[1]] = values["match"].group(parameters[0])
                     elif method == "stdout_capture_integer": values["integer_function"] = getattr(module,"int",builtins.int)
                     elif method == "stdout_integer": values["attempt"] = values["integer_function"](values["ordinal"])
+                    elif method == "tasks_open":
+                        values["task_context"] = getattr(module,"open",builtins.open)(values["path"],encoding="utf-8")
+                        values["task_exit"] = special(values["task_context"],"__exit__")
+                        values["stdout"] = special(values["task_context"],"__enter__")()
+                    elif method == "tasks_exit":
+                        values["exit_result"] = context_exit(values["task_exit"],parameters[0])
+                    elif method == "tasks_decode": values["decoded"] = module.json.loads(values["stripped"])
+                    elif method == "tasks_append": values["output"].append(values["identifier"])
                     elif method == "preflight_format": value = format(values[parameters[0]],parameters[1])
                     elif method == "preflight_log":
                         values["preflight_call_log"](*parameters)
@@ -324,7 +344,7 @@ def install(runner_module=None):
             replacements[original] = function(owner,original,"claude",operation)
             owner.make_runner = replacements[original]
         if domain == "webbench":
-            for name in ("next_event","next_request","_read_stdout"):
+            for name in ("next_event","next_request","_read_stdout","_full_task_ids"):
                 original = getattr(owner._EvalSession,name)
                 if getattr(original,"_te_provider_operation",None) == ("webbench",name): continue
                 replacements[original] = function(owner,original,"webbench",name)

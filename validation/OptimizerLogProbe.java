@@ -18,6 +18,12 @@ class OptimizerLogProbe {
     var root=Files.createTempDirectory(Path.of("validation/results"),"optimizer-log-").toAbsolutePath();
     try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"optimizer_log_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"optimizer_log_host.py")) {
       compare(nativeCode,source,"");
+      compare(nativeCode,source,"\"exception_state\":true");
+      for(var context:List.of("null","false","0","1","\"\"","[]","{}"))compare(nativeCode,source,"\"file_context\":"+context);
+      for(var method:List.of("__enter__","__exit__"))compare(nativeCode,source,"\"missing_special\":"+q(method));
+      for(var error:List.of("RuntimeError","OSError","KeyboardInterrupt"))for(boolean suppress:List.of(false,true))
+        compare(nativeCode,source,"\"exception_state\":true,\"fail\":\"write\",\"error\":"+q(error)+",\"suppress\":"+suppress);
+      compare(nativeCode,source,"\"exception_state\":true,\"fail\":\"write\",\"exit_error\":\"KeyboardInterrupt\"");
       for(var path:List.of("null","false","0","\"\"","[]","{}","[1]"))compare(nativeCode,source,"\"path\":"+path);
       for(var context:List.of("null","false","[]","[[\"field\",1]]","{}","{\"ts\":\"overridden\",\"kind\":\"old\",\"model\":\"old\",\"response\":\"old\"}","{\"shared\":[1],\"usage\":{\"old\":true}}"))compare(nativeCode,source,"\"context\":"+context);
       compare(nativeCode,source,"\"context\":{\"shared\":[1]},\"mutate_context\":true");

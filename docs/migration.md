@@ -459,6 +459,14 @@ complete while any runtime component delegates production behaviour to Python.
   conversion. Custom matchers retain their bound methods and group results.
   The standard pattern recognises Python whitespace and Unicode 17 decimal digits,
   including Tolong Siki digits absent from the installed regex tables.
+- Web-Bench evaluator task-file loading uses native path assembly, line filtering,
+  ID collection, context-exit decisions and `OSError` handling. SDK bindings retain
+  file handles and JSON decoder results by reference, and supply file iteration,
+  JSON library decoding and object protocols. Suppressed read errors return
+  `None`; unsuppressed file errors return a fresh empty list.
+  Context exits observe the handled exception and its traceback. Unsupported
+  context managers report Python's missing-special-method diagnostics. Optimizer
+  logging uses the same corrected context-manager binding.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -1799,6 +1807,27 @@ complete while any runtime component delegates production behaviour to Python.
   loading, process and signal cleanup, task calls, host bindings and remaining
   parity audits stay open. Simplification and performance passes remain at 0/3
   each; final test conversion is pending.
+
+- Web-Bench task-file loading passes 217 source comparisons covering path capture,
+  file and iteration errors, JSON values and diagnostics, integer digit limits,
+  Unicode and adjacent surrogate code points, blank-line filtering, opaque IDs,
+  context lookup order, unsupported context managers, suppression, handled
+  exception state and exception chains. Real files cover mixed line endings,
+  UTF-8 decoding, invalid bytes and missing paths. SDK bindings provide JSON
+  library decoding and preserve the decoded ID objects.
+  The shared context-exit correction also passes 307 optimizer-logging
+  comparisons, including new exception-state and missing-special-method cases.
+  The full original suite, with installed-opencode tests enabled, passes with
+  1,561 passed and 30 skipped (88.61 seconds). Its updated call record remains
+  `validation/experiment-task-calls.json`. Original tests do not call the task-file
+  loader; the focused corpus supplies its runtime coverage. The 535-case stdout
+  and 272-case evaluator-wait regressions, all 24 Rust checks, debug/release
+  builds, Clippy, formatting and the 256-file reference check pass.
+  Original tests remain unchanged. IDE inspections remain unavailable because
+  this checkout is not open in the connected IDE. Evaluator startup, process
+  and signal cleanup, task calls, host bindings and remaining parity audits stay
+  open. Simplification and performance passes remain at 0/3 each; final test
+  conversion is pending.
 
 ## Dependencies
 
