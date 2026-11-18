@@ -14,6 +14,7 @@ use std::{
 #[cfg(unix)]
 use crate::value::python_repr;
 
+pub mod containers;
 pub mod grading;
 pub mod official;
 pub mod settings;
@@ -93,7 +94,14 @@ impl From<std::io::Error> for Failure {
             std::io::ErrorKind::NotADirectory => "NotADirectoryError",
             _ => "OSError",
         };
-        Self::new(kind, error.to_string())
+        let mut failure = Self::new(kind, error.to_string());
+        failure.bases = vec![
+            format!("builtins.{kind}"),
+            "builtins.OSError".into(),
+            "builtins.Exception".into(),
+            "builtins.BaseException".into(),
+        ];
+        failure
     }
 }
 pub type Result<T> = std::result::Result<T, Failure>;

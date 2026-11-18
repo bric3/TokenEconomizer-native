@@ -2,7 +2,7 @@ use super::job::{self, Channel};
 use serde_json::{Value, json};
 use std::path::Path;
 use tokeneconomizer::experiments::swebench::{
-    self, Failure, Runtime, Task, grading, official, settings,
+    self, Failure, Runtime, Task, containers, grading, official, settings,
 };
 
 struct Transport(Channel);
@@ -36,6 +36,14 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
             args["job"].as_u64().ok_or("missing task job")?,
             args.get("reply").cloned(),
         )
+        .map(Some);
+    }
+    if let Some(method) = method.strip_prefix("container.") {
+        let args = args.clone();
+        let method = method.to_owned();
+        return job::start("swebench_container", move |channel| {
+            containers::dispatch(&method, &args, &mut Transport(channel)).unwrap_or_else(failure)
+        })
         .map(Some);
     }
     if matches!(

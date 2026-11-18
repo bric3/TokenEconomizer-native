@@ -73,5 +73,7 @@ reports in Rust. Its Python binding imports and calls the official SWE-bench SDK
 SWE-bench run configuration, CPU and thread limits, environment helpers and scaffold
 patch exclusions also run in Rust. Both benchmark harnesses use the native network
 tool block.
+Per-task SWE-bench container starts, cleanup, command construction and measured
+environment activation run in Rust. Process execution uses a Python I/O binding.
 
 Installed host verification and the remaining migration gates are still in progress.

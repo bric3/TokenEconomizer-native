@@ -267,3 +267,54 @@ fn cpu_quota_and_worker_thread_limits_agree() {
         "OverflowError"
     );
 }
+
+#[test]
+fn ordinary_removal_errors_discard_live_tracking_and_cancellation_propagates() {
+    struct Host {
+        live: bool,
+        error: &'static str,
+    }
+    impl Runtime for Host {
+        fn call(&mut self, method: &str, _: Value) -> Result<Value> {
+            match method {
+                "config_attr" => Ok(json!(false)),
+                "container_env" => Ok(json!("600")),
+                "container_run" => Err(Failure::new(self.error, "fixture removal failure")),
+                "log" => Ok(Value::Null),
+                "live_discard" => {
+                    self.live = false;
+                    Ok(Value::Null)
+                }
+                _ => panic!("unexpected container operation: {method}"),
+            }
+        }
+    }
+    for (error, live) in [("RuntimeError", false), ("KeyboardInterrupt", true)] {
+        let mut host = Host { live: true, error };
+        let result = containers::stop(&json!("fixture-container"), &mut host);
+        assert_eq!(host.live, live);
+        assert_eq!(result.is_err(), live);
+    }
+}
+
+#[test]
+fn unknown_container_agent_fails_before_running_commands() {
+    struct Host;
+    impl Runtime for Host {
+        fn call(&mut self, _: &str, _: Value) -> Result<Value> {
+            panic!("unknown agent reached a runtime operation");
+        }
+    }
+    let error = containers::start(
+        "other",
+        &json!("fixture-container"),
+        &json!("fixture-task"),
+        &mut Host,
+    )
+    .unwrap_err();
+    assert_eq!(error.kind, "RuntimeError");
+    assert_eq!(
+        error.message,
+        "no SWE-bench runner for --agent 'other'; available: claude, codex, copilot"
+    );
+}

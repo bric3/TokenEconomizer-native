@@ -181,7 +181,7 @@ pub struct RunConfig {
     pub run_dir: PathBuf,
     pub process_cwd: PathBuf,
 }
-fn field(
+pub(super) fn field(
     runtime: &mut dyn Runtime,
     owner: &str,
     name: &str,

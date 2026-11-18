@@ -390,6 +390,11 @@ complete while any runtime component delegates production behaviour to Python.
   fingerprint, CPU quota and thread caps, spiral parameters and scaffold paths.
   Project environment selection and activation variables also run in Rust.
   SWE-bench and Web-Bench share the native network-tool policy.
+- Per-task container policy is native for all three SWE-bench agents: command
+  construction, start order, exited-container reaping, live tracking, cleanup and
+  measured environment activation. Copilot seed and mount arguments and Codex
+  mount arguments are native too. The host binding executes processes, retains
+  process objects and expands host home directories through the standard library.
 
 ## Remaining production work
 
@@ -421,6 +426,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Include harness accounting totals outside JSON's i64/u64 range in that audit.
 - Include task turn caps outside i64 and task filesystem error diagnostics in
   the numeric and I/O parity audits.
+  Include container timeouts outside JSON's integer range.
 - Include CLI and ledger counts beyond i64 in the numeric parity audit.
 - Include `probe --sessions` integers outside i64 in that audit.
 - Include displayed tool counters in that audit, and audit CLI errors for malformed
@@ -442,10 +448,11 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Constructors, agent-specific task wrappers, provider configuration, subprocess,
-  container, scaffold and stream operations still need conversion. Grading
-  orchestration and the official-grader wrapper are native; SDK imports and calls
-  retain a Python I/O binding.
+  Constructors, agent-specific task wrappers, provider configuration, global
+  signal cleanup, scaffold setup, Codex config writing and agent streaming still
+  need conversion. Per-task container policy, grading orchestration and the
+  official-grader wrapper are native. Process and SDK calls retain Python I/O
+  bindings.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
 
@@ -1202,6 +1209,29 @@ complete while any runtime component delegates production behaviour to Python.
   remain in the production-parity audit. No Docker, paid model or live grading
   calls were run. No improvement pass is counted.
 
+- Per-task container orchestration matches the source in 292 comparisons across
+  Claude, Copilot and Codex. They check command arguments and ordering, mounts,
+  seed setup, environment discovery, verification, recorded activation, live
+  tracking and cleanup. The probe starts with empty live tracking when checking
+  startup failures. It verifies ordinary errors, timeout errors,
+  `KeyboardInterrupt` and `SystemExit`, including failures in mounts and Codex
+  configuration callbacks. Returned process objects, command arguments and stored
+  activation dictionaries retain their host identity. Files match byte for byte.
+  Two Rust checks verify cleanup after ordinary errors, fatal exception
+  propagation and rejection of unknown agent labels before any runtime call.
+  The focused original tests pass with 79 passed and a recorded native stop call.
+  The full original suite with installed-opencode tests enabled passes with
+  1,561 passed and 30 skipped (65.93 seconds). Its call record remains
+  `validation/experiment-task-calls.json`. Container execution coverage comes
+  from the new process-stand-in probe; original tests mainly inspect runner source.
+  All 22 Rust library checks, the callback replay check, debug/release builds,
+  Clippy, formatting, the 196-case settings regression, 262-case task regression,
+  92-case grader regression and 256-file reference check pass. The three recorded
+  grader JSON diagnostic differences remain open. Original tests remain unchanged.
+  No live Docker, model, official grading or OS-signal run was performed. Native
+  Windows and the remaining production-parity audits are open. No improvement
+  pass is counted.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -1329,6 +1359,7 @@ jbang validation/UsageProbe.java
 jbang validation/TaskProbe.java
 jbang validation/GraderProbe.java
 jbang validation/SettingsProbe.java
+jbang validation/ContainerProbe.java
 jbang validation/BridgeProbe.java
 jbang validation/QueueProbe.java
 jbang validation/ContextProbe.java

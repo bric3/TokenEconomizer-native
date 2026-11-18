@@ -5,9 +5,12 @@ import json
 import os
 import inspect
 import sys
+import subprocess
 
 from native_plugin import invoke
 from native_experiment_spiral import checked as checked_value
+
+NO_COMMAND = object()
 
 
 def checked(value):
@@ -52,8 +55,9 @@ def install():
         if representation == "list": return list(value)
         # shortcut: object strings are captured per callback; audit conversion side effects before release.
         return json.loads(json.dumps(value,default=str))
-    def drive(self, result, run_kwargs, guard=None):
+    def drive(self, result, run_kwargs, guard=None, process_cmd=NO_COMMAND, record_row=None):
         errors = []
+        processes = {}
         transcript = None
         spec = None
         while isinstance(result,dict) and "callback" in result:
@@ -79,6 +83,31 @@ def install():
                 elif method == "config_kwarg": value = config_value(run_kwargs.get(args[0]),args[1])
                 elif method == "config_function": value = getattr(module,args[0])(*args[1])
                 elif method == "config_patch_excludes": value = list(self._patch_excludes())
+                elif method in ("container_run","subprocess_run"):
+                    command, timeout = args
+                    if method == "container_run": process = module._run(command,timeout=timeout)
+                    else:
+                        command = process_cmd if process_cmd is not NO_COMMAND else command
+                        process = subprocess.run(command,capture_output=True,text=True,timeout=timeout)
+                    reference = len(processes)
+                    processes[reference] = process
+                    value = {"_process_ref":reference,"command":data(command),**{key:getattr(process,key,None) for key in ("returncode","stdout","stderr")}}
+                elif method == "container_env": value = os.environ.get(*args)
+                elif method == "live_add": value = module._LIVE_CONTAINERS.add(*args)
+                elif method == "live_discard": value = module._LIVE_CONTAINERS.discard(*args)
+                elif method == "activation_ensure":
+                    self.__dict__.setdefault("_env_activation",{})
+                    value = None
+                elif method == "activation_put":
+                    self.__dict__["_env_activation"][args[0]] = args[1]
+                    value = None
+                elif method == "activation_row":
+                    record_row[args[0]] = args[1]
+                    value = None
+                elif method == "scaffold_mounts": value = list(self.scaffold.mounts(self.scaffold_profile))
+                elif method == "agent_mounts": value = getattr(module,args[0]).container_mounts(args[1])
+                elif method == "copilot_function": value = getattr(module.copilot,args[0])(*args[1])
+                elif method == "expanduser": value = os.path.expanduser(*args)
                 elif method == "_record_env_activation":
                     row = args[2]
                     self._record_env_activation(args[0],args[1],row)
@@ -117,7 +146,62 @@ def install():
                 if type(error).__name__ == result["raised"] and str(error) == result["message"]:
                     raise error
             checked(result)
+        if isinstance(result,dict) and "_process_ref" in result: return processes[result["_process_ref"]]
         return result
+    original_run = module._run
+    @functools.wraps(original_run)
+    def run(cmd,timeout=120,check=False):
+        return drive(None,invoke("experiment.swebench.container.run",{"cmd":data(cmd),"timeout":timeout,"check":check}),{},process_cmd=cmd)
+    module._run = run
+    replacements[original_run] = run
+    def container_method(original,operation):
+        signature = inspect.signature(original)
+        @functools.wraps(original)
+        def native(self,*args,**kwargs):
+            bound = signature.bind(self,*args,**kwargs)
+            bound.apply_defaults()
+            arguments = dict(bound.arguments)
+            arguments.pop("self")
+            return drive(self,invoke("experiment.swebench.container."+operation,data(arguments)),{})
+        return native
+    for name,operation in (("_reap_exited","reap"),("_stop","stop"),("_exec","exec"),("_env_activation_args","activation_args")):
+        setattr(cls,name,container_method(getattr(cls,name),operation))
+    original_activate = cls._activate_project_env
+    @functools.wraps(original_activate)
+    def activate(self,name):
+        drive(self,invoke("experiment.swebench.container.activate",{"name":name}),{})
+        return self.__dict__["_env_activation"][name]
+    cls._activate_project_env = activate
+    original_info = cls._env_activation_info
+    @functools.wraps(original_info)
+    def activation_info(self,name):
+        selected = drive(self,invoke("experiment.swebench.container.activation_info",{"state":data(self.__dict__.get("_env_activation",{})),"name":name}),{})
+        return self.__dict__["_env_activation"][name] if selected["stored"] else selected["info"]
+    cls._env_activation_info = activation_info
+    original_record = cls._record_env_activation
+    @functools.wraps(original_record)
+    def record_activation(self,run_dir_path,name,row):
+        return drive(self,invoke("experiment.swebench.container.record_activation",{"run_dir":os.fspath(run_dir_path),"name":name,"process_cwd":os.getcwd()}),{},record_row=row)
+    cls._record_env_activation = record_activation
+    def start_method(original,agent):
+        @functools.wraps(original)
+        def native(self,name,instance_id):
+            return drive(self,invoke("experiment.swebench.container.start",{"agent":agent,"name":name,"instance_id":instance_id}),{})
+        return native
+    for klass,agent in ((cls,"claude"),(module.CopilotSwebenchRunner,"copilot"),(module.CodexSwebenchRunner,"codex")):
+        klass._start = start_method(klass._start,agent)
+    def container_function(original,operation):
+        signature = inspect.signature(original)
+        @functools.wraps(original)
+        def native(*args,**kwargs):
+            bound = signature.bind(*args,**kwargs)
+            bound.apply_defaults()
+            return drive(None,invoke("experiment.swebench.container."+operation,data(dict(bound.arguments))),{})
+        replacements[original] = native
+        return native
+    for name,operation in (("copilot_cache","copilot_cache"),("copilot_config","copilot_config"),("container_mounts","copilot_mounts"),("container_seed_setup","copilot_seed")):
+        setattr(module.copilot,name,container_function(getattr(module.copilot,name),operation))
+    module.codex.container_mounts = container_function(module.codex.container_mounts,"codex_mounts")
     original = cls.run_task
     @functools.wraps(original)
     def run_task(self, task, *, arm, injected, exclude_tools, run_dir_path, **run_kwargs):
