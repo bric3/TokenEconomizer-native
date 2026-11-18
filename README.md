@@ -107,7 +107,8 @@ Messages and Responses optimizer calls also use native policy for request bodies
 authentication, retries, text extraction, warnings and usage accounting. SDK bindings
 supply HTTP I/O, clocks, observers and pricing calls.
 Copilot CLI optimizer coordination also runs in Rust, including tool-isolation
-flags, model selection, cleanup, event parsing and billing order. Host binary
-discovery, environment assembly and shared optimizer helpers still need conversion.
+flags, model selection, cleanup, event parsing and billing order. Copilot host
+binary discovery, version reporting, installation validation and environment
+assembly also run in Rust. Shared optimizer helpers still need conversion.
 
 Installed host verification and the remaining migration gates are still in progress.

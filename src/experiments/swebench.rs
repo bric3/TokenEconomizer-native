@@ -19,6 +19,7 @@ pub mod codex_install;
 pub mod codex_trace;
 pub mod containers;
 pub mod controls;
+pub mod copilot_install;
 pub mod grading;
 pub mod guard_install;
 pub mod official;

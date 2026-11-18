@@ -328,6 +328,9 @@ pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
         "optimizer_call" if agent == "codex" => super::optimizer::run(true, rt),
         "optimizer_call" if agent == "copilot" => super::optimizer::copilot(rt),
         "_responses_text" if agent == "codex" => super::optimizer::response_text_call(rt),
+        "copilot_bin" | "cli_version" | "require_install" | "run_env" if agent == "copilot" => {
+            super::copilot_install::run(name, rt)
+        }
         "agent_credential_env" => {
             for key in names(rt, "IGNORED_ANTHROPIC_VARS")? {
                 rt.call("provider_env_pop", json!([key]))?;

@@ -452,11 +452,17 @@ complete while any runtime component delegates production behaviour to Python.
 - Copilot CLI optimizer coordination is native: tool denial and exclusion flags,
   model selection, process arguments, cleanup, assistant-event parsing, usage
   observation and billing order. The binding retains opaque arguments and usage
-  objects, and supplies process and filesystem I/O. Host binary discovery,
-  environment assembly and the shared optimizer logger remain helper callbacks.
+  objects, and supplies process and filesystem I/O. The shared optimizer logger
+  remains a helper callback.
   The source's log-directory retention after timeout and launch failure is
   preserved. The shared JSON reader accepts Unicode code points directly for
   process output, including lone surrogates.
+- Copilot host binary discovery, version selection, installation validation and
+  environment assembly also use native control flow. The binding supplies path,
+  filesystem, process and mapping operations, preserving opaque credentials and
+  helper results. Version reporting prefers stdout, falls back to stderr, and
+  keeps the first 120 characters of the first stripped line. Installation checks
+  include cache and config paths when container seeding is requested.
 - The shared JSON reader supplies syntax messages, Unicode positions and line
   and column information. Catalogue HTTP contexts receive reconstructed
   `JSONDecodeError` objects with the source fields. The grader loader uses those
@@ -530,8 +536,7 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Web-Bench constructors, Copilot host discovery and environment assembly, shared
-  optimizer logging and context helpers, runner call wrappers,
+  Web-Bench constructors, shared optimizer logging and context helpers, runner call wrappers,
   factories, global signal cleanup, container guard binary deployment and
   registration, scaffold backends and contexts, agent streaming, and the
   Web-Bench task lifecycle and wrappers still need conversion. Per-task container
@@ -1556,6 +1561,22 @@ complete while any runtime component delegates production behaviour to Python.
   provider or paid model was called. Copilot host helpers, shared optimizer
   helpers, runner conversion and the remaining parity audits stay open.
   No simplification or performance pass is counted.
+
+- Copilot host helpers pass 238 source comparisons, including real symlink
+  resolution, home-location discovery, PATH lookup and offline Java version
+  execution. They cover discovery precedence, missing install paths, optional
+  container seeds, opaque credentials, environment override order, stdout/stderr
+  selection, Unicode truncation and line boundaries, foreign string protocols,
+  ordinary and fatal exceptions, and exact exception matching by inheritance.
+  The 164-case Copilot optimizer and 483-case constructor regressions also pass.
+  The full original suite, with installed-opencode tests enabled, passes with
+  1,561 passed and 30 skipped (65.93 seconds). Its record remains
+  `validation/experiment-task-calls.json`. All 24 Rust checks, debug/release
+  builds, Clippy, formatting and the 256-file reference check pass. Original tests
+  remain unchanged. IDE inspections remain unavailable because this checkout is
+  not open in the connected IDE. No external provider or paid model was called.
+  Shared optimizer helpers, runner conversion and the remaining parity audits
+  stay open. No simplification or performance pass is counted.
 
 ## Dependencies
 

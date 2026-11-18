@@ -156,6 +156,15 @@ def install():
                     elif method == "cli_record": values["record"](values["model"],values["prompt"],values["text"],values["observed_usage"])
                     elif method == "cli_pricing": values["effective"] = module.pricing.effective_tokens(values["usage"])
                     elif method == "cli_finish": values["optimizer_result"] = values["text"],values["effective"]
+                    elif method == "host_path": values[parameters[1]] = getattr(module.os.path,parameters[0])(values[parameters[2]])
+                    elif method == "host_function": values[parameters[1]] = getattr(module,parameters[0])()
+                    elif method == "host_access": values["accessible"] = module.os.access(values["home"],module.os.X_OK)
+                    elif method == "host_which": values["binary"] = module.shutil.which("copilot")
+                    elif method == "host_version": values["completed"] = module.subprocess.run([values["binary"],"--version"],capture_output=True,text=True,timeout=60)
+                    elif method == "host_stream": values["stream"] = getattr(values["completed"],parameters[0])
+                    elif method == "host_first_version": values["version"] = values["lines"][0][:120]
+                    elif method == "host_missing": value = json.dumps(", ".join(values[key] for key in parameters[0]),ensure_ascii=True)
+                    elif method == "host_update": values[parameters[0]].update(values[parameters[1]])
                     elif method == "preflight_format": value = format(values[parameters[0]],parameters[1])
                     elif method == "preflight_log":
                         values["preflight_call_log"](*parameters)
@@ -175,12 +184,13 @@ def install():
                 for error in reversed(errors):
                     if type(error).__name__ == result["raised"] and str(error) == result["message"]: raise error
             result = checked(result)
+            if isinstance(result,dict) and "provider_error" in result: raise RuntimeError(decode(result["provider_error"]))
             if isinstance(result,dict) and "provider_ref" in result: return values[result["provider_ref"]]
             if isinstance(result,dict) and "provider_encoded" in result: result = json.loads(result["provider_encoded"])
             return tuple(result) if name in ("verify_model","anthropic_optimizer_call","optimizer_call") else result
         return native
     for module,agent,names in ((swebench,"claude",("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call")),
-                              (copilot,"copilot",("auth_env","byok_active","provider_base","anthropic_optimizer_endpoint","provider_env","provider_secret_names","normalize_model","effort_applies","validate_priceable","optimizer_call")),
+                              (copilot,"copilot",("auth_env","byok_active","provider_base","anthropic_optimizer_endpoint","provider_env","provider_secret_names","normalize_model","effort_applies","validate_priceable","optimizer_call","copilot_bin","cli_version","require_install","run_env")),
                               (codex,"codex",("resolve_codex_routing","validate_priceable","fetch_catalog","verify_model","preflight_optimizer","optimizer_call","_responses_text"))):
         for name in names:
             original = getattr(module,name)
