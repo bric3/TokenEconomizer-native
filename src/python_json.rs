@@ -673,6 +673,9 @@ pub(super) fn parse_result(bytes: &[u8], int_max_digits: usize) -> Result<Node, 
             }
         }
     }
+    parse_points(text, int_max_digits)
+}
+pub(super) fn parse_points(text: Vec<u32>, int_max_digits: usize) -> Result<Node, ParseError> {
     let mut parser = Parser {
         text,
         at: 0,

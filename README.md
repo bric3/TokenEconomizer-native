@@ -96,8 +96,7 @@ and configuration validation also run in Rust, including process-group cleanup
 and temporary-directory retries. SDK bindings supply filesystem and process I/O.
 SWE-bench constructor coordination also runs in Rust for Claude, Copilot and Codex,
 including validation order, scaffold setup and configuration preflights.
-Runner call wrappers, Copilot CLI optimizer calls and scaffold backends still cross
-migration callbacks.
+Runner call wrappers and scaffold backends still cross migration callbacks.
 Provider routing, credential filtering, Copilot model normalisation and effort
 selection also run in Rust. Codex catalogue parsing, caching and model verification
 use native policy with mapping and HTTP bindings.
@@ -107,5 +106,8 @@ syntax messages and positions that match the source for catalogue and grader err
 Messages and Responses optimizer calls also use native policy for request bodies,
 authentication, retries, text extraction, warnings and usage accounting. SDK bindings
 supply HTTP I/O, clocks, observers and pricing calls.
+Copilot CLI optimizer coordination also runs in Rust, including tool-isolation
+flags, model selection, cleanup, event parsing and billing order. Host binary
+discovery, environment assembly and shared optimizer helpers still need conversion.
 
 Installed host verification and the remaining migration gates are still in progress.

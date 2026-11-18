@@ -131,6 +131,31 @@ def install():
                         record.update({key:values[item] if kind == "ref" else int(Decimal(item)) if kind == "integer" else item for key,(kind,item) in parameters.items()})
                         values["effective"] = module.pricing.effective_tokens(record)
                     elif method == "optimizer_finish": values["optimizer_result"] = decode(parameters[0]),values["effective"]
+                    elif method == "cli_binary": values["binary"] = module.copilot_bin()
+                    elif method == "cli_temp": values[parameters[0]] = module.tempfile.mkdtemp(prefix=parameters[1])
+                    elif method == "cli_tools":
+                        values[parameters[0]] = list(getattr(module,parameters[0]))
+                        value = len(values[parameters[0]])
+                    elif method == "cli_stringify": values[parameters[1]] = str(values[parameters[0]])
+                    elif method == "cli_capture_run":
+                        values["run"] = module.subprocess.run
+                        values["run_environ"] = module.os.environ
+                    elif method == "cli_run_env": values["run_env"] = module.run_env()
+                    elif method == "cli_run":
+                        argv = [values[item] if kind == "ref" else values[item][rest[0]] if kind == "tool" else item for kind,item,*rest in parameters[0]]
+                        values["stdout"] = values["run"](argv,capture_output=True,text=True,timeout=values["timeout"],env=dict(values["run_environ"],**values["run_env"])).stdout
+                    elif method == "cli_remove": module.shutil.rmtree(values[parameters[0]],ignore_errors=True)
+                    elif method == "cli_lines": value = json.dumps(values["stdout"].splitlines(),ensure_ascii=True)
+                    elif method == "cli_set_text": values["text"] = decode(parameters[0])
+                    elif method == "cli_capture_sum": values["sum"] = module.sum_openai_usage
+                    elif method == "cli_read_log": values["log_text"] = module.read_log_dir(values["logdir"])
+                    elif method == "cli_sum": values["usage"] = values["sum"](values["log_text"])
+                    elif method == "cli_capture_record":
+                        from te_harness.swebench import _log_optimizer_call
+                        values["record"] = _log_optimizer_call
+                    elif method == "cli_record": values["record"](values["model"],values["prompt"],values["text"],values["observed_usage"])
+                    elif method == "cli_pricing": values["effective"] = module.pricing.effective_tokens(values["usage"])
+                    elif method == "cli_finish": values["optimizer_result"] = values["text"],values["effective"]
                     elif method == "preflight_format": value = format(values[parameters[0]],parameters[1])
                     elif method == "preflight_log":
                         values["preflight_call_log"](*parameters)
@@ -155,7 +180,7 @@ def install():
             return tuple(result) if name in ("verify_model","anthropic_optimizer_call","optimizer_call") else result
         return native
     for module,agent,names in ((swebench,"claude",("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call")),
-                              (copilot,"copilot",("auth_env","byok_active","provider_base","anthropic_optimizer_endpoint","provider_env","provider_secret_names","normalize_model","effort_applies","validate_priceable")),
+                              (copilot,"copilot",("auth_env","byok_active","provider_base","anthropic_optimizer_endpoint","provider_env","provider_secret_names","normalize_model","effort_applies","validate_priceable","optimizer_call")),
                               (codex,"codex",("resolve_codex_routing","validate_priceable","fetch_catalog","verify_model","preflight_optimizer","optimizer_call","_responses_text"))):
         for name in names:
             original = getattr(module,name)

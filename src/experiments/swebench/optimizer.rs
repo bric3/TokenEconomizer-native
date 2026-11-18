@@ -599,3 +599,125 @@ pub fn run(codex: bool, rt: &mut dyn Runtime) -> Result<Value> {
         messages(rt, data)
     }
 }
+
+pub fn copilot(rt: &mut dyn Runtime) -> Result<Value> {
+    if !boolean(rt, "binary")? {
+        rt.call("cli_binary", json!([]))?;
+    }
+    rt.call("cli_temp", json!(["neutral", "te_optimizer_cwd_"]))?;
+    rt.call("cli_temp", json!(["logdir", "te_optimizer_log_"]))?;
+    let mut argv = vec![
+        json!(["ref", "binary"]),
+        json!(["value", "-p"]),
+        json!(["ref", "prompt"]),
+        json!(["value", "-C"]),
+        json!(["ref", "neutral"]),
+    ];
+    for item in [
+        "--output-format",
+        "json",
+        "--no-color",
+        "--log-level",
+        "all",
+        "--log-dir",
+    ] {
+        argv.push(json!(["value", item]));
+    }
+    argv.push(json!(["ref", "logdir"]));
+    argv.extend([
+        json!(["value", "--no-custom-instructions"]),
+        json!(["value", "--disable-builtin-mcps"]),
+    ]);
+    for (constant, flag) in [
+        ("OPTIMIZER_DENY_TOOLS", "--deny-tool"),
+        ("OPTIMIZER_EXCLUDE_TOOLS", "--excluded-tools"),
+    ] {
+        let count = rt
+            .call("cli_tools", json!([constant]))?
+            .as_u64()
+            .unwrap_or(0);
+        for index in 0..count {
+            argv.push(json!(["value", flag]));
+            argv.push(json!(["tool", constant, index]));
+        }
+    }
+    if boolean(rt, "model")? {
+        rt.call("cli_stringify", json!(["model", "model_string"]))?;
+        let Node::String(ref value) = argument(rt, "model_string")? else {
+            unreachable!()
+        };
+        if !matches!(value.lossy().to_lowercase().as_str(), "agent" | "copilot") {
+            rt.call("cli_stringify", json!(["model", "selected_model"]))?;
+            argv.extend([
+                json!(["value", "--model"]),
+                json!(["ref", "selected_model"]),
+            ]);
+        }
+    }
+    let launched: Result<()> = (|| {
+        rt.call("cli_capture_run", json!([]))?;
+        rt.call("cli_run_env", json!([]))?;
+        rt.call("cli_run", json!([argv]))?;
+        if !boolean(rt, "stdout")? {
+            literal(rt, "stdout", json!(""))?;
+        }
+        Ok(())
+    })();
+    // The source's finally removes the neutral directory even when environment setup fails.
+    rt.call("cli_remove", json!(["neutral"]))?;
+    if let Err(error) = launched {
+        if error.is_a("subprocess.TimeoutExpired")
+            || error.is_a("builtins.OSError")
+            || error.is_a("subprocess.SubprocessError")
+        {
+            return Ok(json!(["", null]));
+        }
+        return Err(error);
+    }
+    let lines = parse_wire(&rt.call("cli_lines", json!([]))?)?;
+    let limit = rt
+        .call("optimizer_integer_limit", json!([]))?
+        .as_u64()
+        .unwrap_or(0) as usize;
+    let mut answer = text("").json(false);
+    for line in iterable(Some(&lines), false)? {
+        let Node::String(line) = line else { continue };
+        let Ok(event) = python_json::parse_points(line.0.clone(), limit) else {
+            continue;
+        };
+        if is(get(&event, "type")?, "assistant.message") {
+            let empty = object(vec![]);
+            let data = get(&event, "data")?
+                .filter(|v| v.truthy())
+                .unwrap_or(&empty);
+            if let Some(content) = get(data, "content")?.filter(|v| v.truthy()) {
+                answer = content.json(false);
+            }
+        }
+    }
+    rt.call("cli_set_text", json!([answer]))?;
+    rt.call("cli_capture_sum", json!([]))?;
+    rt.call("cli_read_log", json!([]))?;
+    rt.call("cli_sum", json!([]))?;
+    rt.call("cli_remove", json!(["logdir"]))?;
+    let observed = (|| {
+        rt.call("cli_capture_record", json!([]))?;
+        copy(rt, "observed_usage", "usage")?;
+        if !boolean(rt, "observed_usage")? {
+            literal(rt, "observed_usage", json!({}))?;
+        }
+        rt.call("cli_record", json!([])).map(|_| ())
+    })();
+    if let Err(error) = observed
+        && !error.is_a("builtins.Exception")
+    {
+        return Err(error);
+    }
+    if boolean(rt, "usage")? {
+        rt.call("cli_pricing", json!([]))?;
+    } else {
+        literal(rt, "effective", Value::Null)?;
+    }
+    rt.call("cli_finish", json!([]))?;
+    Ok(json!({"provider_ref":"optimizer_result"}))
+}

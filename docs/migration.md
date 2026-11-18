@@ -427,7 +427,7 @@ complete while any runtime component delegates production behaviour to Python.
   model and effort selection, optimizer-override rejection, scaffold setup,
   configuration probes, initial state and validation order. The SDK binding
   retains argument, scaffold, profile, routing and configuration objects.
-  Runner call wrappers, Copilot CLI optimizer calls and scaffold backends remain
+  Runner call wrappers and scaffold backends remain
   callbacks until their implementations are ported.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
@@ -449,6 +449,14 @@ complete while any runtime component delegates production behaviour to Python.
   credential and pricing-result references. Native counters preserve decimal
   integers beyond machine range. Observer mutations follow each source function's
   billing order, including the second output-token read on the Responses path.
+- Copilot CLI optimizer coordination is native: tool denial and exclusion flags,
+  model selection, process arguments, cleanup, assistant-event parsing, usage
+  observation and billing order. The binding retains opaque arguments and usage
+  objects, and supplies process and filesystem I/O. Host binary discovery,
+  environment assembly and the shared optimizer logger remain helper callbacks.
+  The source's log-directory retention after timeout and launch failure is
+  preserved. The shared JSON reader accepts Unicode code points directly for
+  process output, including lone surrogates.
 - The shared JSON reader supplies syntax messages, Unicode positions and line
   and column information. Catalogue HTTP contexts receive reconstructed
   `JSONDecodeError` objects with the source fields. The grader loader uses those
@@ -522,8 +530,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Web-Bench constructors, Copilot CLI optimizer calls, shared optimizer logging
-  and context helpers, runner call wrappers,
+  Web-Bench constructors, Copilot host discovery and environment assembly, shared
+  optimizer logging and context helpers, runner call wrappers,
   factories, global signal cleanup, container guard binary deployment and
   registration, scaffold backends and contexts, agent streaming, and the
   Web-Bench task lifecycle and wrappers still need conversion. Per-task container
@@ -1530,6 +1538,24 @@ complete while any runtime component delegates production behaviour to Python.
   model was called. Copilot CLI optimizer calls, shared optimizer helpers, runner
   conversion and the remaining parity audits stay open. No simplification or
   performance pass is counted.
+
+- Copilot CLI optimizer coordination passes 164 source comparisons. They cover
+  exact arguments and environment merging, denial and exclusion flags, model
+  conversions, callable replacement, cleanup failures, JSON events, Unicode line
+  boundaries, lone surrogates, opaque results, observer mutations and ordinary
+  and fatal exceptions. Offline Java subprocess fixtures check successful output,
+  timeout and launch failure, including the source's directory cleanup outcomes.
+  The 235-case HTTP optimizer and 267-case provider regressions also pass.
+  The full original suite, with installed-opencode tests enabled, passes with
+  1,561 passed and 30 skipped (68.74 seconds). Its record remains
+  `validation/experiment-task-calls.json`. The original suite does not execute
+  the Copilot optimizer call; the new probe supplies its runtime coverage.
+  All 24 Rust checks, debug/release builds, Clippy, formatting and the 256-file
+  reference check pass. Original tests remain unchanged. IDE inspections remain
+  unavailable because this checkout is not open in the connected IDE. No external
+  provider or paid model was called. Copilot host helpers, shared optimizer
+  helpers, runner conversion and the remaining parity audits stay open.
+  No simplification or performance pass is counted.
 
 ## Dependencies
 
