@@ -76,6 +76,9 @@ def install(runner_module=None):
                 traceback = BaseException.__traceback__.__get__(error)
                 return with_exception(error,exit_method,type(error),error,traceback)
             def in_module(function,*args,**kwargs): return function(*args,**kwargs)
+            def attributes(items,name,*default):
+                # Keep attribute reads lazy so any() stops before later guard getters.
+                return (getattr(item,name,*default) for item in items)
             result = rpc("experiment.swebench.provider."+agent+"."+name,{})
             while isinstance(result,dict) and "callback" in result:
                 method,parameters = result["method"],result["args"]
@@ -344,6 +347,14 @@ def install(runner_module=None):
                         handler.__module__ = module.__name__
                         values["handler"] = bind_function(module,handler,agent,"signal_handler")
                     elif method == "workspace_iter": values[parameters[1]] = iter(values[parameters[0]])
+                    elif method == "task_format": value = list(map(ord,repr(values[parameters[0]]) if parameters[1] == "!r" else format(values[parameters[0]],parameters[1])))
+                    elif method == "task_raise": raise values[parameters[0]]
+                    elif method == "task_triple": values[parameters[1]],values[parameters[2]],values[parameters[3]] = values[parameters[0]]
+                    elif method == "task_enter":
+                        values[parameters[0]+"_exit"] = special(values["called"],"__exit__")
+                        values[parameters[0]+"_handle"] = special(values["called"],"__enter__")()
+                    elif method == "task_exit": values["exit_result"] = context_exit(values[parameters[0]+"_exit"],parameters[1])
+                    elif method == "task_attributes": values["attribute_values"] = attributes(values[parameters[0]],parameters[1],*parameters[2:])
                     elif method == "workspace_next":
                         try: values[parameters[1]] = next(values[parameters[0]])
                         except StopIteration: value = False
@@ -433,7 +444,7 @@ def install(runner_module=None):
                 if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
                 replacements[original] = function(owner,original,"webbench",operation)
                 setattr(owner,name,replacements[original])
-            for name,operation in (("_materialize","materialize"),("_collect","collect")):
+            for name,operation in (("run_task","run_task"),("_materialize","materialize"),("_collect","collect")):
                 original = getattr(owner.WebBenchRunner,name)
                 if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
                 replacements[original] = function(owner,original,"webbench",operation)

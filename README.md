@@ -120,7 +120,11 @@ library decoding while retaining ID values by reference.
 Web-Bench repository and Node discovery, evaluator abort and task-timeout policy,
 preload environment assembly and namespace-probe decisions also run in Rust.
 SDK bindings supply paths, process I/O and Python object protocols.
-Scaffold backends and Web-Bench task calls still cross migration callbacks.
+The shared Web-Bench task loop uses native retry and stream-failure decisions,
+per-attempt guard coordination, evaluator replies, artifact order, resolve metrics
+and telemetry selection. SDK bindings retain session, queue, file and result
+objects. Agent execution, wrappers, scaffold backends and remaining task helpers
+still cross migration callbacks.
 Provider routing, credential filtering, Copilot model normalisation and effort
 selection also run in Rust. Codex catalogue parsing, caching and model verification
 use native policy with mapping and HTTP bindings.

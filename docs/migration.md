@@ -501,6 +501,15 @@ complete while any runtime component delegates production behaviour to Python.
   SDK bindings supply filesystem I/O, path normalisation and object protocols;
   replaced wildcard functions retain their external calls. Scaffold exclusion
   metadata still comes from the runner's source helper.
+- The shared Web-Bench task loop uses native context setup, project validation,
+  retry and continuation decisions, evaluator event checks, workspace coordination,
+  replies, transcript and request-artifact order, resolve metrics and telemetry
+  selection. Unreached rows preserve their absent verdicts; exhausted `init` tasks
+  preserve the source's stream rule. SDK bindings retain raw session, queue, file,
+  guard, prompt and result objects, and supply object and numeric protocols.
+  Guard attributes remain lazy while standard `any` and `sum` consume them, retaining
+  short-circuit reads and floating-point summation semantics. Agent wrappers and
+  execution, run-configuration writing and guard/scaffold helpers remain pending.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -638,8 +647,8 @@ complete while any runtime component delegates production behaviour to Python.
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   Container guard binary deployment and registration, scaffold backends and
-  contexts, agent streaming, and the Web-Bench task lifecycle, agent wrappers and
-  scaffold-exclusion helpers still need conversion.
+  contexts, agent streaming, and the Web-Bench agent wrappers, run-configuration,
+  prompt, guard and scaffold-exclusion helpers still need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
@@ -1975,6 +1984,31 @@ complete while any runtime component delegates production behaviour to Python.
   The task loop, agent execution, scaffold helpers, host bindings and remaining
   parity audits stay open. Simplification and performance passes remain at 0/3
   each; final test conversion is pending.
+
+- The shared Web-Bench task loop passes 476 source comparisons covering retries,
+  unreached and broken streams, event desynchronisation, missing requests and
+  verdicts, workspace cleanup, one guard per attempt, continuation, falsey guards,
+  empty scaffold notes, reply accounting, nested file contexts, exception chains,
+  provenance, lazy telemetry and floating-point totals. Raw task, directory,
+  kwargs, request-file, collected-file, queue and transcript references retain
+  their identities. Real-file checks execute materialisation, agent edits and
+  collection through the task loop and verify request and transcript artifacts.
+  Two additional source/native offline pipelines use the real HTTP server, queues,
+  evaluator subprocess, stdout reader, workspace helpers and cleanup. A Java
+  evaluator stand-in verifies the edited files, input/output token totals and
+  transcript path before emitting its verdict. Native-operation counts confirm
+  that the combined pipeline executes the converted components. No model or
+  Playwright evaluator is called.
+  The 413-case startup regression, all 24 Rust checks, debug/release builds,
+  Clippy, formatting and the 256-file reference check pass. The full original suite,
+  with installed-opencode tests enabled, passes with 1,561 passed and 30 skipped
+  (72.22 seconds). Its record remains `validation/experiment-task-calls.json`;
+  original tests do not exercise the shared Web-Bench task loop. Original tests
+  remain unchanged. IDE inspections remain unavailable because this checkout is
+  not open in the IDE. Agent wrappers and execution, configuration, prompt, guard
+  and scaffold helpers, host bindings and remaining parity audits stay open.
+  Simplification and performance passes remain at 0/3 each; final test conversion
+  is pending.
 
 ## Dependencies
 

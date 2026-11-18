@@ -22,10 +22,12 @@ class WebEvaluatorFixture {
     var task=range.find()?range.group(1):"init";
     System.out.println("[project] "+task+" 1st Attempt Started");
     System.out.flush();
-    var body="{\"type\":\"task\",\"task\":\""+task+"\",\"files\":{}}";
+    boolean taskLoop="1".equals(System.getenv("TE_FIXTURE_TASK_LOOP"));
+    var body="{\"type\":\"task\",\"task\":\""+task+"\",\"files\":"+(taskLoop?"{\"src/a.js\":\"original\"}":"{}")+"}";
     var call=HttpRequest.newBuilder(URI.create(endpoint.group())).timeout(Duration.ofSeconds(5)).POST(HttpRequest.BodyPublishers.ofString(body)).build();
     var reply=HttpClient.newHttpClient().send(call,HttpResponse.BodyHandlers.ofString());
     if(reply.statusCode()!=200||!reply.body().contains("fixture answer"))throw new AssertionError("wrong agent reply: "+reply.body());
+    if(taskLoop&&(!reply.body().contains("\"inputTokens\": 60")||!reply.body().contains("\"outputTokens\": 4")||!reply.body().contains("src/a.js")||!reply.body().contains("transcript.jsonl")))throw new AssertionError("task reply contract changed: "+reply.body());
     System.out.println("[project] "+task+" 1st Attempt ✅");
     System.exit(0);
   }

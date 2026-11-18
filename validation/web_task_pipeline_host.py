@@ -1,0 +1,64 @@
+"""Actual HTTP, process and filesystem bindings for an offline Web-Bench task."""
+import json
+import os
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+from te_harness import swebench
+if "--native" in sys.argv:
+    from native_experiment_providers import install
+    install()
+from te_harness import webbench as wb
+if "--native" in sys.argv: install(wb)
+
+binary,repository,destination = sys.argv[1:4]
+run = Path(destination)
+task = {"instance_id":"init","repo":"@web-bench/project","problem_statement":"implement"}
+wb._log = lambda value:None
+session = wb._EvalSession("project",repository,str(run/"evaluator"),retry=2,tasks=[task],node=binary,reply_timeout=5)
+class Runner(wb.WebBenchRunner):
+    def session_for(self,project):
+        assert project == "project"
+        return session
+    def _write_run_config(self,path,*args):
+        Path(path,"run_config.json").write_text('{"fixture":true}\n',encoding="utf-8")
+    def agent_home(self,path): return os.path.join(path,".home")
+    def _install_net_guard(self,*args): return True
+    def _make_guard(self,*args): return None
+    def _segment(self,workspace,prompt,handle,excluded,turns,guard):
+        assert "implement" in prompt and excluded == [] and turns == 80 and guard is None
+        path = Path(workspace,"src/a.js")
+        assert path.read_text(encoding="utf-8") == "original"
+        path.write_text("fixture answer",encoding="utf-8")
+        handle.write('{"fixture":"agent segment"}\n');handle.flush()
+        return {"usage":{"input_tokens":10,"cache_read_input_tokens":20,"cache_creation_input_tokens":30,"output_tokens":4},"num_turns":1}
+    def _net_guard_blocks(self,*args): return 0
+    def scaffold_answer_excludes(self): return frozenset()
+runner = object.__new__(Runner)
+for key,value in {"model":"claude-opus-4-8","agent":"claude","effort":"high","cli_version":"fixture-cli","repo":repository,"_stream_broken":False,"retry":2,"start_timeout":5,"verdict_timeout":5,"keep_workspaces":True,"scaffold":None}.items(): setattr(runner,key,value)
+try:
+    row,out = runner.run_task(task,arm="baseline",injected=None,exclude_tools=[],run_dir_path=str(run))
+    assert out == str(run) and row["resolved"] is True and row["resolved_p1"] is True and row["resolved_p2"] is True
+    assert row["webbench_attempts"] == 1 and row["webbench_answered_files"] == [["src/a.js"]]
+    assert row["net_guard_installed"] is True and row["net_guard_blocks"] == 0
+    assert row["input_tokens"] == 10 and row["cache_read_input_tokens"] == 20 and row["cache_creation_input_tokens"] == 30 and row["output_tokens"] == 4
+    assert Path(run,"transcript.jsonl").read_text(encoding="utf-8") == '{"fixture":"agent segment"}\n'
+    assert Path(run,"ws-attempt1/src/a.js").read_text(encoding="utf-8") == "fixture answer"
+    request = json.loads(Path(run,"agent_request_1.json").read_text(encoding="utf-8"))
+    assert request == {"type":"task","task":"init","error":None,"files":["src/a.js"]}
+    session._reader.join(5)
+    assert not session._reader.is_alive()
+    assert session.proc.wait(timeout=5) == 0
+finally:
+    session.close()
+    if session.proc.poll() is None: session.proc.kill();session.proc.wait()
+    if session.proc.stdout is not None: session.proc.stdout.close()
+    session._reader.join(5);session._http_thread.join(5)
+assert session.finished and session._log_fh.closed
+if "--native" in sys.argv:
+    import native_plugin
+    for name in ("run_task","eval_start","http_post","materialize","collect","load_ignore_globs","ancestors","next_event","next_request","_read_stdout","eval_close"):
+        assert native_plugin.CALLS["experiment.swebench.provider.webbench."+name] > 0,"pipeline bypassed native "+name
+print("Offline Web-Bench task passed: HTTP request, task policy, workspace edit, usage reply, verdict, transcript and resource cleanup",flush=True)
