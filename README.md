@@ -131,8 +131,9 @@ discovery and read-error handling also run in Rust. SDK bindings supply processe
 pipes, clocks, files and object protocols. Per-task homes, Copilot configuration
 seeding and cache links, the Web-Bench Codex configuration writer and accounting
 hooks also use native policy. Copilot cache and configuration-directory discovery
-run in Rust too. Supporting argument builders, network guard and scaffold helpers
-still cross migration callbacks.
+run in Rust too. Web-Bench hook installation, refusal probes, refusal counts,
+hosts-file generation and namespace path quoting also use native policy.
+Supporting argument builders and scaffold helpers still cross migration callbacks.
 Run configuration, prompt construction, transport-instruction filtering
 and both guard constructors now use native policy. The pinned prompt text is
 embedded in the native library; SDK bindings retain runtime values and object APIs.

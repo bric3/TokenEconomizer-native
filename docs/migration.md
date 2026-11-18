@@ -508,8 +508,8 @@ complete while any runtime component delegates production behaviour to Python.
   preserve the source's stream rule. SDK bindings retain raw session, queue, file,
   guard, prompt and result objects, and supply object and numeric protocols.
   Guard attributes remain lazy while standard `any` and `sum` consume them, retaining
-  short-circuit reads and floating-point summation semantics. Supporting network
-  guard and scaffold helpers remain pending.
+  short-circuit reads and floating-point summation semantics. Supporting scaffold
+  helpers remain pending.
 - Copilot and Codex Web-Bench task wrappers use native superclass coordination,
   debug log persistence, capability snapshots, row metadata, compliance calls and
   task home pruning. SDK bindings resolve `super` from the original method's class
@@ -531,8 +531,8 @@ complete while any runtime component delegates production behaviour to Python.
   Claude, Copilot and Codex. Claude session logs use native discovery, sorted reads,
   concatenation and error boundaries. SDK bindings supply object protocols, files,
   clocks, processes and pipes. Exception matching retains runtime class lookups and
-  active error contexts. Supporting argument builders, network guard setup and
-  scaffold backends remain pending.
+  active error contexts. Supporting argument builders and scaffold backends remain
+  pending.
 - Web-Bench per-task home paths, scaffold execution environments and Copilot cache
   preparation use native policy. Copilot configuration seeding preserves an existing
   task home and copies only the three named configuration files. The Web-Bench Codex
@@ -542,6 +542,14 @@ complete while any runtime component delegates production behaviour to Python.
   for all three agents. SDK bindings retain raw values, comparisons, helper results
   and context managers. Copilot cache and configuration-directory discovery also use
   native environment selection with path-library bindings.
+- Web-Bench network guard setup uses native settings paths, hook entries,
+  installation, probe construction, refusal checks and probe-log removal. Existing
+  hook lists and settings retain their references. Codex arming uses lexical
+  superclass dispatch and reads the assigned state before returning. Refusal
+  counting and hook-presence checks use native generator predicates, with SDK
+  iteration and standard `sum` and `any` calls. Hosts-file generation and namespace
+  path quoting also use native policy. SDK bindings supply file contexts, JSON
+  encoding, process I/O and object protocols.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -679,8 +687,8 @@ complete while any runtime component delegates production behaviour to Python.
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   Container guard binary deployment and registration, scaffold backends and
-  contexts, SWE-bench agent streaming, and Web-Bench argument builders, network
-  guard and scaffold-exclusion helpers still need conversion.
+  contexts, SWE-bench agent streaming, and Web-Bench argument builders and
+  scaffold-exclusion helpers still need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
@@ -2137,6 +2145,31 @@ complete while any runtime component delegates production behaviour to Python.
   parity audits stay open. Simplification and performance passes remain at 0/3
   each; final test conversion is pending.
 
+- Web-Bench network guard setup passes 1,823 source comparisons covering settings
+  paths and entry shapes, existing hooks, idempotence, malformed settings, probe
+  construction, refusal results, probe-log removal, refusal counts, hosts files,
+  path quoting, lexical superclass dispatch, armed-state reads and failure contexts.
+  Lazy generator checks retain iterator timing, short-circuit reads, aggregate
+  overrides and `StopIteration` handling. Real-file checks preserve existing settings
+  and host entries, remove the probe's refusal record, count non-empty log lines
+  and preserve decoding failures. Source checks execute the Python guard; native
+  checks execute the Rust guard through SDK process bindings.
+  Six offline HTTP/process task pipelines now use real guard installation,
+  verification and refusal counting across all three agents. Their native operation
+  counts confirm one Rust guard probe per pipeline. The 1,681-case agent-support,
+  1,160-case segment, 476-case task-loop, 360-case wrapper and 368-case run-contract
+  regressions pass. The full original suite, with installed-opencode tests enabled,
+  passes with 1,561 passed and 30 skipped (70.41 seconds). Its record remains
+  `validation/experiment-task-calls.json`, including two Codex installations and
+  verifications, six hosts-file calls and five namespace path-quoting calls.
+  All 24 Rust checks, debug/release builds, Clippy, formatting and the 256-file
+  reference check pass. Original tests remain unchanged. IDE inspections remain
+  unavailable because this checkout is not open in the IDE. Live agent hook
+  invocation, Linux namespace execution and Windows remain unverified. Argument
+  builders, scaffold integration, host bindings and remaining parity audits stay
+  open. Simplification and performance passes remain at 0/3 each; final test
+  conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2264,6 +2297,7 @@ jbang validation/UsageProbe.java
 jbang validation/TaskProbe.java
 jbang validation/WebSegmentProbe.java
 jbang validation/WebAgentProbe.java
+jbang validation/WebGuardProbe.java
 jbang validation/WebSegmentProcessProbe.java
 jbang validation/WebTaskPipelineProbe.java
 jbang validation/GraderProbe.java

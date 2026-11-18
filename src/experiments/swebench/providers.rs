@@ -320,6 +320,9 @@ fn verify(rt: &mut dyn Runtime) -> Result<Value> {
 pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
     let (agent, name) = method.split_once('.').unwrap_or(("", method));
     match name {
+        name if agent == "webbench" && name.starts_with("network_") => {
+            super::web_guard::dispatch(&name[8..], rt)
+        }
         name if agent == "webbench" && name.starts_with("agent_") => {
             super::web_agent::dispatch(&name[6..], rt)
         }

@@ -16,7 +16,12 @@ if "--native" in sys.argv:
     from native_experiment_providers import install
     install()
 from te_harness import webbench as wb
-if "--native" in sys.argv: install(wb)
+if "--native" in sys.argv:
+    install(wb)
+    from native_experiment_net_guard import install as install_guard
+    install_guard()
+    from native_plugin import native_cli_process
+    wb.subprocess.run = native_cli_process
 
 binary,repository,destination = sys.argv[1:4]
 run = Path(destination)
@@ -33,8 +38,6 @@ class Runner(base):
     def session_for(self,project):
         assert project == "project"
         return session
-    def _install_net_guard(self,*args): return True
-    def _net_guard_blocks(self,*args): return 0
     def scaffold_answer_excludes(self): return frozenset()
 runner = object.__new__(Runner)
 for key,value in {"model":"gpt-5.4","agent":agent,"effort":"high","cli_version":"fixture-cli","agent_bin":os.environ["TE_FIXTURE_AGENT_BIN"],"claude":os.environ["TE_FIXTURE_AGENT_BIN"],"copilot":os.environ["TE_FIXTURE_AGENT_BIN"],"api_key":"fixture-key","_net_guard_armed":False,"routing_base":"https://fixture.invalid","routing":{"base_url":"https://fixture.invalid"},"base_prompt":"# Using skills\nFixture skills\n# Task\nImplement fixture task\n","system_skills":["fixture-skill"],"optimizer_model":"fixture-optimizer","protected_tools":frozenset({"Bash"}),"repo":repository,"_stream_broken":False,"retry":2,"start_timeout":5,"verdict_timeout":5,"task_timeout":240,"max_workers":1,"node":binary,"keep_workspaces":True,"scaffold":None,"scaffold_name":None,"_lean_instructions_tokens":8,"answer_key_ns":False}.items(): setattr(runner,key,value)
@@ -54,7 +57,8 @@ try:
     assert config["spiral"]["guard_per_attempt"] is True and config["tools"]["protected"] == ["Bash"]
     if agent == "copilot":
         assert "_debug_log" not in row and '"prompt_tokens":60' in Path(run,"copilot_debug.log").read_text(encoding="utf-8")
-        assert Path(run,".copilot-home/settings.json").read_text(encoding="utf-8") == '{"fixture":"operator"}'
+        settings=json.loads(Path(run,".copilot-home/settings.json").read_text(encoding="utf-8"))
+        assert settings["fixture"] == "operator" and settings["hooks"]["preToolUse"][0]["matcher"] == "bash"
     if agent == "codex":
         assert row["turns_basis"] == "codex_steps" and row["codex_config_capabilities"] == ["skills"]
         home=Path(run,".codex-home")
@@ -82,6 +86,9 @@ if "--native" in sys.argv:
         assert native_plugin.CALLS["experiment.swebench.provider.webbench."+name] > 0,"pipeline bypassed native "+name
     assert native_plugin.CALLS["experiment.swebench.provider.webbench."+("guard_codex" if agent == "codex" else "guard_claude")] > 0
     assert native_plugin.CALLS["experiment.swebench.provider.webbench.segment_"+agent] == 1
+    for name in ("network_install","network_verify","network_blocks"):
+        assert native_plugin.CALLS["experiment.swebench.provider.webbench."+name] > 0,"pipeline bypassed native "+name
+    assert native_plugin.CALLS["experiment.net_guard.process"] == 1
     for name in ("agent_home_codex" if agent == "codex" else "agent_home_claude","agent_bin_dir","agent_row_"+agent,"agent_usage_"+agent):
         assert native_plugin.CALLS["experiment.swebench.provider.webbench."+name] > 0,"pipeline bypassed native "+name
     if agent == "copilot":

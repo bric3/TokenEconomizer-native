@@ -336,6 +336,20 @@ def install(runner_module=None):
                         try: value = with_exception(error,matches)
                         finally: BaseException.__traceback__.__set__(error,traceback)
                     elif method == "eval_list": values[parameters[0]] = [values[key] for key in parameters[1]]
+                    elif method == "eval_generator":
+                        # Create the iterator eagerly; Rust evaluates elements only when the caller consumes them.
+                        iterator = iter(values[parameters[1]])
+                        def element(element): pass
+                        evaluate = bind_function(module,element,"webbench",parameters[2])
+                        def entries(iterator=iterator,evaluate=evaluate):
+                            while True:
+                                try: item = next(iterator)
+                                except StopIteration: return
+                                yield from evaluate(item)
+                        generator = entries()
+                        generator.__name__ = "<genexpr>"
+                        generator.__qualname__ = original.__qualname__+".<locals>.<genexpr>"
+                        values[parameters[0]] = generator
                     elif method == "eval_iter": values["iterator"] = iter(values["tasks"])
                     elif method == "eval_next":
                         try: values["task"] = next(values["iterator"])
@@ -376,6 +390,9 @@ def install(runner_module=None):
                     elif method == "task_super":
                         lexical_class = inspect.getclosurevars(original).nonlocals["__class__"]
                         values["function"] = super(lexical_class,values["self"]).run_task
+                    elif method == "runner_super":
+                        lexical_class = inspect.getclosurevars(original).nonlocals["__class__"]
+                        values["function"] = getattr(super(lexical_class,values["self"]),parameters[0])
                     elif method == "task_call_kwargs":
                         values["called"] = values["function"](*[values[key] for key in parameters[0]],**{key:values[slot] for key,slot in parameters[1]},**values[parameters[2]])
                     elif method == "task_caught_log":
@@ -470,6 +487,20 @@ def install(runner_module=None):
             setattr(owner,name,replacements[original])
         if domain == "webbench":
             for cls_name,methods in (
+                ("WebBenchRunner",(("_net_guard_log","log"),("_net_guard_blocks","blocks"),("net_guard_settings_path","settings_claude"),("net_guard_hook_entry","entry_claude"),("_install_net_guard","install"),("_verify_net_guard","verify"))),
+                ("CopilotWebBenchRunner",(("net_guard_settings_path","settings_copilot"),("net_guard_hook_entry","entry_copilot"))),
+                ("CodexWebBenchRunner",(("_hosts_file","hosts"),("net_guard_settings_path","settings_codex"),("_install_net_guard","install_codex"))),
+            ):
+                cls = getattr(owner,cls_name)
+                for name,suffix in methods:
+                    descriptor = inspect.getattr_static(cls,name)
+                    original = descriptor.__func__ if isinstance(descriptor,staticmethod) else getattr(cls,name)
+                    operation = "network_"+suffix
+                    if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
+                    replacement = function(owner,original,"webbench",operation)
+                    replacements[original] = replacement
+                    setattr(cls,name,staticmethod(replacement) if isinstance(descriptor,staticmethod) else replacement)
+            for cls_name,methods in (
                 ("WebBenchRunner",(("agent_home","home_claude"),("scaffold_bin_dir","bin_dir"),("scaffold_exec_env","exec_env_claude"),("prepare_agent_home","prepare_claude"),("_merge_segments","merge_claude"),("_segment_usage","usage_claude"),("_row_from_segment","row_claude"))),
                 ("CopilotWebBenchRunner",(("scaffold_exec_env","exec_env_copilot"),("prepare_agent_home","prepare_copilot"),("scaffold_copilot_home","copilot_home"),("_merge_segments","merge_copilot"),("_segment_usage","usage_copilot"),("_row_from_segment","row_copilot"))),
                 ("CodexWebBenchRunner",(("agent_home","home_codex"),("scaffold_exec_env","exec_env_codex"),("_write_config","config_codex"),("_merge_segments","merge_codex"),("_segment_usage","usage_codex"),("_row_from_segment","row_codex"))),
@@ -495,7 +526,7 @@ def install(runner_module=None):
                 if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
                 replacements[original] = function(owner,original,"webbench",operation)
                 setattr(cls,method,replacements[original])
-            for name,operation in (("build_prompt","build_prompt"),("strip_transport_instructions","strip_transport"),("_session_log_text_host","session_log")):
+            for name,operation in (("build_prompt","build_prompt"),("strip_transport_instructions","strip_transport"),("_session_log_text_host","session_log"),("_shq","network_quote")):
                 original = getattr(owner,name)
                 if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
                 replacements[original] = function(owner,original,"webbench",operation)

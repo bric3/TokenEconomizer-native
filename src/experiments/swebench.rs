@@ -37,6 +37,7 @@ mod tests;
 pub mod web_agent;
 pub mod web_close;
 pub mod web_contract;
+pub mod web_guard;
 pub mod web_host;
 pub mod web_http;
 pub mod web_output;
