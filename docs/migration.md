@@ -493,6 +493,14 @@ complete while any runtime component delegates production behaviour to Python.
   ignored and subprocess or registry errors propagate in source order. Both domains
   share native signal registration and signal exit-status handling. SDK bindings
   supply subprocess and signal I/O through independent cleanup connections.
+- Web-Bench workspace materialisation and answer collection use native path
+  validation, directory pruning, supplied-file exceptions, scaffold and evaluator
+  exclusions, size limits, read-error handling, change detection and deletion
+  reporting. Ignore-file loading and ancestor construction also use native policy.
+  The shared wildcard matcher accepts Python code points, including surrogates.
+  SDK bindings supply filesystem I/O, path normalisation and object protocols;
+  replaced wildcard functions retain their external calls. Scaffold exclusion
+  metadata still comes from the runner's source helper.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -630,9 +638,8 @@ complete while any runtime component delegates production behaviour to Python.
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   Container guard binary deployment and registration, scaffold backends and
-  contexts, agent streaming, and the
-  Web-Bench task calls and
-  wrappers still need conversion.
+  contexts, agent streaming, and the Web-Bench task lifecycle, agent wrappers and
+  scaffold-exclusion helpers still need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
@@ -1944,6 +1951,28 @@ complete while any runtime component delegates production behaviour to Python.
   formatting and the 256-file reference check pass. Original tests remain unchanged.
   IDE inspections remain unavailable because this checkout is not open in the IDE.
   Web-Bench task calls, scaffold backends, streaming, host bindings and remaining
+  parity audits stay open. Simplification and performance passes remain at 0/3
+  each; final test conversion is pending.
+
+- Web-Bench workspace policy passes 333 source comparisons covering workspace
+  replacement, invalid relative paths, non-string contents, directory pruning,
+  supplied hidden files, scaffold exclusions, file-size limits, unreadable files,
+  suppressed context errors, partial results and exception-aware path formatting.
+  Real filesystem checks verify workspace replacement and collected answers,
+  including Unicode files, binary files, ignore files and tracked dot-directories.
+  Ignore helpers pass another 725 comparisons covering eager path assembly,
+  ignore-file order, line filtering, ancestor prefixes, wildcard classes, Unicode
+  and surrogate code points, foreign matchers and callable replacement during path
+  normalisation. Their normal string matching executes in Rust. The shared matcher
+  retains its string API and now also accepts code-point slices.
+  Existing bridge/protected-tool checks, the 87-case facade corpus and the 914-case
+  shared runner corpus pass. The full original suite, with installed-opencode tests
+  enabled, passes with 1,561 passed and 30 skipped (71.15 seconds). Its record remains
+  `validation/experiment-task-calls.json`; original tests do not exercise the new
+  workspace operations. All 24 Rust checks, debug/release builds, Clippy, formatting
+  and the 256-file reference check pass. Original tests remain unchanged.
+  IDE inspections remain unavailable because this checkout is not open in the IDE.
+  The task loop, agent execution, scaffold helpers, host bindings and remaining
   parity audits stay open. Simplification and performance passes remain at 0/3
   each; final test conversion is pending.
 

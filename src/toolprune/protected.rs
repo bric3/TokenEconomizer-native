@@ -20,14 +20,14 @@ impl ProtectedTools {
 enum Token {
     Star,
     Any,
-    Literal(char),
+    Literal(u32),
     Class {
         negated: bool,
-        ranges: Vec<(char, char)>,
+        ranges: Vec<(u32, u32)>,
     },
 }
 impl Token {
-    fn matches(&self, c: char) -> bool {
+    fn matches(&self, c: u32) -> bool {
         match self {
             Self::Any => true,
             Self::Literal(literal) => *literal == c,
@@ -40,34 +40,40 @@ impl Token {
 }
 
 pub fn fnmatchcase(name: &str, pattern: &str) -> bool {
-    let pattern: Vec<_> = pattern.chars().collect();
+    fnmatch_points(
+        &name.chars().map(u32::from).collect::<Vec<_>>(),
+        &pattern.chars().map(u32::from).collect::<Vec<_>>(),
+    )
+}
+
+pub(crate) fn fnmatch_points(name: &[u32], pattern: &[u32]) -> bool {
     let mut tokens = Vec::new();
     let mut i = 0;
     while i < pattern.len() {
         let c = pattern[i];
         i += 1;
-        tokens.push(match c {
-            '*' => {
-                while i < pattern.len() && pattern[i] == '*' {
+        tokens.push(match char::from_u32(c) {
+            Some('*') => {
+                while i < pattern.len() && pattern[i] == u32::from('*') {
                     i += 1;
                 }
                 Token::Star
             }
-            '?' => Token::Any,
-            '[' => {
-                let negated = pattern.get(i) == Some(&'!');
+            Some('?') => Token::Any,
+            Some('[') => {
+                let negated = pattern.get(i) == Some(&u32::from('!'));
                 let start = i + usize::from(negated);
-                let mut end = start + usize::from(pattern.get(start) == Some(&']'));
-                while end < pattern.len() && pattern[end] != ']' {
+                let mut end = start + usize::from(pattern.get(start) == Some(&u32::from(']')));
+                while end < pattern.len() && pattern[end] != u32::from(']') {
                     end += 1;
                 }
                 if end == pattern.len() {
-                    Token::Literal('[')
+                    Token::Literal(u32::from('['))
                 } else {
                     let mut at = start;
                     let mut ranges = Vec::new();
                     while at < end {
-                        if at + 2 < end && pattern[at + 1] == '-' {
+                        if at + 2 < end && pattern[at + 1] == u32::from('-') {
                             // Python discards descending ranges, including both endpoints.
                             if pattern[at] <= pattern[at + 2] {
                                 ranges.push((pattern[at], pattern[at + 2]));
@@ -82,10 +88,9 @@ pub fn fnmatchcase(name: &str, pattern: &str) -> bool {
                     Token::Class { negated, ranges }
                 }
             }
-            c => Token::Literal(c),
+            _ => Token::Literal(c),
         });
     }
-    let name: Vec<_> = name.chars().collect();
     let mut matched = vec![false; name.len() + 1];
     matched[0] = true;
     for token in tokens {

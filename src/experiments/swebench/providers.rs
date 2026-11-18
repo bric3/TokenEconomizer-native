@@ -320,6 +320,11 @@ fn verify(rt: &mut dyn Runtime) -> Result<Value> {
 pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
     let (agent, name) = method.split_once('.').unwrap_or(("", method));
     match name {
+        "materialize" if agent == "webbench" => super::web_workspace::materialize(rt),
+        "collect" if agent == "webbench" => super::web_workspace::collect(rt),
+        "load_ignore_globs" if agent == "webbench" => super::web_workspace::load_ignore_globs(rt),
+        "ancestors" if agent == "webbench" => super::web_workspace::ancestors(rt),
+        "ignored" if agent == "webbench" => super::web_workspace::ignored(rt),
         "eval_close" if agent == "webbench" => super::web_close::close(rt),
         "cleanup_sessions" if agent == "webbench" => super::cleanup::sessions(rt),
         "cleanup_containers" if agent == "swebench" => super::cleanup::containers(rt),

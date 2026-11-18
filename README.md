@@ -110,6 +110,10 @@ parsing, queue rendezvous, timeout replies, response headers and broken-pipe log
 also use native policy. Evaluator cleanup, live-session sweeping and signal
 registration also run in Rust. A separate SDK bridge connection allows cleanup
 while the main RPC lock is held, preserving the original signal exit status.
+Workspace materialisation and answer collection use native path checks, directory
+pruning, change detection, size limits and deletion reporting. Ignore-file loading,
+path ancestors and wildcard matching also run in Rust, with SDK bindings for
+filesystem I/O, OS path normalisation and object protocols.
 Evaluator task-file loading uses native path assembly, line filtering, ID
 collection and file-error handling. SDK bindings provide file contexts and JSON
 library decoding while retaining ID values by reference.

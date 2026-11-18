@@ -1,5 +1,6 @@
 """Opaque object, I/O and runtime bindings for native experiment policies."""
 import functools
+import fnmatch
 import builtins
 import inspect
 import operator
@@ -12,6 +13,11 @@ from types import FunctionType
 from native_plugin import invoke
 from native_cleanup_transport import isolated_invoke
 from native_experiment_task import checked, data
+
+FNMATCH = fnmatch.fnmatch
+FNMATCHCASE = fnmatch.fnmatchcase
+FNMATCH_COMPILE = fnmatch._compile_pattern
+FNMATCH_TRANSLATE = fnmatch.translate
 
 
 def install(runner_module=None):
@@ -337,6 +343,32 @@ def install(runner_module=None):
                         handler.__qualname__ = original.__qualname__+".<locals>.handler"
                         handler.__module__ = module.__name__
                         values["handler"] = bind_function(module,handler,agent,"signal_handler")
+                    elif method == "workspace_iter": values[parameters[1]] = iter(values[parameters[0]])
+                    elif method == "workspace_next":
+                        try: values[parameters[1]] = next(values[parameters[0]])
+                        except StopIteration: value = False
+                        else: value = True
+                    elif method == "workspace_pair": values[parameters[1]],values[parameters[2]] = values[parameters[0]]
+                    elif method == "workspace_walk": values["root"],values["dirs"],values["names"] = values["entry"]
+                    elif method == "workspace_dirs": values["dirs"][:] = values["kept"]
+                    elif method == "workspace_set": values[parameters[0]] = set()
+                    elif method == "workspace_put": values[parameters[0]][values[parameters[1]]] = values[parameters[2]]
+                    elif method == "workspace_local":
+                        if parameters[0] not in values: raise UnboundLocalError(f"cannot access local variable '{parameters[0]}' where it is not associated with a value")
+                        values[parameters[1]] = values[parameters[0]]
+                    elif method == "workspace_slice": values[parameters[2]] = values[parameters[0]][:values[parameters[1]]]
+                    elif method == "workspace_fnmatch_import": values["fnmatch"] = __import__("fnmatch")
+                    elif method == "workspace_match":
+                        library = values["fnmatch"]
+                        values["match_function"] = library.fnmatch
+                        candidate,pattern = values["candidate"],values["pattern"]
+                        if values["match_function"] is FNMATCH and type(candidate) is str and type(pattern) is str:
+                            candidate,pattern = library.os.path.normcase(candidate),library.os.path.normcase(pattern)
+                            values["match_function"] = library.fnmatchcase
+                        values["match_candidate"],values["match_pattern"] = candidate,pattern
+                        if values["match_function"] is FNMATCHCASE and library._compile_pattern is FNMATCH_COMPILE and library.translate is FNMATCH_TRANSLATE and type(candidate) is str and type(pattern) is str:
+                            value = [list(map(ord,candidate)),list(map(ord,pattern))]
+                        else: value = None
                     elif method == "preflight_format": value = format(values[parameters[0]],parameters[1])
                     elif method == "preflight_log":
                         values["preflight_call_log"](*parameters)
@@ -396,6 +428,16 @@ def install(runner_module=None):
             replacements[original] = function(owner,original,domain,operation)
             setattr(owner,name,replacements[original])
         if domain == "webbench":
+            for name,operation in (("_load_ignore_globs","load_ignore_globs"),("_ancestors","ancestors"),("_ignored","ignored")):
+                original = getattr(owner,name)
+                if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
+                replacements[original] = function(owner,original,"webbench",operation)
+                setattr(owner,name,replacements[original])
+            for name,operation in (("_materialize","materialize"),("_collect","collect")):
+                original = getattr(owner.WebBenchRunner,name)
+                if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
+                replacements[original] = function(owner,original,"webbench",operation)
+                setattr(owner.WebBenchRunner,name,replacements[original])
             for name,operation in (("do_POST","http_post"),("log_message","http_log_message")):
                 original = getattr(owner._AgentHandler,name)
                 if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
