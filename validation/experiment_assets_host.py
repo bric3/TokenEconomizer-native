@@ -8,12 +8,13 @@ import sys
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
 from te_bench.baselines import repomap
-from te_harness import codex
+from te_harness import codex, webbench
 if "--native" in sys.argv:
     from native_codex_install import install as install_codex
     from native_experiment_providers import install
     install_codex()
     install(scaffold_module=repomap)
+    install(webbench)
 
 for line in sys.stdin:
     request=json.loads(line)
@@ -30,6 +31,7 @@ for line in sys.stdin:
             replacement=subprocess.Popen([request["bridge"]],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True,encoding="utf-8")
             native_plugin.PROCESS=replacement
         if request.get("operation") == "prompt": value=codex.base_prompt_for(request.get("version"))
+        elif request.get("operation") == "web": value=webbench.webbench_undici_env(request.get("env",{}),repo=request.get("repo"))
         else: value=repomap.RepoMapScaffold().generate(request["directory"],request.get("idents",["Widget"]))
         output={"value":value}
     except BaseException as error: output={"raised":type(error).__name__,"message":str(error)}

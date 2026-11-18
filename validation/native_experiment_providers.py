@@ -288,7 +288,7 @@ def install(runner_module=None,scaffold_module=None):
                     elif method == "web_binary": values[parameters[3]] = getattr(operator,parameters[0])(values[parameters[1]],values[parameters[2]])
                     elif method == "web_which": values[parameters[0]] = module.shutil.which(parameters[1])
                     elif method == "web_abort": values["abort"] = module.webbench_undici_abort(values["env"])
-                    elif method == "web_uri": values["uri"] = module.Path(module.UNDICI_PRELOAD).as_uri()
+                    elif method == "web_uri": values["uri"] = module.Path(parameters[0]).as_uri()
                     elif method == "web_stringify": values[parameters[1]] = str(values[parameters[0]])
                     elif method == "web_run": values["completed"] = module.subprocess.run(parameters[0],**parameters[1])
                     elif method == "web_returncode": values["returncode"] = values["completed"].returncode

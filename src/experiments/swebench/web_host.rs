@@ -5,6 +5,7 @@ use super::{
 };
 use crate::python_json::Text;
 use serde_json::{Value, json};
+use std::path::PathBuf;
 
 fn returned(slot: &str) -> Value {
     json!({"provider_ref":slot})
@@ -180,7 +181,13 @@ fn undici_env(rt: &mut dyn Runtime) -> Result<Value> {
     if compare(rt, "le", "abort", "default")? {
         return Ok(returned("output"));
     }
-    rt.call("web_uri", json!([]))?;
+    let assets = crate::experiments::assets::installed()?.unwrap_or_else(|| {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/experiments/assets")
+    });
+    rt.call(
+        "web_uri",
+        json!([assets.join("webbench_undici_preload.mjs")]),
+    )?;
     literal(rt, "prefix", json!("--import "))?;
     rt.call("web_binary", json!(["add", "prefix", "uri", "opt"]))?;
     capture(rt, "previous", "NODE_OPTIONS", Some(""))?;

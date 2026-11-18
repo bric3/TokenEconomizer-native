@@ -129,8 +129,10 @@ file hashes and preserves executable permissions. It requires a fresh output
 directory. Bundled Codex engines read captures from
 `assets/codex_base_prompt/<version>.md`; development engines use the embedded
 pinned capture. Repo-map scaffolds invoke the companion `te-repomap-gen` and pass
-their Python interpreter to its aider SDK binding. Standalone host bindings,
-WebBench preload selection and a benchmark command remain pending.
+their Python interpreter to its aider SDK binding. Standalone host bindings
+and a benchmark command remain pending. WebBench selects the bundled Node
+preload; unbundled development engines use `src/experiments/assets` in the build
+checkout.
 
 SWE-bench controller selection, constructor parameters, continuation dispatch and
 telemetry fields run in Rust for all three agents. SDK bindings retain controller,

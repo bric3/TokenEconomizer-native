@@ -742,8 +742,7 @@ complete while any runtime component delegates production behaviour to Python.
   SWE-bench guard deployment and registration use native helpers. Native
   scaffold merge helpers are deployed through harness callbacks. Both harnesses
   select native guard executables. The runtime bundle ships executables and
-  assets. Standalone host bindings, WebBench preload selection and the benchmark
-  entry point remain open.
+  assets. Standalone host bindings and the benchmark entry point remain open.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
@@ -753,8 +752,8 @@ complete while any runtime component delegates production behaviour to Python.
   model verification and shared endpoint preflight control flow are native.
   Messages and Responses optimizer policy is native; HTTP I/O retains SDK bindings.
   Codex installation discovery, captured-prompt loading and offline probes are
-  native. Experiment asset packaging and host bindings still need to replace the
-  validation binding's reference-data paths.
+  native. Codex captures and the WebBench preload use native runtime asset paths.
+  Standalone host bindings still need to replace the validation bindings.
   Process and SDK calls retain Python I/O bindings.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
@@ -2616,6 +2615,29 @@ complete while any runtime component delegates production behaviour to Python.
   of production migration; formal simplification and performance passes remain at
   0/3 each. Original tests remain unchanged; final test conversion is pending.
 
+- WebBench preload selection now uses the installed runtime's
+  `assets/webbench_undici_preload.mjs`. Unbundled development engines use the
+  native source asset in the build checkout. The Python binding only converts
+  the selected path to a file URI. The stock abort ceiling returns before asset
+  lookup; raised ceilings preserve the existing `NODE_OPTIONS` and timeout values.
+  The dedicated preload probe passes 22 checks, including actual Node imports
+  from development and relocated paths containing spaces, Unicode, apostrophes,
+  `#` and `%`. An isolated undici fixture verifies both dispatcher timeouts without
+  network or model calls. Missing bundled assets reach Node's module-load error;
+  they do not select a reference file. Invalid runtime manifests propagate errors.
+  The 680-case WebBench host corpus retains its object and failure checks. Its
+  path fixture validates the native asset path before mapping it to the source
+  fixture's path for comparison. The dedicated probe checks actual URI conversion
+  and file loading. The 54 prompt/repo-map checks also pass.
+  The full unchanged upstream suite passes with 1,561 passed and 30 skipped
+  (70.70 seconds), including installed-opencode tests against the loopback model
+  fixture. All 24 Rust checks, release build, Clippy, formatting and the 256-file
+  reference check pass. IDE inspections remain unavailable because this checkout
+  is not open in the IDE. Windows execution and live agents remain unverified.
+  Standalone host bindings, the benchmark entry point and remaining parity audits
+  stay open. Formal simplification and performance passes remain at 0/3 each;
+  final test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2793,6 +2815,7 @@ jbang validation/NativeHookProbe.java
 jbang validation/PackageProbe.java
 jbang validation/ExperimentBundleProbe.java
 jbang validation/ExperimentAssetsProbe.java
+jbang validation/WebPreloadProbe.java
 jbang validation/HermesGatewayProbe.java
 jbang validation/PiSdkProbe.java
 jbang validation/OpencodeSdkProbe.java

@@ -78,7 +78,12 @@ for line in sys.stdin:
     def which(name): record("which",name);return shutil.which(name,path=request["path"]) if request.get("real_paths") else Token("which") if request.get("opaque_which") else request.get("which")
     class Uri:
         def as_uri(self): record("as_uri");return Token("uri") if request.get("opaque_uri") else request.get("uri","file:///fixture/preload.mjs")
-    def path(value): record("Path",value);return Path(value) if request.get("real_uri") else Uri()
+    def path(value):
+        if "--native" in sys.argv:
+            assert value == str(ROOT/"src/experiments/assets/webbench_undici_preload.mjs"),value
+            value = wb.UNDICI_PRELOAD
+        record("Path",value)
+        return Path(value) if request.get("real_uri") else Uri()
     def abort(env): record("abort",env);return Token("abort") if request.get("opaque_abort") else request["abort"]
     class Completed:
         @property
