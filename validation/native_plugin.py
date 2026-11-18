@@ -2928,6 +2928,14 @@ def install_opencode_sdk(module):
 
 
 def pytest_collection_modifyitems(items):
+    if "te_harness.swebench" in sys.modules:
+        from native_experiment_usage import install
+        replacements = install()
+        for module in list(sys.modules.values()):
+            if module:
+                for name, value in list(vars(module).items()):
+                    if inspect.isfunction(value) and value in replacements:
+                        setattr(module, name, replacements[value])
     if "te_bench.facade" in sys.modules:
         from native_experiment_facade import install
         install()

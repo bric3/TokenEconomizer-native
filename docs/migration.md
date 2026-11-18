@@ -371,6 +371,11 @@ complete while any runtime component delegates production behaviour to Python.
   in tooling, spiral, injection order. It supports the native dataset adapters
   and custom adapters through their shared domain interface. The original facade
   class serves as a data and callback binding during migration.
+- The task-runner usage parsers and segment merges now execute in Rust for Claude,
+  Codex and Copilot. Claude recovery deduplicates message snapshots and clears
+  degradation only when the session log accounts for every observed message.
+  Codex preserves unknown segment totals; Copilot retains known counts and marks
+  mixed sources. The original harness functions serve as data bindings in tests.
 
 ## Remaining production work
 
@@ -396,6 +401,7 @@ complete while any runtime component delegates production behaviour to Python.
   that audit. The CLI currently rejects them with a diagnostic.
 - Include history, folding, controller, host replay and experiment counters beyond
   i64 in the numeric parity audit.
+- Include harness accounting totals outside JSON's i64/u64 range in that audit.
 - Include CLI and ledger counts beyond i64 in the numeric parity audit.
 - Include `probe --sessions` integers outside i64 in that audit.
 - Include displayed tool counters in that audit, and audit CLI errors for malformed
@@ -414,6 +420,8 @@ complete while any runtime component delegates production behaviour to Python.
   original API alongside the remaining production parity checks.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
+  Their usage accounting is native; subprocess, container, grading and stream
+  lifecycle conversion remains open.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
 
@@ -1065,6 +1073,26 @@ complete while any runtime component delegates production behaviour to Python.
   regression and 256-file reference check pass. Original tests remain unchanged.
   No improvement pass is counted. Task runners and production-parity audits remain
   open.
+- Harness usage accounting matches the source in 474 comparisons across all three
+  schemas. They cover interrupted recovery, repeated snapshots, partial session
+  logs, message-ID equality, large numeric IDs, counters above 2^53, cache writes,
+  reasoning tokens, missing usage, distinct segment-merge rules, malformed-event
+  diagnostics and log-directory reading with UTF-8 replacement and universal
+  newlines, including relative paths after a working-directory change. Four Rust
+  checks verify exact counters, unknown segment totals,
+  recovery completeness and distinct large numeric message IDs. The focused
+  original tests pass: 75 passed, 2 skipped.
+  The full original suite with installed-opencode tests enabled passes with
+  1,561 passed and 30 skipped (65.97 seconds).
+  `validation/experiment-usage-calls.json` records the native entries, including
+  20 recovery observations, 17 synthesized results and 14 Codex usage rows.
+  All 16 Rust library checks, the callback replay check, debug/release builds,
+  Clippy, formatting, the 87-case facade regression, 88-case nudge regression and
+  256-file reference check pass. Original tests remain unchanged. Task execution
+  and the production-parity audits remain open; no improvement pass is counted.
+  Log filenames outside UTF-8 remain unverified on this Mac: the local filesystem
+  rejects the fixture with `Illegal byte sequence`. The reader matches raw filename
+  bytes without discarding such entries.
 
 ## Dependencies
 
@@ -1189,6 +1217,7 @@ jbang validation/AdapterProbe.java
 jbang validation/SpiralProbe.java
 jbang validation/NudgeProbe.java
 jbang validation/FacadeProbe.java
+jbang validation/UsageProbe.java
 jbang validation/BridgeProbe.java
 jbang validation/QueueProbe.java
 jbang validation/ContextProbe.java

@@ -29,6 +29,7 @@ pub(super) fn failure(error: String) -> Value {
                 "FileNotFoundError",
                 "PermissionError",
                 "KeyError",
+                "OverflowError",
             ]
             .contains(kind)
         })

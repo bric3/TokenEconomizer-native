@@ -31,6 +31,8 @@ mod storage_dispatch;
 mod tooling_dispatch;
 #[path = "bridge/trace.rs"]
 mod trace_dispatch;
+#[path = "bridge/experiment_usage.rs"]
+mod usage_dispatch;
 
 use serde_json::{Value, json};
 use tokeneconomizer::{
@@ -46,6 +48,9 @@ use tokeneconomizer::{
 
 fn dispatch(request: &Value) -> Result<Value, String> {
     let args = &request["args"];
+    if let Some(value) = usage_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
+        return Ok(value);
+    }
     if let Some(value) = facade_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
         return Ok(value);
     }

@@ -64,5 +64,7 @@ tool-result redirects and session exports in Rust.
 The four experiment dataset adapters also run in Rust and implement the native
 tooling interface. The experiment facade, spiral stage, generic nudge controller
 and Codex continuation controller also run in Rust.
+Task-runner usage accounting and interrupted-session recovery run in Rust for
+Claude, Codex and Copilot.
 
 Installed host verification and the remaining migration gates are still in progress.
