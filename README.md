@@ -100,9 +100,13 @@ exclusion commands also run in Rust.
 merge natively, preserving unrelated keys. Build static Linux arm64 and amd64
 helpers with `jbang scripts/BuildContainerHelpers.java` using Docker. Artifacts,
 checksums, compiler details and third-party notices land under
-`target/container-helpers/<architecture>/`. Harness staging still selects the
-generated Python merge program and guard installer; wiring these helper artifacts
-into normal task setup remains open.
+`target/container-helpers/<architecture>/`. The normal SWE-bench guard installer
+selects the container architecture, validates the manifest hash and static ELF,
+copies the helper and registers its hook after scaffold setup. Registration
+preserves existing hooks and verifies an actual refusal before reporting success.
+The validation binding supplies this build directory; experiment packaging still
+needs to ship it. Scaffold merges and WebBench guard installation still select
+their Python paths.
 SWE-bench controller selection, constructor parameters, continuation dispatch and
 telemetry fields run in Rust for all three agents. SDK bindings retain controller,
 callback and telemetry objects across the native calls.

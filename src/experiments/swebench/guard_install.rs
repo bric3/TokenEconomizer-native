@@ -6,6 +6,8 @@ use super::{
 use crate::value::{base64, python_repr, python_type, scalar_text, truthy};
 use serde_json::{Value, json};
 
+mod native;
+
 fn space(c: char) -> bool {
     c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}')
 }
@@ -241,6 +243,7 @@ pub fn graded_diff(name: &Value, rt: &mut dyn Runtime) -> Result<Value> {
 }
 pub fn dispatch(method: &str, args: &Value, rt: &mut dyn Runtime) -> Result<Value> {
     match method {
+        "install" => native::install(args, rt),
         "hosts" => install_hosts(&args["name"], rt),
         "verify" => verify(&args["name"], &args["python"], rt),
         "blocks" => blocks(

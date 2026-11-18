@@ -8,7 +8,7 @@ import sys
 import subprocess
 import math
 
-from native_plugin import invoke
+from native_plugin import ROOT, invoke
 from native_experiment_spiral import checked as checked_value
 
 NO_COMMAND = object()
@@ -157,6 +157,7 @@ def install():
                 elif method == "net_guard_function": value = getattr(module.net_guard,args[0])(*args[1])
                 elif method == "net_guard_constant": value = getattr(module.net_guard,args[0])
                 elif method == "codex_function": value = getattr(module.codex,args[0])(*args[1],**args[2])
+                elif method == "codex_constant": value = getattr(module.codex,args[0])
                 elif method == "scaffold_setup":
                     scaffold_result = (self.scaffold.setup(self._scaffold_context(*args)),None)
                     value = None
@@ -373,10 +374,11 @@ def install():
             arguments = dict(bound.arguments)
             self = arguments.pop("self")
             if operation == "blocks": arguments["int_max_digits"] = getattr(sys,"get_int_max_str_digits",lambda:0)()
+            if operation == "install": arguments["helper_root"] = str(ROOT/"target/container-helpers")
             value = drive(self,invoke("experiment.swebench.guard."+operation,data(arguments)),{})
             return int(value) if operation == "blocks" else value
         return native
-    for name,operation in (("_install_answer_key_hosts","hosts"),("_verify_net_guard","verify"),("_net_guard_blocks","blocks"),("_graded_diff","graded_diff")):
+    for name,operation in (("_install_net_guard","install"),("_install_answer_key_hosts","hosts"),("_verify_net_guard","verify"),("_net_guard_blocks","blocks"),("_graded_diff","graded_diff")):
         setattr(cls,name,guard_method(getattr(cls,name),operation))
     def runner_method(original,agent):
         @functools.wraps(original)

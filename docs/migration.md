@@ -734,8 +734,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
-  Container guard binary deployment and registration and native merge-helper
-  deployment still need conversion.
+  SWE-bench guard deployment and registration use native helpers. Native
+  merge-helper deployment and WebBench guard command selection still need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
@@ -2432,7 +2432,7 @@ complete while any runtime component delegates production behaviour to Python.
   telemetry. The scratch images contain only the helper executable and run with
   no Python, shell or network. These checks establish helper execution on Linux;
   amd64 runs through Docker's cross-architecture execution on the arm64 host.
-  complete task-container installation and live agent hook invocation remain open.
+  Complete task-container installation and live agent hook invocation remain open.
   The full original suite, with installed-opencode tests using the loopback model
   fixture, passes with 1,561 passed and 30 skipped (78.13 seconds). Its call record
   remains `validation/experiment-task-calls.json`; the new command has dedicated
@@ -2443,6 +2443,36 @@ complete while any runtime component delegates production behaviour to Python.
   and remaining parity audits stay open. Live model-backed agents and Windows
   remain unverified. Simplification and performance passes remain at 0/3 each;
   final test conversion is pending.
+
+- Normal SWE-bench guard installation now selects a static helper using the task
+  container's architecture. It validates the manifest hash, ELF machine type and
+  absence of a dynamic interpreter before copying the helper. It creates the agent
+  home, installs the agent's hook after scaffold setup, enables Codex hook trust and
+  verifies a refusal before returning success. Missing or invalid artifacts and
+  process failures retain the failure log and unguarded-row result. Process-control
+  exceptions propagate, and the network escape hatch performs no container I/O.
+  The explicit legacy registration methods retain their Python-program contract;
+  the normal installer no longer calls them.
+  Dedicated validation passes 44 local checks covering both architectures and
+  their aliases, malformed or mismatched artifacts, command failures and trust.
+  The same probe passes 15 further checks in an actual arm64 task container with
+  no Python or network: all three agents preserve existing hooks, install
+  idempotently, quote shell-sensitive paths and refuse the probe. A control command
+  passes and each guard records one refusal. This invokes the registered command
+  directly; live agent hook dispatch remains unverified. Existing guard integration
+  still passes 289 source comparisons and two native checks.
+  The full unchanged original suite passes with 1,561 passed and 30 skipped
+  (67.94 seconds), including installed-opencode tests using the loopback model
+  fixture. Its call record remains `validation/experiment-task-calls.json`;
+  the original suite exercises the installer's network escape hatch, while the
+  dedicated probe covers deployment. All 24 Rust checks, host debug/release
+  builds, Clippy, formatting and the 256-file reference check pass. IDE
+  inspections remain unavailable because this checkout is not open in the IDE.
+  The validation binding supplies `target/container-helpers`; the standalone native
+  operation defaults to `container-helpers` beside its executable. Experiment
+  packaging, standalone host bindings, native scaffold merge staging, WebBench
+  guard command selection and remaining parity audits stay open. Simplification
+  and performance passes remain at 0/3 each; final test conversion is pending.
 
 ## Dependencies
 
@@ -2594,6 +2624,7 @@ jbang validation/CodexConfigProbe.java
 jbang validation/RunnerWrapperProbe.java
 jbang validation/NetGuardProbe.java
 jbang validation/GuardInstallProbe.java --docker
+jbang validation/NativeGuardStagingProbe.java --docker
 jbang validation/BridgeProbe.java
 jbang validation/QueueProbe.java
 jbang validation/ContextProbe.java
