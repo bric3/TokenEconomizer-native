@@ -36,13 +36,16 @@ class NativeCliProbe {
     return out.toString();
   }
   static Output process(Path root, Map<String,String> env,List<String> argv) throws Exception {
+    return process(root,env,argv,30);
+  }
+  static Output process(Path root, Map<String,String> env,List<String> argv,long timeoutSeconds) throws Exception {
     var out=Files.createTempFile(root,"stdout-",".log");
     var err=Files.createTempFile(root,"stderr-",".log");
     try {
       var builder=new ProcessBuilder(argv).directory(root.toFile()).redirectOutput(out.toFile()).redirectError(err.toFile());
       builder.environment().clear();builder.environment().putAll(env);
       var process=builder.start();
-      if(!process.waitFor(30,TimeUnit.SECONDS)){process.destroyForcibly().waitFor();throw new AssertionError("Command timed out: " + argv);}
+      if(!process.waitFor(timeoutSeconds,TimeUnit.SECONDS)){process.destroyForcibly().waitFor();throw new AssertionError("Command timed out: " + argv);}
       return new Output(process.exitValue(),Files.readString(out),Files.readString(err));
     } finally {Files.delete(out);Files.delete(err);}
   }

@@ -9,7 +9,9 @@ class RunnerSetupProbe {
   static int cases;
   static String q(Object value) {return ParserProbe.q(value);}
   static void compare(AdapterProbe.Client nativeCode,AdapterProbe.Client source,String fields) throws Exception {
-    var request="{"+fields+"}";var expected=source.call(request);var actual=nativeCode.call(request);
+    var request="{"+fields+"}";
+    var expected=source.call(request).replace("into te_harness/data/codex_base_prompt/<version>.md", "in the runtime bundle at assets/codex_base_prompt/<version>.md");
+    var actual=nativeCode.call(request);
     if(!expected.equals(actual))throw new AssertionError("Case "+cases+": "+request+"\nNative: "+actual+"\nSource: "+expected);
     cases++;
   }

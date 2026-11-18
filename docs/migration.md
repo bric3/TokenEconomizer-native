@@ -594,9 +594,9 @@ complete while any runtime component delegates production behaviour to Python.
   identifier selection, aider preflight diagnostics, archive-member filtering,
   generator orchestration, instruction writes and cleanup use native policy too.
   SDK bindings supply archive extraction, Unicode character properties, object
-  protocols and process I/O. Native experiment packaging still needs to supply
-  the generator command; the validation suite uses the existing native-generator
-  adapter. Aider remains an external Python dependency.
+  protocols and process I/O. Repo-map generation selects the native executable
+  beside the engine and passes the current interpreter to its aider SDK binding.
+  Aider remains an external Python dependency.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -742,7 +742,7 @@ complete while any runtime component delegates production behaviour to Python.
   SWE-bench guard deployment and registration use native helpers. Native
   scaffold merge helpers are deployed through harness callbacks. Both harnesses
   select native guard executables. The runtime bundle ships executables and
-  assets. Standalone host bindings, runtime asset selection and the benchmark
+  assets. Standalone host bindings, WebBench preload selection and the benchmark
   entry point remain open.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
@@ -2581,6 +2581,41 @@ complete while any runtime component delegates production behaviour to Python.
   parity audits stay open. Formal simplification and performance passes remain
   at 0/3 each; final test conversion is pending.
 
+- Codex prompt lookup now uses `assets/codex_base_prompt/<version>.md` in an
+  installed runtime bundle. Unbundled development engines use the embedded pinned
+  capture. Missing bundled captures return `None`; additional captures and
+  Unicode version numbers use the same version matcher and file-read binding.
+  The source-module path callback is removed, and the missing-capture diagnostic
+  names the bundle directory. Runtime packaging and prompt lookup share one asset
+  catalogue.
+  Repo-map scaffolds select `te-repomap-gen` beside the engine and pass the current
+  interpreter through `--python`. The generator continues to use the external
+  aider SDK while repository walking, filtering and process control remain native.
+  The scaffold no longer selects a reference Python generator file.
+  Dedicated validation passes 54 checks for default and relocated prompt lookup,
+  missing and additional captures, Unicode versions, file-read failures, actual
+  native generation, budget errors, SDK failures and missing companion binaries.
+  Actual generation runs through the debug engine and a relocated engine with an
+  isolated aider SDK and no model calls. The repo-map corpus retains all 704 source
+  comparisons: its fixture validates the native launch prefix, compares the shared
+  request arguments and keeps its existing Java process stand-in. The dedicated
+  probe supplies real native-generator execution. Codex installation retains 217
+  comparisons, including actual capture output and offline CLI/process checks.
+  SWE-bench constructor comparisons pass all 483 cases with the new capture hint.
+  Focused unchanged original tests pass with 76 passed and three skipped.
+  The full unchanged upstream suite passes with 1,561 passed and 30 skipped
+  (109.05 seconds), including installed-opencode tests using the loopback model
+  fixture. All 24 Rust checks, debug/release builds, Clippy, formatting and the
+  256-file reference check pass. The runtime bundle regression passes 103 checks.
+  Its debug-executable ZIP exceeded the original 30-second probe limit; the bundle
+  probe now allows 120 seconds and retains the same debug-executable coverage.
+  IDE inspections remain unavailable because this checkout is not open in the
+  IDE. Windows execution and live agents remain unverified.
+  WebBench preload selection, standalone host bindings, the benchmark entry point
+  and remaining parity audits stay open. This asset catalogue extraction is part
+  of production migration; formal simplification and performance passes remain at
+  0/3 each. Original tests remain unchanged; final test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2757,6 +2792,7 @@ jbang validation/HookProbe.java
 jbang validation/NativeHookProbe.java
 jbang validation/PackageProbe.java
 jbang validation/ExperimentBundleProbe.java
+jbang validation/ExperimentAssetsProbe.java
 jbang validation/HermesGatewayProbe.java
 jbang validation/PiSdkProbe.java
 jbang validation/OpencodeSdkProbe.java

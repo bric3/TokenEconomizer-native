@@ -371,7 +371,7 @@ fn codex(rt: &mut dyn Runtime) -> Result<()> {
         log(
             rt,
             format!(
-                "codex: no base prompt capture for {} -- the interactive_guidance package cannot be applied on this lane and will stay loaded; capture this CLI's base prompt into te_harness/data/codex_base_prompt/<version>.md to enable it",
+                "codex: no base prompt capture for {} -- the interactive_guidance package cannot be applied on this lane and will stay loaded; capture this CLI's base prompt in the runtime bundle at assets/codex_base_prompt/<version>.md to enable it",
                 python_repr(&version)
             ),
         )?;

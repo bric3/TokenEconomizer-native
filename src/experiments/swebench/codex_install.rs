@@ -125,19 +125,13 @@ fn base_prompt(input: &Value, rt: &mut dyn Runtime) -> Result<Value> {
     let Some(version) = VERSION.find(&text) else {
         return Ok(Value::Null);
     };
-    let file = rt.call("install_source_file", json!([]))?;
-    let absolute = path(rt, "abspath", json!([file]))?;
-    let directory = path(rt, "dirname", json!([absolute]))?;
-    let file = path(
-        rt,
-        "join",
-        json!([
-            directory,
-            "data",
-            "codex_base_prompt",
-            format!("{}.md", version.as_str())
-        ]),
-    )?;
+    let Some(root) = crate::experiments::assets::installed()? else {
+        return Ok(json!(crate::experiments::assets::capture(version.as_str())));
+    };
+    let file = json!(
+        root.join("codex_base_prompt")
+            .join(format!("{}.md", version.as_str()))
+    );
     if !truthy(&path(rt, "exists", json!([file]))?) {
         return Ok(Value::Null);
     }

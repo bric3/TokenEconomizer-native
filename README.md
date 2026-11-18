@@ -126,8 +126,11 @@ target/release/te-package --experiments --container-helpers target/container-hel
 This mode embeds the pinned Codex prompt, WebBench Node preload, licence and
 notices. It copies five native executables and both static Linux helpers, records
 file hashes and preserves executable permissions. It requires a fresh output
-directory. Standalone experiment host bindings, runtime asset selection and a
-benchmark command remain pending; this bundle supplies their engine and assets.
+directory. Bundled Codex engines read captures from
+`assets/codex_base_prompt/<version>.md`; development engines use the embedded
+pinned capture. Repo-map scaffolds invoke the companion `te-repomap-gen` and pass
+their Python interpreter to its aider SDK binding. Standalone host bindings,
+WebBench preload selection and a benchmark command remain pending.
 
 SWE-bench controller selection, constructor parameters, continuation dispatch and
 telemetry fields run in Rust for all three agents. SDK bindings retain controller,

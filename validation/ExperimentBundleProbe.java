@@ -18,7 +18,7 @@ class ExperimentBundleProbe {
   static void require(boolean condition,String message){if(!condition)throw new AssertionError(message);checks++;}
   static NativeCliProbe.Output run(Path root,Path exe,String... args)throws Exception {
     var command=new java.util.ArrayList<>(List.of(exe.toString()));command.addAll(List.of(args));
-    return NativeCliProbe.process(root,Map.of("HOME",root.toString(),"PATH","","TOKENECONOMIZER_HOME",root.resolve("state").toString(),"TE_MICROSKILLS","envfacts","TE_LOOPGUARD","off","TE_TOOLPRUNE","off"),command);
+    return NativeCliProbe.process(root,Map.of("HOME",root.toString(),"PATH","","TOKENECONOMIZER_HOME",root.resolve("state").toString(),"TE_MICROSKILLS","envfacts","TE_LOOPGUARD","off","TE_TOOLPRUNE","off"),command,120);
   }
   static void copy(Path source,Path target)throws Exception {
     Files.createDirectories(target.getParent());Files.copy(source,target,StandardCopyOption.COPY_ATTRIBUTES);

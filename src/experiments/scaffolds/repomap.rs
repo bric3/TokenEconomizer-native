@@ -182,13 +182,19 @@ fn fetch(rt: &mut dyn Runtime) -> Result<Value> {
     Ok(returned("dest"))
 }
 fn generate(rt: &mut dyn Runtime) -> Result<Value> {
-    // shortcut: the SDK supplies GEN until native experiment packaging selects its executable.
     function(rt, "subprocess.run")?;
     copy(rt, "run", "function")?;
     function(rt, "sys.executable")?;
     copy(rt, "python", "function")?;
-    function(rt, "GEN")?;
-    copy(rt, "generator", "function")?;
+    literal(
+        rt,
+        "generator",
+        json!(
+            std::env::current_exe()?
+                .with_file_name(format!("te-repomap-gen{}", std::env::consts::EXE_SUFFIX))
+        ),
+    )?;
+    literal(rt, "python_flag", json!("--python"))?;
     builtin(rt, "str")?;
     copy(rt, "string", "function")?;
     apply(rt, "map_tokens", &[], "budget")?;
@@ -199,7 +205,14 @@ fn generate(rt: &mut dyn Runtime) -> Result<Value> {
         "eval_list",
         json!([
             "args",
-            ["python", "generator", "src_dir", "budget", "idents_arg"]
+            [
+                "generator",
+                "python_flag",
+                "python",
+                "src_dir",
+                "budget",
+                "idents_arg"
+            ]
         ]),
     )?;
     literal(rt, "yes", json!(true))?;

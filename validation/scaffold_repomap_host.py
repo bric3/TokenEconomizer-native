@@ -72,7 +72,16 @@ for line in sys.stdin:
             if name not in ("tag","__dict__","__class__"): record(object.__getattribute__(self,"tag")+"."+name)
             return object.__getattribute__(self,name)
     def callback(name,value=None,implementation=None):
-        def call(*args,**kwargs): record(name,[args,list(kwargs),kwargs]);return implementation(*args,**kwargs) if implementation else value
+        def call(*args,**kwargs):
+            observed=args
+            if name == "run":
+                argv=args[0]
+                if "--native" in sys.argv:
+                    assert argv[0] == str(ROOT/"target/debug/te-repomap-gen") and argv[1] == "--python",argv
+                    argv=[argv[2],repomap.GEN,*argv[3:]]
+                observed=([argv[0],"<generator>",*argv[2:]],*args[1:])
+                if request.get("real_process"): args=(argv,*args[1:])
+            record(name,[observed,list(kwargs),kwargs]);return implementation(*args,**kwargs) if implementation else value
         return call
     class Environment(dict):
         def get(self,*args): record("env.get",args);return dict.get(self,*args)

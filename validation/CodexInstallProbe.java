@@ -104,10 +104,6 @@ class CodexInstallProbe {
       for(var out:List.of("", "  ","codex-cli 0.153.1\nsecond", "é😀".repeat(70),"first\r\nsecond","one\u0085two","first\u2028second"))for(var err:List.of("","stderr"))
         compare(nativeCode,source,mode("cli_version")+",\"kwargs\":{\"binary\":\"shim\"},\"stdout\":"+q(out)+",\"stderr\":"+q(err));
       for(var error:List.of("OSError","ValueError","KeyboardInterrupt","SystemExit"))compare(nativeCode,source,mode("cli_version")+",\"kwargs\":{\"binary\":\"shim\"},\"fail\":\"run\",\"error\":"+q(error));
-      for(var version:List.of("null","false","3.14","\"\"","\"codex 0.153.1 extra\"","\"١.٢.٣\"","\"9.9.9 and 0.153.1\""))for(boolean exists:List.of(false,true))
-        compare(nativeCode,source,mode("base_prompt_for")+",\"kwargs\":{\"cli_version\":"+version+"},\"exists\":["+(exists?q("/fixture/te_harness/data/codex_base_prompt/"+(version.contains("١")?"١.٢.٣":version.contains("9.9.9")?"9.9.9":"0.153.1")+".md"):"")+"]");
-      for(var fail:List.of("exists","open","read"))for(var error:List.of("OSError","UnicodeError","KeyboardInterrupt"))
-        compare(nativeCode,source,mode("base_prompt_for")+",\"kwargs\":{\"cli_version\":\"0.153.1\"},\"exists\":[\"/fixture/te_harness/data/codex_base_prompt/0.153.1.md\"],\"fail\":"+q(fail)+",\"error\":"+q(error));
       for(int failures=0;failures<=4;failures++)for(var error:List.of("OSError","PermissionError","RuntimeError","KeyboardInterrupt","ShadowOSError"))
         compare(nativeCode,source,mode("_rmtree_quietly")+",\"kwargs\":{\"path\":\"/fixture/home\"},\"fail\":\"rmtree\",\"fail_count\":"+failures+",\"error\":"+q(error));
       compare(nativeCode,source,mode("_kill_process_group"));

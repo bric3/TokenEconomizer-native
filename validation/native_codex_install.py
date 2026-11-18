@@ -28,7 +28,6 @@ def install():
                         value = getattr(owner,parameters[0])(*parameters[1])
                     elif method == "install_env": value = module.os.environ.get(*parameters)
                     elif method == "install_which": value = module.shutil.which(*parameters)
-                    elif method == "install_source_file": value = module.__file__
                     elif method == "install_function": value = getattr(module,parameters[0])(*parameters[1])
                     elif method == "install_read":
                         with open(parameters[0],encoding="utf-8") as fh: value = fh.read()

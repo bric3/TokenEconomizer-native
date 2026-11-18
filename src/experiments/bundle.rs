@@ -10,16 +10,6 @@ use std::{
 };
 use zip::ZipWriter;
 
-const ASSETS: &[(&str, &[u8])] = &[
-    (
-        "assets/codex_base_prompt/0.153.1.md",
-        include_bytes!("assets/codex_base_prompt/0.153.1.md"),
-    ),
-    (
-        "assets/webbench_undici_preload.mjs",
-        include_bytes!("assets/webbench_undici_preload.mjs"),
-    ),
-];
 struct Payload {
     name: String,
     bytes: Vec<u8>,
@@ -104,7 +94,7 @@ pub fn build(binaries: &Path, helpers: &Path, out: &Path) -> Result<PathBuf> {
             )?);
         }
     }
-    for (name, bytes) in ASSETS {
+    for (name, bytes) in super::assets::FILES {
         files.push(Payload::embedded(name, bytes));
     }
     files.push(Payload::embedded(
