@@ -85,6 +85,24 @@ impl serde_json::ser::Formatter for JsonFormatter {
     }
 }
 
+pub(crate) fn base64(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut output = String::new();
+    for chunk in bytes.chunks(3) {
+        let value = (u32::from(chunk[0]) << 16)
+            | (u32::from(*chunk.get(1).unwrap_or(&0)) << 8)
+            | u32::from(*chunk.get(2).unwrap_or(&0));
+        for i in 0..4 {
+            output.push(if i > chunk.len() {
+                '='
+            } else {
+                ALPHABET[((value >> (18 - i * 6)) & 63) as usize] as char
+            });
+        }
+    }
+    output
+}
+
 pub fn json_text(value: &Value) -> String {
     encode_json(value, true)
 }

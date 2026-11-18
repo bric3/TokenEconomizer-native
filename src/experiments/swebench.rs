@@ -14,6 +14,7 @@ use std::{
 #[cfg(unix)]
 use crate::value::python_repr;
 
+pub mod codex_config;
 pub mod containers;
 pub mod grading;
 pub mod official;

@@ -75,5 +75,8 @@ patch exclusions also run in Rust. Both benchmark harnesses use the native netwo
 tool block.
 Per-task SWE-bench container starts, cleanup, command construction and measured
 environment activation run in Rust. Process execution uses a Python I/O binding.
+Codex request configuration, capability toggles, prompt-section trimming and
+SWE-bench configuration installation also run in Rust, along with scaffold result
+handling and MCP configuration wiring.
 
 Installed host verification and the remaining migration gates are still in progress.

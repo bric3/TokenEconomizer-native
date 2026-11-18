@@ -395,6 +395,11 @@ complete while any runtime component delegates production behaviour to Python.
   measured environment activation. Copilot seed and mount arguments and Codex
   mount arguments are native too. The host binding executes processes, retains
   process objects and expands host home directories through the standard library.
+- Codex request configuration is native: protected-capability rejection, network
+  toggles, ordered TOML tables, system-skill entries and prompt-section trimming.
+  SWE-bench installs the configuration and optional shortened prompt through a
+  native base64 command. Scaffold result handling and Codex MCP wiring are native;
+  the host binding retains the scaffold notes and server specification objects.
 
 ## Remaining production work
 
@@ -445,14 +450,15 @@ complete while any runtime component delegates production behaviour to Python.
   original API alongside the remaining production parity checks.
   Include nested grading-row values passed to SDK callbacks.
   Include side effects when configuration objects are converted to strings.
+  Include Codex capability collections with non-string elements and custom mappings.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   Constructors, agent-specific task wrappers, provider configuration, global
-  signal cleanup, scaffold setup, Codex config writing and agent streaming still
-  need conversion. Per-task container policy, grading orchestration and the
-  official-grader wrapper are native. Process and SDK calls retain Python I/O
-  bindings.
+  signal cleanup, scaffold backends and contexts, installed Codex discovery and
+  validation, and agent streaming still need conversion. Per-task container policy,
+  grading orchestration, the official-grader wrapper, Codex config writing and
+  scaffold result handling are native. Process and SDK calls retain Python I/O bindings.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
 
@@ -1232,6 +1238,25 @@ complete while any runtime component delegates production behaviour to Python.
   Windows and the remaining production-parity audits are open. No improvement
   pass is counted.
 
+- Codex configuration matches the source in 466 comparisons. They cover all 64
+  supported capability masks with three network settings, protected-capability
+  rejection, exact TOML bytes, MCP argument and environment conversion, skill
+  ordering, synthetic prompts and the captured 0.153.1 prompt. Operational
+  paragraphs survive trimming. Configuration write commands and failure text
+  match; scaffold errors, fatal exceptions, falsey scaffolds, stale MCP reset and
+  notes/server identity also match through local SDK and process stand-ins.
+  The focused original tests pass with 40 passed and 2 skipped. The full original
+  suite with installed-opencode tests enabled passes with 1,561 passed and 30
+  skipped (68.12 seconds). Its call record in `validation/experiment-task-calls.json`
+  includes 19 native TOML calls, five toggle calls, one skill-entry call, 14 prompt
+  trimming calls and two Codex scaffold calls. Write-command and base-scaffold
+  runtime coverage comes from the new probe. All 23 Rust checks, debug/release
+  builds, Clippy, formatting, the four existing runner probes and the 256-file
+  reference check pass. The three recorded grader JSON diagnostic differences
+  remain open. Original tests remain unchanged. No live Docker, model, installed
+  Codex strict-config or OS-signal run was performed. Production-parity audits and
+  runner conversion remain open; no improvement pass is counted.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -1360,6 +1385,7 @@ jbang validation/TaskProbe.java
 jbang validation/GraderProbe.java
 jbang validation/SettingsProbe.java
 jbang validation/ContainerProbe.java
+jbang validation/CodexConfigProbe.java
 jbang validation/BridgeProbe.java
 jbang validation/QueueProbe.java
 jbang validation/ContextProbe.java

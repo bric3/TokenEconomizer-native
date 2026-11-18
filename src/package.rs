@@ -1,4 +1,5 @@
 use crate::plugin::paths;
+use crate::value::base64;
 use chrono::{DateTime, Datelike, Local, Timelike};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -250,6 +251,7 @@ fn native_payload(plugin: &Path, binaries: &Path, suffix: &str, droid: bool) -> 
         };
         let script = windows_hook(host);
         let command = if host == "codex" {
+            // EncodedCommand avoids the different quoting rules of cmd.exe and PowerShell.
             format!(
                 "powershell.exe -NoProfile -NonInteractive -EncodedCommand {}",
                 base64(
@@ -290,25 +292,6 @@ fn windows_hook(host: &str) -> String {
     format!(
         "$OutputEncoding = [Console]::InputEncoding = [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding; {root}; $payload = if ($MyInvocation.ExpectingInput) {{ $input -join \"`n\" }} else {{ [Console]::In.ReadToEnd() }}; $exe = Join-Path $root 'scripts/te-hook.exe'; if (-not (Test-Path -LiteralPath $exe)) {{ '{{}}'; exit 0 }}; $payload | & $exe --host {host}; exit $LASTEXITCODE"
     )
-}
-
-// EncodedCommand avoids the different quoting rules of cmd.exe and PowerShell.
-fn base64(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut output = String::new();
-    for chunk in bytes.chunks(3) {
-        let value = (u32::from(chunk[0]) << 16)
-            | (u32::from(*chunk.get(1).unwrap_or(&0)) << 8)
-            | u32::from(*chunk.get(2).unwrap_or(&0));
-        for i in 0..4 {
-            output.push(if i > chunk.len() {
-                '='
-            } else {
-                ALPHABET[((value >> (18 - i * 6)) & 63) as usize] as char
-            });
-        }
-    }
-    output
 }
 
 pub fn archive(plugin: &Path) -> Result<PathBuf> {

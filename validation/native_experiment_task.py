@@ -60,6 +60,8 @@ def install():
         processes = {}
         transcript = None
         spec = None
+        scaffold_result = None
+        popped = None
         while isinstance(result,dict) and "callback" in result:
             method, args = result["method"], result["args"]
             try:
@@ -81,7 +83,29 @@ def install():
                     target = self if owner == "runner" else guard if owner == "guard" else getattr(self,owner)
                     value = config_value(getattr(target,name,*default),representation)
                 elif method == "config_kwarg": value = config_value(run_kwargs.get(args[0]),args[1])
+                elif method == "config_set":
+                    setattr(self,args[0],args[1])
+                    value = None
                 elif method == "config_function": value = getattr(module,args[0])(*args[1])
+                elif method == "codex_function": value = getattr(module.codex,args[0])(*args[1],**args[2])
+                elif method == "scaffold_setup":
+                    scaffold_result = (self.scaffold.setup(self._scaffold_context(*args)),None)
+                    value = None
+                elif method == "scaffold_resolve_mcp":
+                    scaffold_result = (scaffold_result[0],scaffold_result[0].get(*args))
+                    value = None
+                elif method == "base_scaffold":
+                    scaffold_result = module.ClaudeSwebenchRunner._apply_scaffold(self,*args)
+                    value = {"is_dict":isinstance(scaffold_result[0],dict)}
+                elif method == "scaffold_notes_pop":
+                    popped = scaffold_result[0].pop(*args)
+                    value = popped
+                elif method == "scaffold_use_popped":
+                    setattr(self,args[0],popped)
+                    value = None
+                elif method == "scaffold_notes_update":
+                    scaffold_result[0].update(args[0])
+                    value = None
                 elif method == "config_patch_excludes": value = list(self._patch_excludes())
                 elif method in ("container_run","subprocess_run"):
                     command, timeout = args
@@ -147,7 +171,36 @@ def install():
                     raise error
             checked(result)
         if isinstance(result,dict) and "_process_ref" in result: return processes[result["_process_ref"]]
+        if isinstance(result,dict) and result.get("_scaffold_result"): return scaffold_result
         return result
+    def codex_function(original,operation):
+        signature = inspect.signature(original)
+        @functools.wraps(original)
+        def native(*args,**kwargs):
+            bound = signature.bind(*args,**kwargs)
+            bound.apply_defaults()
+            arguments = data(dict(bound.arguments))
+            arguments["environment"] = {key:os.environ[key] for key in ("TE_ALLOW_NETWORK_TOOLS",) if key in os.environ}
+            value = drive(None,invoke("experiment.swebench.codex."+operation,arguments),{})
+            if operation == "network_block_toggles": return tuple(value[0]),tuple(tuple(pair) for pair in value[1])
+            if operation == "config_toggles": return value[0],[tuple(pair) for pair in value[1]]
+            return value
+        replacements[original] = native
+        return native
+    for name in ("network_block_toggles","config_toggles","config_toml","skills_config_entries","lean_instructions"):
+        setattr(module.codex,name,codex_function(getattr(module.codex,name),name))
+    original_write_config = module.CodexSwebenchRunner._write_config
+    @functools.wraps(original_write_config)
+    def write_config(self,name):
+        return drive(self,invoke("experiment.swebench.codex.write_config",{"name":name}),{})
+    module.CodexSwebenchRunner._write_config = write_config
+    def scaffold_method(original,operation):
+        @functools.wraps(original)
+        def native(self,name,task,run_dir_path):
+            return tuple(drive(self,invoke("experiment.swebench.codex."+operation,{"name":name,"task":data(task),"run_dir_path":os.fspath(run_dir_path)}),{}))
+        return native
+    cls._apply_scaffold = scaffold_method(cls._apply_scaffold,"apply_scaffold")
+    module.CodexSwebenchRunner._apply_scaffold = scaffold_method(module.CodexSwebenchRunner._apply_scaffold,"apply_codex_scaffold")
     original_run = module._run
     @functools.wraps(original_run)
     def run(cmd,timeout=120,check=False):
