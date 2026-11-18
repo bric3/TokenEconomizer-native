@@ -508,8 +508,8 @@ complete while any runtime component delegates production behaviour to Python.
   preserve the source's stream rule. SDK bindings retain raw session, queue, file,
   guard, prompt and result objects, and supply object and numeric protocols.
   Guard attributes remain lazy while standard `any` and `sum` consume them, retaining
-  short-circuit reads and floating-point summation semantics. Agent execution,
-  run-configuration writing and guard/scaffold helpers remain pending.
+  short-circuit reads and floating-point summation semantics. Agent execution and
+  accounting, network guard and scaffold helpers remain pending.
 - Copilot and Codex Web-Bench task wrappers use native superclass coordination,
   debug log persistence, capability snapshots, row metadata, compliance calls and
   task home pruning. SDK bindings resolve `super` from the original method's class
@@ -517,6 +517,14 @@ complete while any runtime component delegates production behaviour to Python.
   the handled file error. Codex pruning preserves provenance files, the workspace
   retention flag and error boundaries for each entry. Context-manager bindings evaluate
   an exit result's truthiness while the handled exception remains active.
+- Web-Bench run configuration uses native tool-mask selection, field assembly,
+  scaffold and injection metadata, spiral provenance and file-write coordination.
+  Guard construction uses native selection, budget conversion, optional parameter
+  checks and constructor arguments for the shared and Codex controllers. Prompt
+  construction uses native description precedence, transport-instruction filtering,
+  error truncation, pinned-template expansion and manual injection. Runtime template
+  replacements retain their formatting calls. SDK bindings supply object protocols,
+  hashing, JSON encoding and filesystem I/O while retaining raw argument references.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -654,8 +662,8 @@ complete while any runtime component delegates production behaviour to Python.
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   Container guard binary deployment and registration, scaffold backends and
-  contexts, agent streaming, and the Web-Bench run-configuration,
-  prompt, guard and scaffold-exclusion helpers still need conversion.
+  contexts, agent streaming, and Web-Bench accounting, network guard and
+  scaffold-exclusion helpers still need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
@@ -2041,6 +2049,28 @@ complete while any runtime component delegates production behaviour to Python.
   configuration, prompt, guard and scaffold helpers, host bindings and remaining
   parity audits stay open. Simplification and performance passes remain at 0/3
   each; final test conversion is pending.
+
+- Web-Bench run contracts pass 368 source comparisons covering configuration field
+  order, protected tools, network-tool duplicates, scaffold provenance, injection
+  hashes, eager budget defaults, optional guard arguments, falsey Codex policies,
+  callback identities, prompt precedence, transport-line filtering, formatting calls,
+  custom templates, surrogate code points and the 8,000-character error boundary.
+  Prompt assets match the pinned source exactly. Real-file checks compare complete
+  `run_config.json` output and preserve duplicate network exclusions from the source.
+  Six source/native HTTP/process pipelines now use the real configuration writer,
+  prompt helpers and guard selection across all three agents. Their operation
+  counts confirm the new native helpers ran. No model or Playwright is called.
+  The 476-case task-loop and 360-case wrapper regressions pass. The focused original
+  tests pass with 19 passed. The full original suite, with installed-opencode tests
+  enabled, passes with 1,561 passed and 30 skipped (75.49 seconds). Its record remains
+  `validation/experiment-task-calls.json` and includes three native Codex guard helper
+  calls and two shared guard helper calls. The original suite does not exercise the
+  new configuration and prompt methods. All 24 Rust checks, debug/release builds,
+  Clippy, formatting and the 256-file reference check pass. Original tests remain
+  unchanged. IDE inspections remain unavailable because this checkout is not open
+  in the IDE. Agent execution, accounting, network/scaffold integration, host
+  bindings and remaining parity audits stay open. Simplification and performance
+  passes remain at 0/3 each; final test conversion is pending.
 
 ## Dependencies
 

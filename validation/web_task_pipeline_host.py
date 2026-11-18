@@ -24,13 +24,10 @@ class Runner(base):
     def session_for(self,project):
         assert project == "project"
         return session
-    def _write_run_config(self,path,*args):
-        Path(path,"run_config.json").write_text('{"fixture":true}\n',encoding="utf-8")
     def agent_home(self,path): return os.path.join(path,".home")
     def _install_net_guard(self,*args): return True
-    def _make_guard(self,*args): return None
     def _segment(self,workspace,prompt,handle,excluded,turns,guard):
-        assert "implement" in prompt and excluded == [] and turns == 80 and guard is None
+        assert "<task>\ninit\n</task>" in prompt and excluded == [] and turns == 80 and guard is None
         path = Path(workspace,"src/a.js")
         assert path.read_text(encoding="utf-8") == "original"
         path.write_text("fixture answer",encoding="utf-8")
@@ -43,7 +40,7 @@ class Runner(base):
     def _net_guard_blocks(self,*args): return 0
     def scaffold_answer_excludes(self): return frozenset()
 runner = object.__new__(Runner)
-for key,value in {"model":"claude-opus-4-8","agent":agent,"effort":"high","cli_version":"fixture-cli","repo":repository,"_stream_broken":False,"retry":2,"start_timeout":5,"verdict_timeout":5,"keep_workspaces":True,"scaffold":None,"scaffold_name":None,"_lean_instructions_tokens":8,"answer_key_ns":True}.items(): setattr(runner,key,value)
+for key,value in {"model":"claude-opus-4-8","agent":agent,"effort":"high","cli_version":"fixture-cli","agent_bin":"/fixture-agent","routing_base":"https://fixture.invalid","optimizer_model":"fixture-optimizer","protected_tools":frozenset({"Bash"}),"repo":repository,"_stream_broken":False,"retry":2,"start_timeout":5,"verdict_timeout":5,"task_timeout":240,"max_workers":1,"node":binary,"keep_workspaces":True,"scaffold":None,"scaffold_name":None,"_lean_instructions_tokens":8,"answer_key_ns":True}.items(): setattr(runner,key,value)
 try:
     row,out = runner.run_task(task,arm="baseline",injected=None,exclude_tools=[],run_dir_path=str(run),codex_config_capabilities=["skills"])
     assert out == str(run) and row["resolved"] is True and row["resolved_p1"] is True and row["resolved_p2"] is True
@@ -54,6 +51,9 @@ try:
     assert Path(run,"ws-attempt1/src/a.js").read_text(encoding="utf-8") == "fixture answer"
     request = json.loads(Path(run,"agent_request_1.json").read_text(encoding="utf-8"))
     assert request == {"type":"task","task":"init","error":None,"files":["src/a.js"]}
+    config = json.loads(Path(run,"run_config.json").read_text(encoding="utf-8"))
+    assert config["agent"] == agent and config["webbench"]["evaluator_config"] == session.config_path
+    assert config["spiral"]["guard_per_attempt"] is True and config["tools"]["protected"] == ["Bash"]
     if agent == "copilot":
         assert "_debug_log" not in row and Path(run,"copilot_debug.log").read_text(encoding="utf-8") == "fixture debug log é😀\n"
     if agent == "codex":
@@ -70,8 +70,9 @@ finally:
 assert session.finished and session._log_fh.closed
 if "--native" in sys.argv:
     import native_plugin
-    for name in ("run_task","eval_start","http_post","materialize","collect","load_ignore_globs","ancestors","next_event","next_request","_read_stdout","eval_close"):
+    for name in ("run_task","write_run_config","build_prompt","strip_transport","eval_start","http_post","materialize","collect","load_ignore_globs","ancestors","next_event","next_request","_read_stdout","eval_close"):
         assert native_plugin.CALLS["experiment.swebench.provider.webbench."+name] > 0,"pipeline bypassed native "+name
     for name in (["copilot_task"] if agent == "copilot" else ["codex_task","prune_home"] if agent == "codex" else []):
         assert native_plugin.CALLS["experiment.swebench.provider.webbench."+name] > 0,"pipeline bypassed native "+name
+    assert native_plugin.CALLS["experiment.swebench.provider.webbench."+("guard_codex" if agent == "codex" else "guard_claude")] > 0
 print("Offline Web-Bench task passed: HTTP request, task policy, workspace edit, usage reply, verdict, transcript and resource cleanup",flush=True)

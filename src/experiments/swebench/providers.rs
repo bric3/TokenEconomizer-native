@@ -320,6 +320,11 @@ fn verify(rt: &mut dyn Runtime) -> Result<Value> {
 pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
     let (agent, name) = method.split_once('.').unwrap_or(("", method));
     match name {
+        "write_run_config" if agent == "webbench" => super::web_contract::config(rt),
+        "build_prompt" if agent == "webbench" => super::web_contract::prompt(rt),
+        "strip_transport" if agent == "webbench" => super::web_contract::strip_transport(rt),
+        "guard_claude" if agent == "webbench" => super::web_contract::guard(rt, false),
+        "guard_codex" if agent == "webbench" => super::web_contract::guard(rt, true),
         "run_task" if agent == "webbench" => super::web_task::run(rt),
         "copilot_task" if agent == "webbench" => super::web_task::copilot(rt),
         "codex_task" if agent == "webbench" => super::web_task::codex(rt),

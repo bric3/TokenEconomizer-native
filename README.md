@@ -125,7 +125,10 @@ per-attempt guard coordination, evaluator replies, artifact order, resolve metri
 and telemetry selection. SDK bindings retain session, queue, file and result
 objects. Copilot debug log persistence and Codex capability metadata, compliance
 coordination and task home pruning also run in Rust. Agent execution, scaffold
-backends and remaining task helpers still cross migration callbacks.
+backends and remaining accounting and network guard helpers still cross migration
+callbacks. Run configuration, prompt construction, transport-instruction filtering
+and both guard constructors now use native policy. The pinned prompt text is
+embedded in the native library; SDK bindings retain runtime values and object APIs.
 Provider routing, credential filtering, Copilot model normalisation and effort
 selection also run in Rust. Codex catalogue parsing, caching and model verification
 use native policy with mapping and HTTP bindings.

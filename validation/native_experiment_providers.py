@@ -366,6 +366,10 @@ def install(runner_module=None):
                     elif method == "task_caught_log":
                         values["caught_error"] = values["error"] = error_object(parameters[0])
                         values["active_log"] = with_exception(values["error"],getattr,module,"_log")
+                    elif method == "contract_format_capture":
+                        template = getattr(module,parameters[0])
+                        values[parameters[1]] = template.format
+                        value = list(map(ord,template)) if type(template) is str else None
                     elif method == "workspace_next":
                         try: values[parameters[1]] = next(values[parameters[0]])
                         except StopIteration: value = False
@@ -450,6 +454,17 @@ def install(runner_module=None):
             replacements[original] = function(owner,original,domain,operation)
             setattr(owner,name,replacements[original])
         if domain == "webbench":
+            for cls_name,method,operation in (("WebBenchRunner","_write_run_config","write_run_config"),("WebBenchRunner","_make_guard","guard_claude"),("CodexWebBenchRunner","_make_guard","guard_codex")):
+                cls = getattr(owner,cls_name)
+                original = getattr(cls,method)
+                if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
+                replacements[original] = function(owner,original,"webbench",operation)
+                setattr(cls,method,replacements[original])
+            for name,operation in (("build_prompt","build_prompt"),("strip_transport_instructions","strip_transport")):
+                original = getattr(owner,name)
+                if getattr(original,"_te_provider_operation",None) == ("webbench",operation): continue
+                replacements[original] = function(owner,original,"webbench",operation)
+                setattr(owner,name,replacements[original])
             for cls_name,method,operation in (("CopilotWebBenchRunner","run_task","copilot_task"),("CodexWebBenchRunner","run_task","codex_task"),("CodexWebBenchRunner","_prune_agent_home","prune_home")):
                 cls = getattr(owner,cls_name)
                 original = getattr(cls,method)

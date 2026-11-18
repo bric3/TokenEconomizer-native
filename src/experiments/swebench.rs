@@ -35,6 +35,7 @@ pub mod setup;
 #[cfg(test)]
 mod tests;
 pub mod web_close;
+pub mod web_contract;
 pub mod web_host;
 pub mod web_http;
 pub mod web_output;

@@ -1,0 +1,8 @@
+
+Your previous attempt at this task FAILED its checks with:
+
+<failure>
+{error}
+</failure>
+
+Fix the cause and implement the task correctly.
