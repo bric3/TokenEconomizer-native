@@ -1,4 +1,4 @@
-"""Mapping, string-protocol and HTTP bindings for native provider decisions."""
+"""Opaque object, I/O and runtime bindings for native experiment policies."""
 import functools
 import builtins
 import inspect
@@ -7,6 +7,7 @@ import re
 import json
 import sys
 from decimal import Decimal
+from types import FunctionType
 
 from native_plugin import invoke
 from native_experiment_task import checked, data
@@ -63,6 +64,7 @@ def install(runner_module=None):
                     # __exit__ observes the handled exception through sys.exception().
                     BaseException.__traceback__.__set__(error,traceback)
                     return exit_method(type(error),error,traceback)
+            def in_module(function,*args,**kwargs): return function(*args,**kwargs)
             result = invoke("experiment.swebench.provider."+agent+"."+name,{})
             while isinstance(result,dict) and "callback" in result:
                 method,parameters = result["method"],result["args"]
@@ -297,6 +299,22 @@ def install(runner_module=None):
                         values["exit_result"] = context_exit(values["task_exit"],parameters[0])
                     elif method == "tasks_decode": values["decoded"] = module.json.loads(values["stripped"])
                     elif method == "tasks_append": values["output"].append(values["identifier"])
+                    elif method == "eval_builtin":
+                        called = getattr(module,parameters[0],getattr(builtins,parameters[0]))
+                        # type() takes the new class's module from its caller's globals.
+                        values["function"] = functools.partial(FunctionType(in_module.__code__,module.__dict__),called) if called is type else called
+                    elif method == "eval_list": values[parameters[0]] = [values[key] for key in parameters[1]]
+                    elif method == "eval_iter": values["iterator"] = iter(values["tasks"])
+                    elif method == "eval_next":
+                        try: values["task"] = next(values["iterator"])
+                        except StopIteration: value = False
+                        else: value = True
+                    elif method == "eval_append": values[parameters[0]].append(values[parameters[1]])
+                    elif method == "eval_field": values[parameters[0]][parameters[1]] = values[parameters[2]]
+                    elif method == "eval_enter":
+                        values["config_exit"] = special(values["called"],"__exit__")
+                        values["config_handle"] = special(values["called"],"__enter__")()
+                    elif method == "eval_exit": values["exit_result"] = context_exit(values["config_exit"],parameters[0])
                     elif method == "preflight_format": value = format(values[parameters[0]],parameters[1])
                     elif method == "preflight_log":
                         values["preflight_call_log"](*parameters)
@@ -344,6 +362,10 @@ def install(runner_module=None):
             replacements[original] = function(owner,original,"claude",operation)
             owner.make_runner = replacements[original]
         if domain == "webbench":
+            original = owner._EvalSession.__init__
+            if getattr(original,"_te_provider_operation",None) != ("webbench","eval_start"):
+                replacements[original] = function(owner,original,"webbench","eval_start")
+                owner._EvalSession.__init__ = replacements[original]
             for name in ("next_event","next_request","_read_stdout","_full_task_ids"):
                 original = getattr(owner._EvalSession,name)
                 if getattr(original,"_te_provider_operation",None) == ("webbench",name): continue

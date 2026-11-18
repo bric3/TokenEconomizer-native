@@ -447,7 +447,7 @@ complete while any runtime component delegates production behaviour to Python.
   are native for all three agents. Project selection, directory checks, evaluator
   arguments and partial state after errors follow the source order. Task lists,
   sessions, helper references and unchanged project strings retain their references.
-  Evaluator startup and process cleanup still use the source
+  Evaluator HTTP request handling and process cleanup still use the source
   implementation.
 - Web-Bench evaluator event and request waits use native deadlines, five-second
   polling bounds, empty-queue handling, completion checks and event selection.
@@ -467,6 +467,14 @@ complete while any runtime component delegates production behaviour to Python.
   Context exits observe the handled exception and its traceback. Unsupported
   context managers report Python's missing-special-method diagnostics. Optimizer
   logging uses the same corrected context-manager binding.
+- Web-Bench evaluator startup uses native field assignment, HTTP/thread setup,
+  configuration fields, subset selection and warnings, file-write decisions,
+  entry validation, environment assembly, process launch and session registration.
+  SDK bindings retain task IDs, handler bases, thread targets and helper references,
+  and supply queues, HTTP servers, threads, JSON encoding and process I/O. The
+  runtime handler factory uses the source module context so the generated class
+  keeps its original module and session binding. Constructor failures preserve
+  the source's partial state and resource-creation order.
 - Provider routing and credential policy are native for Claude, Copilot and Codex.
   This includes in-place credential filtering, forwarding auth and provider
   variables, Copilot model normalisation and effort applicability, and the pricing
@@ -605,7 +613,7 @@ complete while any runtime component delegates production behaviour to Python.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   Global signal cleanup, container guard binary deployment and
   registration, scaffold backends and contexts, agent streaming, and the
-  Web-Bench evaluator startup, process cleanup, task calls and
+  Web-Bench HTTP request handling, process cleanup, task calls and
   wrappers still need conversion.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
@@ -1825,6 +1833,32 @@ complete while any runtime component delegates production behaviour to Python.
   builds, Clippy, formatting and the 256-file reference check pass.
   Original tests remain unchanged. IDE inspections remain unavailable because
   this checkout is not open in the connected IDE. Evaluator startup, process
+  and signal cleanup, task calls, host bindings and remaining parity audits stay
+  open. Simplification and performance passes remain at 0/3 each; final test
+  conversion is pending.
+
+- Web-Bench evaluator startup passes 413 source comparisons covering initial
+  fields, queue and thread setup, handler class ownership, configuration fields
+  and order, full/subset task ranges, warning text, retained IDs, helper capture,
+  environment updates, missing entry points, launch arguments, registration and
+  partial state after failures. Cases include foreign protocols, callback
+  replacement, arbitrary-size integers, digit limits and context suppression.
+  Two offline Java evaluator runs use real files, threads and a loopback HTTP
+  server. They load the native task list, receive an agent request, send a fixture
+  reply and read Started/verdict lines through the native reader. The queue waits
+  consume both events and observe the evaluator exit. The second run uses a task
+  subset and larger undici abort. Both verify
+  a separate process group; a third case checks a real executable launch failure.
+  The source HTTP request handler supplies that part of the integration. No
+  Web-Bench/Playwright evaluator or paid model is called.
+  The full original suite, with installed-opencode tests enabled, passes with
+  1,561 passed and 30 skipped (77.66 seconds). Its updated call record remains
+  `validation/experiment-task-calls.json`. Original tests do not construct evaluator
+  sessions; the focused corpus supplies that runtime coverage. The 519-case stream,
+  217-case task-loader and 535-case stdout regressions pass, as do all 24 Rust
+  checks, debug/release builds, Clippy, formatting and the 256-file reference check.
+  Original tests remain unchanged. IDE inspections remain unavailable because
+  this checkout is not open in the connected IDE. HTTP request policy, process
   and signal cleanup, task calls, host bindings and remaining parity audits stay
   open. Simplification and performance passes remain at 0/3 each; final test
   conversion is pending.
