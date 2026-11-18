@@ -43,6 +43,8 @@ for line in sys.stdin:
     indices = {"clock":0,"segment":0}
     stdout = io.StringIO()
     original_time, original_log, previous_cwd = sw.time.time, sw._log, os.getcwd()
+    original_import = sw._import_swebench
+    grading_env = {key:os.environ.get(key) for key in ("TE_SWEBENCH_GRADING","DATA","TE_SWEBENCH_REPO")}
     saved_env = os.environ.get("TE_MAX_TURNS")
     def record(method, args=()):
         calls.append({"method":method,"args":data(args)})
@@ -150,7 +152,64 @@ for line in sys.stdin:
         if "cwd" in request: os.chdir(request["cwd"])
         with contextlib.redirect_stdout(stdout):
             kind = request.get("kind","task")
-            if kind == "name":
+            if kind in ("official","grading_setting"):
+                root = Path(request["root"])
+                root.mkdir(parents=True,exist_ok=True)
+                for key in grading_env:
+                    if key in request.get("env",{}): os.environ[key] = request["env"][key]
+                    else: os.environ.pop(key,None)
+                if request.get("local_cwd"): os.chdir(root)
+                if kind == "grading_setting":
+                    value = getattr(sw,request.get("method","default_grading_path"))()
+                else:
+                    table = root/request.get("table_filename","grading.json")
+                    table.parent.mkdir(parents=True,exist_ok=True)
+                    if request.get("skip_table"): pass
+                    elif request.get("table_is_directory"): table.mkdir()
+                    elif "table_bytes" in request: table.write_bytes(bytes(request["table_bytes"]))
+                    elif "table_text" in request: table.write_text(request["table_text"],encoding="utf-8")
+                    else: table.write_text(json.dumps(request.get("table",{"acme__widget-1":{"FAIL_TO_PASS":"[\"test_a\"]","PASS_TO_PASS":["test_b"]}})),encoding="utf-8")
+                    class Spec:
+                        def __init__(self,instance): self.instance = instance
+                        @property
+                        def eval_script(self):
+                            record("eval_script_value")
+                            return request.get("eval_script_text","echo callback é😀")
+                    def make_spec(instance):
+                        record("make_test_spec",[instance])
+                        return Spec(instance)
+                    def report(*,test_spec,prediction,test_log_path,include_tests_status):
+                        record("get_eval_report",[test_spec.instance,prediction,test_log_path,include_tests_status])
+                        return request.get("report",{"acme__widget-1":{"resolved":True,"extra":"é😀"}})
+                    def import_grader():
+                        record("import_grader")
+                        return make_spec,report
+                    sw._import_swebench = import_grader
+                    klass = sw._Grader
+                    if "instance_override" in request:
+                        def instance_override(self,instance_id):
+                            record("grader_instance_override",[instance_id])
+                            return request["instance_override"]
+                        klass = type("FixtureGrader",(klass,),{"instance":instance_override})
+                    path = request.get("grading_path",str(table))
+                    if request.get("path_object"): path = Path(path)
+                    grader = klass.__new__(klass)
+                    try:
+                        grader.__init__(path)
+                        action = request.get("action","instance")
+                        iid = request.get("instance_id","acme__widget-1")
+                        if action == "instance": value = grader.instance(iid)
+                        elif action == "eval_script": value = grader.eval_script(iid)
+                        elif action == "score": value = grader.score(iid,request.get("patch","fix é😀\n"),str(root/"eval.log"))
+                        else:
+                            runner = GradedTaskRunner() if action == "task" else GradeRunner()
+                            runner.grader = grader
+                            if action == "task":
+                                value = runner.run_task({"instance_id":iid,"problem_statement":"Fix this task"},arm="trimech",injected=None,exclude_tools=[],run_dir_path=str(root))
+                            else: value = runner._grade("fixture-container",iid,request.get("patch","fix é😀\n"),str(root))
+                    finally:
+                        calls.append({"grader_state":data({key:getattr(grader,key) for key in ("path","rows") if hasattr(grader,key)}),"path_type":type(grader.path).__name__ if hasattr(grader,"path") else None})
+            elif kind == "name":
                 runner = types.SimpleNamespace(agent=request.get("agent","claude"),model=request.get("model","claude-opus-4-8"))
                 value = sw.ClaudeSwebenchRunner._container_name(runner,**request["arguments"])
             elif kind == "prompt": value = sw.build_prompt(**request["arguments"])
@@ -175,11 +234,18 @@ for line in sys.stdin:
         response = {"value":data(value)}
     except BaseException as error:
         response = {"raised":type(error).__name__,"message":str(error)}
+        if isinstance(error,OSError): response["error_info"] = {key:data(getattr(error,key)) for key in ("errno","filename","strerror")}
+        if isinstance(error,UnicodeDecodeError): response["error_info"] = {"object":list(error.object),"encoding":error.encoding,"start":error.start,"end":error.end,"reason":error.reason}
+        if isinstance(error,json.JSONDecodeError): response["error_info"] = {key:getattr(error,key) for key in ("msg","doc","pos","lineno","colno")}
     finally:
         sw.time.time, sw._log = original_time, original_log
+        sw._import_swebench = original_import
+        for key,value in grading_env.items():
+            if value is None: os.environ.pop(key,None)
+            else: os.environ[key] = value
         os.chdir(previous_cwd)
         if saved_env is None: os.environ.pop("TE_MAX_TURNS",None)
         else: os.environ["TE_MAX_TURNS"] = saved_env
     path = Path(request.get("root","/no-task-fixture"))
-    response.update(calls=calls,logs=logs,output=stdout.getvalue(),files={p.name:p.read_text(encoding="utf-8") for p in sorted(path.glob("*")) if p.is_file()})
+    response.update(calls=calls,logs=logs,output=stdout.getvalue(),files={p.name:list(p.read_bytes()) for p in sorted(path.glob("*")) if p.is_file()})
     print(json.dumps(response,sort_keys=True,separators=(",",":"),ensure_ascii=False),flush=True)

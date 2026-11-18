@@ -11,7 +11,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[cfg(unix)]
+use crate::value::python_repr;
+
 pub mod grading;
+pub mod official;
 #[cfg(test)]
 mod tests;
 
@@ -25,8 +29,29 @@ pub struct Failure {
     pub bases: Vec<String>,
     #[serde(default)]
     pub stdout: Option<Box<Value>>,
+    #[serde(default)]
+    pub details: Option<Box<Value>>,
 }
 impl Failure {
+    pub fn for_path(error: std::io::Error, path: &Path) -> Self {
+        #[cfg(unix)]
+        if let Some(errno) = error.raw_os_error() {
+            let display = error.to_string();
+            let suffix = format!(" (os error {errno})");
+            let details = json!({"errno":errno,"strerror":display.strip_suffix(&suffix).unwrap_or(&display),"filename":path.to_string_lossy()});
+            let mut failure = Self::from(error);
+            failure.message = format!(
+                "[Errno {}] {}: {}",
+                details["errno"],
+                details["strerror"].as_str().unwrap(),
+                python_repr(&details["filename"])
+            );
+            failure.details = Some(Box::new(details));
+            return failure;
+        }
+        let _ = path;
+        Self::from(error)
+    }
     fn accounting(error: String) -> Self {
         let (kind, message) = error
             .split_once(": ")
@@ -39,6 +64,7 @@ impl Failure {
             message: message.into(),
             bases: Vec::new(),
             stdout: None,
+            details: None,
         }
     }
     fn recoverable(&self) -> bool {

@@ -381,7 +381,11 @@ complete while any runtime component delegates production behaviour to Python.
   callbacks still supply container, scaffold, grader and stream operations.
 - Grading orchestration is native too, including eval-script execution order,
   partial timeout logs, failed-execution reports and recovery from grader errors.
-  Container commands and the official-grader integration remain host callbacks.
+  Container commands remain host callbacks.
+- The official-grader wrapper selects table and SDK paths, loads and normalises
+  grading rows, builds predictions and selects instance reports in Rust. Its host
+  binding imports and calls the external SWE-bench SDK and retains opaque test
+  specifications across callbacks.
 
 ## Remaining production work
 
@@ -396,6 +400,7 @@ complete while any runtime component delegates production behaviour to Python.
   Include the Hermes redirect helper's raw JSON validation in that audit.
   Include dataset IDs outside the documented string schemas and exact JSON error
   diagnostics in that audit.
+  Include grading-table string keys and JSON error wording and positions.
   Include malformed judge/writer token totals and partial threshold dictionaries
   in the exception-diagnostics audit.
   Configuration numeric coercion still needs Unicode decimal digits and integers
@@ -426,12 +431,14 @@ complete while any runtime component delegates production behaviour to Python.
   in the production-parity audit.
 - Audit configuration reference sharing and mutations made by callbacks in the
   original API alongside the remaining production parity checks.
+  Include nested grading-row values passed to SDK callbacks.
 - Port the task runners and supporting tools, preserving their original test
   contracts.
   Their usage accounting and shared SWE-bench task lifecycle are native.
   Constructors, agent-specific task wrappers, provider configuration, subprocess,
-  container, scaffold, official-grader integration and stream operations still
-  need conversion. Grading orchestration is native.
+  container, scaffold and stream operations still need conversion. Grading
+  orchestration and the official-grader wrapper are native; SDK imports and calls
+  retain a Python I/O binding.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
 
@@ -1142,6 +1149,26 @@ complete while any runtime component delegates production behaviour to Python.
   No live Docker or official grading run was performed. The production-parity
   audits and remaining runner conversion stay open; no improvement pass is counted.
 
+- The official-grader wrapper matches the source in 92 exact comparisons. They
+  cover grading paths, table loading with universal newlines, JSON-encoded test
+  lists, malformed row structures, prediction arguments, report selection,
+  override dispatch and nested task execution. Missing-file and directory errors
+  preserve errno and filename on this Mac; UTF-8 errors preserve their bytes,
+  offsets and reasons. Paths containing NUL raise `ValueError` before file access.
+  Artifact comparisons use raw bytes. A Rust check verifies row normalisation
+  without changing the loaded table.
+  Three additional checks preserve the JSON exception type and document but
+  expose different wording or positions. The probe records both outputs in
+  `validation/results/grader-json-diagnostics.json`; those checks do not establish
+  diagnostic parity. JSON diagnostics and callback reference sharing remain open.
+  The full original suite with installed-opencode tests enabled passes with
+  1,561 passed and 30 skipped (66.12 seconds). Its task coverage exercises container naming;
+  grader-wrapper execution is checked by the new probe. All 19 Rust library
+  checks, the callback replay check, debug/release builds, Clippy, formatting,
+  the 262-case task regression and 256-file reference check pass. Original tests
+  remain unchanged. The external SDK uses local stand-ins; no live Docker or
+  official grading run was performed. No improvement pass is counted.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -1267,6 +1294,7 @@ jbang validation/NudgeProbe.java
 jbang validation/FacadeProbe.java
 jbang validation/UsageProbe.java
 jbang validation/TaskProbe.java
+jbang validation/GraderProbe.java
 jbang validation/BridgeProbe.java
 jbang validation/QueueProbe.java
 jbang validation/ContextProbe.java

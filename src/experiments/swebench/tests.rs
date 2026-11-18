@@ -28,6 +28,7 @@ impl Runtime for Host {
                     message: "fixture start error".into(),
                     bases: vec!["builtins.RuntimeError".into()],
                     stdout: None,
+                    details: None,
                 });
             }
             "_record_env_activation" => args[2].clone(),
@@ -213,4 +214,21 @@ fn grading_retains_timeout_output_and_recovers_score_errors() {
         }
     }
     fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn grading_instances_decode_test_lists_and_preserve_the_table() {
+    let rows = json!({"task":{"instance_id":"old","FAIL_TO_PASS":"[\"test_é\"]","PASS_TO_PASS":[],"problem_statement":null}});
+    let grader = official::Grader {
+        path: "grading.json".into(),
+        rows: rows.clone(),
+    };
+    assert_eq!(
+        grader.instance("task").unwrap(),
+        json!({"instance_id":"task","FAIL_TO_PASS":["test_é"],"PASS_TO_PASS":[],"problem_statement":null})
+    );
+    assert_eq!(grader.rows, rows);
+    let error = grader.instance("missing").unwrap_err();
+    assert_eq!(error.kind, "KeyError");
+    assert_eq!(error.message, "missing not in grading.json");
 }

@@ -1,10 +1,23 @@
 """I/O callbacks for the native SWE-bench task lifecycle."""
 import dataclasses
 import functools
+import json
 import os
 
 from native_plugin import invoke
-from native_experiment_spiral import checked
+from native_experiment_spiral import checked as checked_value
+
+
+def checked(value):
+    if isinstance(value,dict) and "errno" in value.get("details",{}):
+        info = value["details"]
+        raise OSError(info["errno"],info["strerror"],info["filename"])
+    if isinstance(value,dict) and value.get("raised") == "JSONDecodeError":
+        raise json.JSONDecodeError(value["message"],value["details"]["doc"],value["details"]["pos"])
+    if isinstance(value,dict) and value.get("raised") == "UnicodeDecodeError":
+        info = value["details"]
+        raise UnicodeDecodeError("utf-8",bytes(info["bytes"]),info["start"],info["end"],info["reason"])
+    return checked_value(value)
 
 
 def data(value):
@@ -24,7 +37,8 @@ def install():
         errors = []
         guard = None
         transcript = None
-        while "callback" in result:
+        spec = None
+        while isinstance(result,dict) and "callback" in result:
             method, args = result["method"], result["args"]
             try:
                 if method == "clock": value = module.time.time()
@@ -59,6 +73,13 @@ def install():
                     value = {key:getattr(process,key) for key in ("returncode","stdout","stderr")}
                 elif method == "eval_script": value = self.grader.eval_script(*args)
                 elif method == "score": value = self.grader.score(*args)
+                elif method == "grader_instance": value = self.instance(*args)
+                elif method == "make_test_spec":
+                    spec = self.make_test_spec(*args)
+                    value = None
+                elif method == "eval_script_value": value = spec.eval_script
+                elif method == "get_eval_report":
+                    value = self.get_eval_report(test_spec=spec,prediction=args[0],test_log_path=args[1],include_tests_status=args[2])
                 elif method == "scaffold_info": value = {"name":self.scaffold.name} if self.scaffold is not None else None
                 else: value = getattr(self,method)(*args)
                 reply = {"value":data(value)}
@@ -95,6 +116,42 @@ def install():
                         "out":out,"rc":rc,"stderr":stderr,"phase":phase,"process_cwd":os.getcwd()})
         return drive(self,result,{})
     cls._eval_exec_failed = failed
+    def environment():
+        return {key:os.environ[key] for key in ("TE_SWEBENCH_GRADING","DATA","TE_SWEBENCH_REPO") if key in os.environ}
+    original_default = module.default_grading_path
+    @functools.wraps(original_default)
+    def default_grading_path():
+        return checked(invoke("experiment.swebench.default_grading_path",{"env":environment()}))
+    module.default_grading_path = default_grading_path
+    original_repo = module.swebench_repo
+    @functools.wraps(original_repo)
+    def swebench_repo():
+        return checked(invoke("experiment.swebench.swebench_repo",{"env":environment(),"process_cwd":os.getcwd()}))
+    module.swebench_repo = swebench_repo
+    grader = module._Grader
+    original_init = grader.__init__
+    @functools.wraps(original_init)
+    def grader_init(self,grading_path=None):
+        selected = checked(invoke("experiment.swebench.grader.path",{"grading_path":data(grading_path),"env":environment()}))
+        self.path = grading_path if selected["explicit"] else selected["path"]
+        self.rows = checked(invoke("experiment.swebench.grader.load",{"path":os.fspath(self.path),"process_cwd":os.getcwd()}))
+        self.make_test_spec,self.get_eval_report = module._import_swebench()
+    grader.__init__ = grader_init
+    original_instance = grader.instance
+    @functools.wraps(original_instance)
+    def instance(self,instance_id):
+        return checked(invoke("experiment.swebench.grader.instance",{"self":{"path":os.fspath(self.path),"rows":self.rows},"instance_id":instance_id}))
+    grader.instance = instance
+    original_eval = grader.eval_script
+    @functools.wraps(original_eval)
+    def eval_script(self,instance_id):
+        return drive(self,invoke("experiment.swebench.grader.eval_script",{"instance_id":instance_id}),{})
+    grader.eval_script = eval_script
+    original_score = grader.score
+    @functools.wraps(original_score)
+    def score(self,instance_id,model_patch,log_path):
+        return tuple(drive(self,invoke("experiment.swebench.grader.score",{"instance_id":instance_id,"model_patch":model_patch,"log_path":os.fspath(log_path)}),{}))
+    grader.score = score
     original_name = cls._container_name
     @functools.wraps(original_name)
     def container_name(self, instance_id, arm, run_dir_path):

@@ -1,7 +1,7 @@
 use super::job::{self, Channel};
 use serde_json::{Value, json};
 use std::path::Path;
-use tokeneconomizer::experiments::swebench::{self, Failure, Runtime, Task, grading};
+use tokeneconomizer::experiments::swebench::{self, Failure, Runtime, Task, grading, official};
 
 struct Transport(Channel);
 impl Runtime for Transport {
@@ -18,7 +18,11 @@ impl Runtime for Transport {
     }
 }
 fn failure(error: Failure) -> Value {
-    json!({"raised":error.kind,"message":error.message})
+    let mut value = json!({"raised":error.kind,"message":error.message});
+    if let Some(details) = error.details {
+        value["details"] = *details;
+    }
+    value
 }
 
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
@@ -32,12 +36,22 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
         )
         .map(Some);
     }
-    if matches!(method, "run_task" | "grade" | "eval_exec_failed") {
+    if matches!(
+        method,
+        "run_task" | "grade" | "eval_exec_failed" | "grader.eval_script" | "grader.score"
+    ) {
         let args = args.clone();
         let method = method.to_owned();
         return job::start("swebench_task", move |channel| {
             let mut runtime = Transport(channel);
             let result = match method.as_str() {
+                "grader.eval_script" => official::eval_script(&args["instance_id"], &mut runtime),
+                "grader.score" => official::score(
+                    &args["instance_id"],
+                    &args["model_patch"],
+                    &args["log_path"],
+                    &mut runtime,
+                ),
                 "grade" => serde_json::from_value::<grading::Grade>(args)
                     .map_err(|e| Failure::new("ValueError", e.to_string()))
                     .and_then(|input| grading::grade(&input, &mut runtime)),
@@ -53,6 +67,37 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
         .map(Some);
     }
     Ok(Some(match method {
+        "default_grading_path" => {
+            official::default_grading_path(args["env"].as_object().ok_or("expected environment")?)
+                .map(|path| json!(path))
+                .unwrap_or_else(failure)
+        }
+        "swebench_repo" => official::swebench_repo(
+            args["env"].as_object().ok_or("expected environment")?,
+            Path::new(args["process_cwd"].as_str().ok_or("expected process cwd")?),
+        )
+        .map(|path| json!(path))
+        .unwrap_or_else(failure),
+        "grader.path" => official::grading_path(
+            &args["grading_path"],
+            args["env"].as_object().ok_or("expected environment")?,
+        )
+        .unwrap_or_else(failure),
+        "grader.load" => official::load(
+            Path::new(args["path"].as_str().ok_or("expected grading path")?),
+            Path::new(args["process_cwd"].as_str().ok_or("expected process cwd")?),
+        )
+        .unwrap_or_else(failure),
+        "grader.instance" => serde_json::from_value::<official::Grader>(args["self"].clone())
+            .map_err(|e| Failure::new("ValueError", e.to_string()))
+            .and_then(|grader| {
+                grader.instance(
+                    args["instance_id"]
+                        .as_str()
+                        .ok_or_else(|| Failure::new("TypeError", "expected string instance_id"))?,
+                )
+            })
+            .unwrap_or_else(failure),
         "row_from_segment" => {
             swebench::row_from_segment(args["agent"].as_str().unwrap_or("claude"), &args["result"])
                 .unwrap_or_else(failure)

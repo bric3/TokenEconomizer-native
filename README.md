@@ -68,5 +68,7 @@ Task-runner usage accounting and interrupted-session recovery run in Rust for
 Claude, Codex and Copilot.
 The shared SWE-bench task lifecycle and grading flow also run in Rust, with host
 callbacks for container commands, scaffolds, streams and the external grader.
+The grader wrapper loads and normalises tables, builds predictions and selects
+reports in Rust. Its Python binding imports and calls the official SWE-bench SDK.
 
 Installed host verification and the remaining migration gates are still in progress.
