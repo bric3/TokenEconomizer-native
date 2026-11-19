@@ -264,6 +264,9 @@ impl SettingValue {
     }
     fn integer(&self) -> Result<i64, String> {
         // shortcut: configuration integers use i64, widen them in the numeric parity audit.
+        if let Some(n) = self.json().and_then(Value::as_i64) {
+            return Ok(n);
+        }
         if let Some(Value::String(s)) = self.json() {
             decimal_integer(s)
                 .and_then(|s| s.parse::<i64>().ok())
@@ -273,6 +276,12 @@ impl SettingValue {
                         python_repr(&json!(s))
                     )
                 })
+        } else if let Some(value @ (Value::Null | Value::Array(_) | Value::Object(_))) = self.json()
+        {
+            Err(format!(
+                "int() argument must be a string, a bytes-like object or a real number, not '{}'",
+                type_name(value)
+            ))
         } else {
             self.float().map(|n| n as i64)
         }

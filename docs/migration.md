@@ -703,10 +703,10 @@ complete while any runtime component delegates production behaviour to Python.
   Include non-string protected tool names and scaffold paths in the schema audit.
   Include malformed judge/writer token totals and partial threshold dictionaries
   in the exception-diagnostics audit.
-  Configuration numeric coercion now accepts Unicode 17 decimal digits. Audit
-  integers outside the current i64 range and direct integer inputs converted
-  through f64 above 2^53. Audit path-normalisation edge cases and typed I/O errors
-  from repository identity too.
+  Configuration numeric coercion now accepts Unicode 17 decimal digits and
+  preserves direct signed 64-bit integer inputs above 2^53. Integers outside
+  i64 remain in the numeric audit. Audit path-normalisation edge cases and typed
+  I/O errors from repository identity too.
 - Verify tilde expansion on a native Windows host, including home-directory
   fallback through `USERPROFILE`, `HOMEDRIVE` and `HOMEPATH`. Claude history now
   uses the shared expansion helper. Environment-file selection calls the supplied
@@ -3971,6 +3971,29 @@ complete while any runtime component delegates production behaviour to Python.
   Integer range and precision limits remain in the numeric audit above. Native
   Windows execution remains unverified. Formal simplification and performance
   passes remain at 0/3 each; original-test conversion is pending.
+
+- Integer configuration settings now retain signed 64-bit JSON integers without
+  converting them through `f64`. A value such as `9007199254740993` keeps its
+  exact value through `LiveConfig.set`, configuration writes and global or
+  repository loading. Rejected null, list and object values also use the source's
+  `int()` diagnostic. Thresholds retain their separate floating-point conversion
+  contract.
+  Extending the number probe found 84 differences in 9,837 comparisons before
+  the fix. All 9,837 now pass, including signed integer boundaries, ordinary
+  numeric types and rejected types for all 12 integer settings. Another 244
+  checks compare saved bytes, global/repository loading, environment overrides
+  and preservation of files after rejected writes.
+  All 34 Rust tests, formatting, Clippy and debug/release builds pass. The
+  unchanged original suite passes with 1,561 passed and 30 skipped (77.89 seconds).
+  All 256 archived files still match the pinned tree.
+  Logs are under `validation/results/`: `config-integer-before.log`,
+  `config-integer-probe.log`, `config-integer-rust-tests.log`,
+  `config-integer-clippy.log`, `config-integer-debug.log`,
+  `config-integer-release.log`, `config-integer-full.log`,
+  `config-integer-full-calls.json` and `config-integer-reference.log`.
+  Integers outside i64 and native Windows execution remain unverified. Formal
+  simplification and performance passes remain at 0/3 each; original-test
+  conversion is pending.
 
 ## Dependencies
 

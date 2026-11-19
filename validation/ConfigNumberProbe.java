@@ -2,19 +2,60 @@
 //SOURCES AdapterProbe.java ExtractProposerPrompts.java ParserProbe.java CliProbe.java ContextProbe.java ContainerProbe.java
 //SOURCES ../scripts/UnicodeRegexTables.java
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 /** Compares configuration coercion with Python's decimal digits, separators and whitespace. */
 class ConfigNumberProbe {
-  record Case(String key, String value) {
-    String json() { return "{\"key\":" + ParserProbe.q(key) + ",\"value\":" + ParserProbe.q(value) + "}"; }
+  static final List<String> INTEGER_SETTINGS = List.of("microskills_max_facts", "microskills_max_tokens", "microskills_propose_every",
+      "toolprune_evidence", "toolprune_min_sessions", "toolprune_sessions", "toolprune_quiet_minutes",
+      "loopguard_nudges", "repomap_tokens", "repomap_timeout", "history_max_sessions", "history_days");
+  record Case(String key, String valueJson) {
+    String json() { return "{\"key\":" + ParserProbe.q(key) + ",\"value\":" + valueJson + "}"; }
   }
   static final List<Case> CASES = new ArrayList<>();
   static void number(String text) {
     for (var key : List.of("history_max_sessions", "toolprune_quiet_minutes", "local_judge_confidence", "loopguard.min_turns", "loopguard.stagnation"))
-      CASES.add(new Case(key, text));
+      CASES.add(new Case(key, ParserProbe.q(text)));
+  }
+  static int ioChecks;
+  static String compare(AdapterProbe.Client nativeCode, AdapterProbe.Client source, String request) throws Exception {
+    var expected = source.call(request);
+    var actual = nativeCode.call(request);
+    if (!actual.equals(expected)) throw new AssertionError(request+"\nNative: "+actual+"\nSource: "+expected);
+    ioChecks++;
+    return expected;
+  }
+  static void persistence(AdapterProbe.Client nativeCode, AdapterProbe.Client source, Path root) throws Exception {
+    var file = root.resolve("config.json");
+    var repo = Files.createDirectory(root.resolve("repo"));
+    var seed = "{\"paid_model\":\"keep\"}\n";
+    for (var key : INTEGER_SETTINGS) for (var value : List.of("9007199254740993", "9007199254740995", "1234567890123456789", "9223372036854775806", "9223372036854775807")) {
+      var write = "[{\"action\":\"write\",\"path\":"+ParserProbe.q(file)+",\"updates\":{\""+key+"\":"+value+"}}]";
+      Files.writeString(file,seed);
+      var expected = source.call(write);
+      var saved = Files.readAllBytes(file);
+      if (!expected.contains("\""+key+"\":"+value)) throw new AssertionError("Source did not preserve the integer: "+expected);
+      Files.writeString(file,seed);
+      var actual = nativeCode.call(write);
+      if (!actual.equals(expected) || !Arrays.equals(saved,Files.readAllBytes(file))) throw new AssertionError("Saved integer changed: "+write+"\nNative: "+actual+"\nSource: "+expected);
+      ioChecks++;
+      compare(nativeCode,source,"[{\"action\":\"load\",\"root\":"+ParserProbe.q(root)+"}]");
+      Files.writeString(file,"{\""+key+"\":1}");
+      Files.writeString(repo.resolve("config.json"),"{\""+key+"\":"+value+"}");
+      compare(nativeCode,source,"[{\"action\":\"load\",\"root\":"+ParserProbe.q(root)+",\"repo\":"+ParserProbe.q(repo)+"}]");
+      compare(nativeCode,source,"[{\"action\":\"load\",\"root\":"+ParserProbe.q(root)+",\"repo\":"+ParserProbe.q(repo)
+          +",\"env\":{\"TE_"+key.toUpperCase(Locale.ROOT)+"\":"+ParserProbe.q(value)+"}}]");
+    }
+    for (var value : List.of("null", "[]", "{}", "true")) {
+      Files.writeString(file,seed);
+      var result = compare(nativeCode,source,"[{\"action\":\"write\",\"path\":"+ParserProbe.q(file)+",\"updates\":{\"history_max_sessions\":"+value+"}}]");
+      if (!result.contains("\"raised\":\"ValueError\"") || !Files.readString(file).equals(seed)) throw new AssertionError("A rejected update changed the file: "+result);
+    }
   }
   public static void main(String[] args) throws Exception {
     var digits = new ArrayList<Integer>();
@@ -40,8 +81,20 @@ class ConfigNumberProbe {
     for (var text : List.of("", " ", "+", "-", "1__0", "+_1", "1_.0", "1._0", "1e_0", "1_e0", "1e+_0",
         "NaN", "+nan", "-NaN", "Inf", "iNfInItY", "+INFINITY", "-inf", "NAN(0)", "0x1", "1d0", "1.e1", ".0", ".", "1\u0000",
         "²", "①", "Ⅻ", "−1", "1.0", "1e1", "1e-1", "0.9", "1_0.0_0e+0_1")) number(text);
+    for (var key : INTEGER_SETTINGS) {
+      for (var value : List.of("null", "true", "false", "[]", "{}", "0", "1", "-1", "0.0", "1.0", "1.25", "-1.0",
+          "4503599627370495", "4503599627370496", "9007199254740991", "9007199254740992", "9007199254740993",
+          "9007199254740995", "1234567890123456789", "9223372036854775806", "9223372036854775807",
+          "-9007199254740993", "-9223372036854775808", "9007199254740993.0", "9.223372036854775e18"))
+        CASES.add(new Case(key, value));
+      for (var value : List.of("9007199254740993", "9007199254740995", "1234567890123456789",
+          "9223372036854775806", "9223372036854775807", "-9223372036854775808"))
+        CASES.add(new Case(key, ParserProbe.q(value)));
+    }
     int failures = 0;
     var checkout = Path.of("").toAbsolutePath();
+    var root = Files.createTempDirectory(checkout.resolve("validation/results"),"config-number-");
+    boolean passed = false;
     try (var nativeCode = new AdapterProbe.Client(checkout, true, "config_number_host.py");
          var source = new AdapterProbe.Client(checkout, false, "config_number_host.py")) {
       for (int index = 0; index < CASES.size(); index += 50) {
@@ -61,8 +114,12 @@ class ConfigNumberProbe {
           }
         }
       }
+      if (failures == 0) persistence(nativeCode,source,root);
+      passed = failures == 0;
+    } finally {
+      if (passed) ContainerProbe.clear(root); else System.err.println("Probe artifacts: "+root);
     }
     if (failures != 0) throw new AssertionError(failures + " mismatches in " + CASES.size() + " numeric configuration cases");
-    System.out.println("Configuration coercion matches the source in " + CASES.size() + " cases covering all " + digits.size() + " Unicode 17 decimal digits, separators, exponents and whitespace");
+    System.out.println("Configuration coercion matches the source in " + CASES.size() + " cases covering all " + digits.size() + " Unicode 17 decimal digits, separators, exponents, whitespace, signed 64-bit integer boundaries and rejected types; "+ioChecks+" saved-file, global/repository and environment checks passed");
   }
 }
