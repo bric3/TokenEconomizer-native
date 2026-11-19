@@ -90,9 +90,34 @@ fn nonfinite_numbers_round_trip_through_values_and_typed_floats() {
         };
         assert_eq!(number.to_string(), canonical);
         assert_eq!(serde_json::to_string(&expected).unwrap(), canonical);
+        assert_eq!(
+            serde_json::to_string(&(expected as f32)).unwrap(),
+            canonical
+        );
         assert_eq!(serde_json::to_string(&value).unwrap(), canonical);
         assert_eq!(serde_json::to_value(expected).unwrap(), value);
         assert!(serde_json::from_str::<i64>(text).is_err());
+    }
+}
+
+#[test]
+fn finite_single_precision_values_round_trip() {
+    for value in [
+        0.0_f32,
+        -0.0,
+        1.0,
+        f32::EPSILON,
+        f32::MIN_POSITIVE,
+        f32::MIN,
+        f32::MAX,
+        f32::from_bits(1),
+        -f32::from_bits(1),
+    ] {
+        let encoded = serde_json::to_string(&value).unwrap();
+        assert_eq!(
+            serde_json::from_str::<f32>(&encoded).unwrap().to_bits(),
+            value.to_bits()
+        );
     }
 }
 
