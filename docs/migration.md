@@ -830,9 +830,10 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 20 of 67 pytest modules, covering 256 of 1,591 original
-  cases. See [the conversion record](test-conversion.md). Standalone executable
-  smoke tests and the remaining modules are pending.
+- Final test conversion: 20 of 67 pytest modules are complete and live-core is
+  partly converted, covering 463 of 1,591 original cases. See
+  [the conversion record](test-conversion.md). Standalone executable smoke tests
+  and the remaining modules are pending.
 
 ## Verified milestones
 
@@ -4378,6 +4379,19 @@ complete while any runtime component delegates production behaviour to Python.
   Original-test conversion now covers 20 of 67 pytest modules and 256 of 1,591
   cases. Remaining modules, standalone smoke tests and the final parity and
   platform audits stay open.
+
+- The fourth test-conversion batch starts live-core with shell edits and
+  verification: 32 of its 99 functions cover 207 of its 274 cases. The 18
+  original parameter tables are copied into checked JSON by a Java helper using
+  Python's standard-library literal decoder. The native test run requires no
+  Python and executes none of the fixture commands. It calls shell parsers,
+  `TurnGuard`, state summaries and host patch normalisation directly.
+  The fixture generator's check mode verifies all tables and the source hash.
+  All 210 native tests on macOS, formatting and Clippy pass. The Windows-only
+  held-file test remains excluded. Logs use `validation/results/test-conversion-4-*`.
+  Conversion now covers 463 original cases across 20 complete modules and one
+  partial module. The other 67 live-core functions, remaining modules, smoke
+  tests and final parity and platform audits stay open.
 
 ## Dependencies
 

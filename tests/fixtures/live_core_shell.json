@@ -1,0 +1,607 @@
+{
+"_source_sha256":"b0abc5c8728c358a7f8fcbc7f0fbe96ac8b4d221e08638f05c26b44161651274",
+"edits_made_through_the_shell_are_recognised":[
+  [
+    "sed -i 's/a/b/' pkg/mod.py",
+    [
+      "mod.py"
+    ]
+  ],
+  [
+    "cd /t && sed -i.bak -e 's/a/b/' -e 's/c/d/' x.py y.py && pytest -q",
+    [
+      "x.py",
+      "y.py"
+    ]
+  ],
+  [
+    "sed -i '' 's/a/b/' x.py",
+    [
+      "x.py"
+    ]
+  ],
+  [
+    "perl -pi -e 's/foo/bar/' src/a.rs",
+    [
+      "a.rs"
+    ]
+  ],
+  [
+    "sed -i --expression='s/a/b/' pkg/mod.py",
+    [
+      "mod.py"
+    ]
+  ],
+  [
+    "sed --in-place --expression=s/a/b/ a.py b.py",
+    [
+      "a.py",
+      "b.py"
+    ]
+  ],
+  [
+    "sed -i -e's/a/b/' x.py",
+    [
+      "x.py"
+    ]
+  ],
+  [
+    "sed -i --file=fix.sed x.py",
+    [
+      "x.py"
+    ]
+  ],
+  [
+    "sed -ne 's/a/b/p' -i x.py",
+    [
+      "x.py"
+    ]
+  ],
+  [
+    "perl -i -pe's/foo/bar/' src/a.rs",
+    [
+      "a.rs"
+    ]
+  ],
+  [
+    "perl -i.orig -pe 's/foo/bar/' src/a.rs",
+    [
+      "a.rs"
+    ]
+  ],
+  [
+    "perl -Mre=eval -i -pe 's/foo/bar/' src/a.rs",
+    [
+      "a.rs"
+    ]
+  ],
+  [
+    "cat > repro.py <<'EOF'\nprint(1 > 0)\nEOF\npython repro.py",
+    [
+      "repro.py"
+    ]
+  ],
+  [
+    "echo 'x' | tee -a setup.cfg",
+    [
+      "setup.cfg"
+    ]
+  ],
+  [
+    "python - <<'E'\np='sympy/printing/str.py'; s=open(p).read()\nopen(p,'w').write(s)\nE",
+    [
+      "str.py"
+    ]
+  ],
+  [
+    "python - <<'E'\nfor p in ['x/a.py', 'x/b.py']:\n    open(p, 'w').write('')\nE",
+    [
+      "a.py",
+      "b.py"
+    ]
+  ],
+  [
+    "python - <<'E'\nfrom pathlib import Path\nPath('m/n.py').write_text('x')\nE",
+    [
+      "n.py"
+    ]
+  ],
+  [
+    "git apply /tmp/fix.diff",
+    [
+      "(patch)"
+    ]
+  ],
+  [
+    "apply_patch <<'PATCH'\n*** Begin Patch\n*** Update File: pkg/__init__.py\n@@\n-    x\n+    y\n*** End Patch\nPATCH\npython3 -m unittest",
+    [
+      "__init__.py"
+    ]
+  ],
+  [
+    "apply_patch <<'P'\n*** Begin Patch\n*** Add File: a/new.py\n+x\n*** Update File: b/old.py\n*** End Patch\nP",
+    [
+      "new.py",
+      "old.py"
+    ]
+  ],
+  [
+    "git checkout -- a.py b/c.py",
+    [
+      "a.py",
+      "c.py"
+    ]
+  ],
+  [
+    "git -C /w/repo apply /tmp/fix.diff",
+    [
+      "(patch)"
+    ]
+  ],
+  [
+    "git -c core.autocrlf=false --no-pager apply fix.diff",
+    [
+      "(patch)"
+    ]
+  ],
+  [
+    "git -C repo checkout HEAD -- pkg/mod.py",
+    [
+      "mod.py"
+    ]
+  ],
+  [
+    "git --git-dir=.git --work-tree . restore pkg/mod.py",
+    [
+      "mod.py"
+    ]
+  ],
+  [
+    "env -u CURSOR_AGENT sed -i 's/a/b/' pkg/mod.py",
+    [
+      "mod.py"
+    ]
+  ],
+  [
+    "sudo -u bob sed -i 's/a/b/' pkg/mod.py",
+    [
+      "mod.py"
+    ]
+  ],
+  [
+    "sudo -Eu bob -- perl -pi -e 's/a/b/' src/a.rs",
+    [
+      "a.rs"
+    ]
+  ],
+  [
+    "timeout 60 sed -i 's/a/b/' pkg/mod.py",
+    [
+      "mod.py"
+    ]
+  ],
+  [
+    "timeout -k 5 --signal=KILL 1m git apply fix.diff",
+    [
+      "(patch)"
+    ]
+  ],
+  [
+    "nice -n 10 sed -i 's/a/b/' x.py",
+    [
+      "x.py"
+    ]
+  ],
+  [
+    "nice -5 tee -a setup.cfg",
+    [
+      "setup.cfg"
+    ]
+  ],
+  [
+    "time -p sed -i 's/a/b/' x.py",
+    [
+      "x.py"
+    ]
+  ],
+  [
+    "FOO=1 env -C sub -u X BAR=2 nice -n5 sed -i 's/a/b/' x.py",
+    [
+      "x.py"
+    ]
+  ],
+  [
+    "sudo -E git checkout -- pkg/mod.py",
+    [
+      "mod.py"
+    ]
+  ],
+  [
+    "env -u X sed -n '1,20p' pkg/mod.py",
+    []
+  ],
+  [
+    "timeout 60 python -m pytest -q > /tmp/out.txt",
+    []
+  ],
+  [
+    "python -m pytest -q > /tmp/out.txt 2>&1; tail -5 /tmp/out.txt",
+    []
+  ],
+  [
+    "grep -n 'x' a.py > hits.txt",
+    []
+  ],
+  [
+    "grep -n '>' x.py",
+    []
+  ],
+  [
+    "grep -nE 'a|b' x.py | head",
+    []
+  ],
+  [
+    "python -c \"print(1>2)\"",
+    []
+  ],
+  [
+    "git stash -q; python bin/test x; git stash pop -q",
+    []
+  ],
+  [
+    "sed -n '1,20p' pkg/mod.py",
+    []
+  ],
+  [
+    "git -C repo diff -- pkg/mod.py",
+    []
+  ],
+  [
+    "git -C repo log -- pkg/mod.py",
+    []
+  ],
+  [
+    "sed -i -E 's/x (<|<=|>|>=) y/z/' numbers.py expr.py",
+    [
+      "numbers.py",
+      "expr.py"
+    ]
+  ],
+  [
+    "sed -i 's/a/b/' x.py 2>&1 | tail -2",
+    [
+      "x.py"
+    ]
+  ],
+  [
+    "grep -q ok <<< \"ok\"\nsed -i 's/a/b/' pkg/mod.py",
+    [
+      "mod.py"
+    ]
+  ],
+  [
+    "read -r v <<< done\ncat > fix.py <<'EOF'\nx = 1\nEOF",
+    [
+      "fix.py"
+    ]
+  ]
+],
+"a_runner_named_by_path_counts_as_a_verification":[
+  "python tests/runtests.py model_inheritance -v 2",
+  "./runtests.py basic",
+  ".venv/bin/pytest -q tests/test_a.py",
+  "cd web && ./node_modules/.bin/jest src",
+  "/usr/bin/python3 -m pytest",
+  "/w/venv/bin/pytest -q",
+  "~/.local/bin/pytest -q",
+  "python3 /w/repo/tests/runtests.py basic",
+  "node --test test/"
+],
+"a_runner_started_by_a_launcher_counts_as_a_verification":[
+  "uv run pytest -q",
+  "uv run --frozen python -m pytest x.py",
+  "poetry run pytest",
+  "pipenv run pytest",
+  "npx jest src",
+  "npx -y vitest run",
+  "pnpm exec jest",
+  "bundle exec rspec",
+  "xvfb-run -a pytest",
+  "cd web && npx jest"
+],
+"a_runner_behind_env_or_nice_options_counts_as_a_verification":[
+  "env -u CURSOR_AGENT python -m pytest tests",
+  "env -i PATH=/usr/bin go test ./...",
+  "env --unset=CI npm test",
+  "env -C web npx vitest run",
+  "nice -n 10 pytest -q",
+  "nice -n10 cargo test",
+  "nice -5 go test ./...",
+  "FOO=1 env -u X timeout 60 npm test"
+],
+"env_and_nice_leave_what_they_run_to_decide":[
+  [
+    "env -u CI python -m pytest --collect-only",
+    null
+  ],
+  [
+    "env -u CI echo pytest",
+    null
+  ],
+  [
+    "nice -n 10 make",
+    null
+  ],
+  [
+    "env pytest",
+    "own"
+  ],
+  [
+    "nice pytest -q",
+    "own"
+  ]
+],
+"a_runner_behind_pythons_own_options_counts_as_a_verification":[
+  "python -W error -m pytest -q",
+  "python3 -Werror -m pytest",
+  "python -X dev -m pytest tests",
+  "python3.12 -Xfaulthandler -m pytest",
+  "python -u -m unittest discover",
+  "python -bb -B -m pytest",
+  "python -I -m unittest -v",
+  ".venv/bin/python -W error -m pytest",
+  "python -W error::DeprecationWarning manage.py test",
+  "python -u tests/runtests.py"
+],
+"pythons_own_options_leave_what_it_runs_to_decide":[
+  "python -W error repro.py",
+  "python -X dev -c 'import a'",
+  "python -u -m pip install -e .",
+  "python -m pytest --version"
+],
+"a_ruby_test_run_counts_as_a_verification":[
+  "ruby test/ledger_test.rb",
+  "ruby -w -Ilib test/slugify_test.rb",
+  "ruby -I lib test/x_test.rb",
+  "ruby /w/repo/test/x_test.rb",
+  "ruby -Itest test/models/user_test.rb",
+  "ruby spec/foo_spec.rb",
+  "ruby -W0 --disable-gems test/test_parser.rb",
+  "ruby -W:no-deprecated test/a_test.rb",
+  "ruby -wv test/a_test.rb",
+  "ruby -C /w -Itest test/a_test.rb",
+  "bundle exec ruby -Itest test/a_test.rb -n test_x",
+  "rake test",
+  "bundle exec rake test",
+  "rake test:models",
+  "bin/rake test TEST=test/a_test.rb",
+  "rake spec",
+  "bin/rails test",
+  "rails test test/models/user_test.rb"
+],
+"ruby_that_runs_no_test_file_is_not_a_verification":[
+  "ruby -Ilib -e 'require \"a\"; p A.new'",
+  "ruby -wc lib/retry.rb",
+  "ruby -c test/a_test.rb",
+  "ruby -wc test/a_test.rb",
+  "ruby -Wc test/a_test.rb",
+  "ruby -cw test/a_test.rb",
+  "ruby -we 'load \"test/a_test.rb\"'",
+  "ruby repro.rb",
+  "ruby -v",
+  "ruby -e 'load \"test/a_test.rb\"'",
+  "ruby lib/contest.rb",
+  "ruby -Icore lib/x.rb",
+  "rake",
+  "rake db:migrate",
+  "rails server",
+  "cat test/a_test.rb"
+],
+"a_launcher_leaves_what_it_runs_to_decide":[
+  [
+    "uv run ruff check",
+    null
+  ],
+  [
+    "npx prettier --check .",
+    null
+  ],
+  [
+    "pnpm exec jest --help",
+    null
+  ],
+  [
+    "yarn test",
+    "own"
+  ],
+  [
+    "npm test",
+    "own"
+  ]
+],
+"a_file_named_like_a_runner_is_not_a_verification":[
+  "cat /w/pytest.ini",
+  "cat pytest.ini",
+  "ls /w/tests",
+  "vim tests/runtests.py.bak"
+],
+"a_non_test_command_mentioning_a_runner_is_not_a_verification":[
+  "grep -rn pytest src | head",
+  "python -m pytest x.py --collect-only -q | rg test_",
+  "bin/test --help | head",
+  "git commit -m \"fix pytest\"",
+  "echo \"run pytest next\""
+],
+"a_heredoc_line_naming_a_runner_is_not_a_verification":[
+  "gh pr create --body-file - <<'EOF'\npytest -q\nEOF",
+  "gh issue comment 7 --body-file - <<EOF\nnpm test\nEOF"
+],
+"a_runner_beside_a_heredoc_is_still_judged_by_its_status":[
+  "pytest -q <<EOF\ny\nEOF",
+  "cat <<EOF > ci.sh\nnpm test\nEOF\npytest -q"
+],
+"a_heredoc_that_ends_a_codex_script_is_read_inside_the_script":[
+  [
+    "bash -lc 'pytest -q <<EOF\ny\nEOF'",
+    "own"
+  ],
+  [
+    "bash -lc \"pytest -q && cat <<'EOF'\nsummary\nEOF\"",
+    "own"
+  ],
+  [
+    "bash -lc \"gh pr create --body-file - <<'EOF'\npytest -q\nEOF\"",
+    null
+  ]
+],
+"a_runners_summary_gives_its_verdict":[
+  [
+    "1 failed, 4 passed, 2 warnings in 1.23s",
+    true
+  ],
+  [
+    "== 1 error in 0.12s ==",
+    true
+  ],
+  [
+    "2 passed, 1 warning in 0.30s",
+    false
+  ],
+  [
+    "no tests ran in 0.01s",
+    null
+  ],
+  [
+    "Ran 3 tests in 0.1s\n\nFAILED (failures=1)",
+    true
+  ],
+  [
+    "Ran 3 tests in 0.1s\n\nOK",
+    false
+  ],
+  [
+    "tests finished: 10 passed, 1 failed, in 3.20 seconds",
+    true
+  ],
+  [
+    "# tests 9\n# suites 0\n# pass 8\n# fail 1\n# cancelled 0",
+    true
+  ],
+  [
+    "# pass 9\n# fail 0",
+    false
+  ],
+  [
+    "Tests:       1 failed, 3 passed, 4 total",
+    true
+  ],
+  [
+    "  3 passing (20ms)\n  1 failing",
+    true
+  ],
+  [
+    "--- FAIL: TestAdd (0.00s)",
+    true
+  ],
+  [
+    "ok  \tacme/x\t0.012s",
+    false
+  ],
+  [
+    "test result: FAILED. 1 passed; 1 failed",
+    true
+  ],
+  [
+    "test result: ok. 3 passed; 0 failed",
+    false
+  ],
+  [
+    "5 examples, 1 failure",
+    true
+  ],
+  [
+    "Tests run: 4, Failures: 0, Errors: 1",
+    true
+  ],
+  [
+    "[INFO] BUILD SUCCESS",
+    false
+  ],
+  [
+    "8 runs, 8 assertions, 1 failures, 0 errors, 0 skips",
+    true
+  ],
+  [
+    "8 runs, 8 assertions, 0 failures, 2 errors, 0 skips",
+    true
+  ],
+  [
+    "Finished in 0.01s\n5 runs, 9 assertions, 0 failures, 0 errors, 1 skips",
+    false
+  ],
+  [
+    "1 tests, 1 assertions, 0 failures, 0 errors, 0 pendings, 0 omissions",
+    false
+  ],
+  [
+    "+    raise ValueError('no')",
+    null
+  ],
+  [
+    "ok 1 - add",
+    null
+  ]
+],
+"any_other_command_keeps_its_exit_status":[
+  "tar -xOf pkg.tgz pkg/x.py | sed -n 1,80p",
+  "cat tests/test_x.py | head -40",
+  "grep -rn pytest src | head",
+  "python -m pytest x.py --collect-only -q | rg test_",
+  "bin/test --help | head",
+  "python repro.py 2>&1 | tail",
+  "pytest -q; git diff --stat",
+  "pytest -q\npython - <<'PY'\nx\nPY"
+],
+"other_ecosystems_failing_test_summaries_count_as_failures":[
+  [
+    "# tests 9\n# suites 0\n# pass 8\n# fail 1\n# cancelled 0",
+    true
+  ],
+  [
+    "# pass 9\n# fail 0",
+    false
+  ],
+  [
+    "not ok 3 - rates",
+    true
+  ],
+  [
+    "  2 failing",
+    true
+  ],
+  [
+    "5 examples, 0 failures",
+    false
+  ],
+  [
+    "5 examples, 2 failures",
+    true
+  ],
+  [
+    "Tests run: 4, Failures: 1, Errors: 0",
+    true
+  ],
+  [
+    "Tests run: 4, Failures: 0, Errors: 0",
+    false
+  ],
+  [
+    "--- FAIL: TestAdd (0.00s)",
+    true
+  ],
+  [
+    "ok  \tacme/x\t0.01s",
+    false
+  ]
+]
+}

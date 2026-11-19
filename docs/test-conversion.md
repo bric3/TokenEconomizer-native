@@ -24,6 +24,8 @@ The first batch converts all assertions and parameter values in these modules:
 
 Each module is in `tests/` with the same basename and `.rs`, omitting `test_`.
 The source path is recorded at the top of each converted file.
+Large modules may be split across Rust files; their annotations retain the same
+original source path so the inventory combines their test names.
 The first batch's 55 converted tests run alongside 45 existing native regression
 tests.
 
@@ -85,12 +87,27 @@ which owns those configurations. Shared Claude and Codex transcript writers
 retain the original fixtures' call IDs, optional working directories, item
 defaults and event wrappers.
 
+The fourth batch starts the live-core module. `tests/live_core_shell.rs` converts
+32 of its 99 functions, preserving 207 of its 274 original cases. It covers
+shell edits and reverts, wrapper options, here-strings, heredocs, multi-file
+patches, runner detection, hidden exit status, ecosystem summaries, failure
+signatures and the judge's verification digest. Commands are data passed to
+the native parsers and guard; the tests execute none of those shell commands.
+
+All 18 parameter tables are copied into `tests/fixtures/live_core_shell.json`.
+`ExtractLiveCoreCases.java --write` regenerates that fixture; its default mode
+checks the file against the pinned source. Java selects the tables and records
+the source SHA-256. Python's standard-library AST decoder reads literal data
+without executing the test module. Native test runs read the checked JSON and
+require no Python interpreter. The other 67 live-core functions remain pending.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
 cargo test --locked --all-targets
 cargo clippy --locked --all-targets -- -D warnings
 jbang validation/TestConversionInventory.java
+jbang validation/ExtractLiveCoreCases.java
 ```
 
 The inventory collects the pinned original test IDs and matches their function
@@ -99,8 +116,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 20 of 67 pytest modules have native equivalents,
-covering 256 original cases, including the conditional Windows case. The other
-1,335 cases and standalone executable smoke tests
+Conversion remains in progress: 20 pytest modules are complete and live-core is
+partly converted, covering 463 of 1,591 original cases, including the conditional
+Windows case. The other 1,128 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.
