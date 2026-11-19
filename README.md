@@ -158,6 +158,8 @@ Optimizer calls, preflights, logging and Copilot discovery are packaged, with th
 policy in Rust. Sealed Copilot and Codex invocation builders use the same binding.
 Shared scaffold classes, RTK, Serena, repo-map and their registry also ship in the SDK.
 Task-lifecycle and constructor bindings accept caller-provided harness namespaces.
+Guard convenience APIs also use Rust. The legacy merge-program API returns an I/O
+launcher for the native installer.
 Built-in SWE-bench and WebBench class assembly remains pending.
 
 SWE-bench controller selection, constructor parameters, continuation dispatch and

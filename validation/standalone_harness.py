@@ -43,6 +43,8 @@ for name,module in (("claude",sw),("copilot",copilot),("codex",codex)):
     for key,value in metadata[name].items():
         setattr(module,key,tuple(value) if key == "DEFAULT_SYSTEM_SKILLS" else frozenset(value))
 sw.codex,sw.copilot=codex,copilot
+sw.net_guard=SimpleNamespace(**bridge.request("experiment.net_guard.constants",{}),
+    hosts_block=lambda:bridge.request("experiment.net_guard.hosts_block",{}))
 sw.inspect=inspect
 sw.scaffolds_pkg=scaffold_bindings(bridge).registry
 sw.NudgeGuard=guard_bindings(bridge.request).NudgeGuard

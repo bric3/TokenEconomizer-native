@@ -24,6 +24,7 @@ pub mod containers;
 pub mod controls;
 pub mod copilot_install;
 pub mod grading;
+mod guard_convenience;
 pub mod guard_install;
 pub mod invocation;
 pub mod official;

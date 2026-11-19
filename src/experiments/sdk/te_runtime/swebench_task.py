@@ -8,6 +8,7 @@ import subprocess
 import math
 
 from .transport import checked, data
+from .swebench_guard import bind as guard_bindings
 
 NO_COMMAND=object()
 
@@ -472,4 +473,5 @@ def bind(bridge,module,*,container_helpers=lambda:None):
                 return checked(invoke("experiment.swebench.row_from_segment", {"agent":domain,"result":result}))
             return native
         klass._row_from_segment = row_method(original_row,agent)
+    replacements.update(guard_bindings(bridge,module))
     return replacements

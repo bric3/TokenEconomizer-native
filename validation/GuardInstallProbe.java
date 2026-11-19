@@ -29,6 +29,7 @@ class GuardInstallProbe {
     Files.deleteIfExists(path);
     if(before!=null) {Files.createDirectories(path.getParent());Files.writeString(path,before);}
   }
+  static AdapterProbe.Client nativeProgram;
   static void config(Path root,AdapterProbe.Client source,String agent,String before) throws Exception {
     var program=Base64.getDecoder().decode(source.call("{\"mode\":\"program\",\"agent\":"+q(agent)+",\"python\":"+q(Path.of(".venv/bin/python").toAbsolutePath())+"}"));
     var script=root.resolve("install.py");Files.write(script,program);
@@ -45,6 +46,16 @@ class GuardInstallProbe {
         throw new AssertionError("Hook config "+agent+": "+before+"\nNative: "+a+"\nSource: "+e+"\nNative file: "+(a.file()==null?null:new String(a.file(),java.nio.charset.StandardCharsets.UTF_8))+"\nSource file: "+(e.file()==null?null:new String(e.file(),java.nio.charset.StandardCharsets.UTF_8)));
       cases++;
     }
+    if(nativeProgram!=null) {
+      var nativeBytes=Base64.getDecoder().decode(nativeProgram.call("{\"mode\":\"program\",\"agent\":"+q(agent)+",\"python\":"+q(Path.of(".venv/bin/python").toAbsolutePath())+"}"));
+      Files.write(script,nativeBytes);configure(path,before);
+      var nativeArgs=List.of(Path.of(".venv/bin/python").toAbsolutePath().toString(),script.toString(),path.toString());
+      for(var wanted:List.of(expected,expectedAgain)) {
+        var got=run(root,nativeArgs,path);
+        if(got.code()!=wanted.code()||!got.out().equals(wanted.out())||!got.error().equals(wanted.error())||!java.util.Arrays.equals(got.file(),wanted.file()))throw new AssertionError("Native merge launcher differs for "+agent+": "+before+"\n"+got+"\n"+wanted);
+        cases++;
+      }
+    }
   }
   static byte[] docker(List<String> args,byte[] input) throws Exception {
     var argv=new java.util.ArrayList<String>();argv.add("docker");argv.addAll(args);
@@ -54,6 +65,19 @@ class GuardInstallProbe {
     var output=process.getInputStream().readAllBytes();
     if(process.exitValue()!=0)throw new AssertionError("Docker command failed: "+argv);
     return output;
+  }
+  static void custom(Path root,AdapterProbe.Client source,String before,String entry) throws Exception {
+    var request="{\"mode\":\"program\",\"entry\":"+entry+"}";
+    var script=root.resolve("custom.py");var path=root.resolve("custom/settings.json");
+    Files.write(script,Base64.getDecoder().decode(source.call(request)));configure(path,before);
+    var command=List.of(Path.of(".venv/bin/python").toAbsolutePath().toString(),script.toString(),path.toString());
+    var first=run(root,command,path);var second=run(root,command,path);
+    Files.write(script,Base64.getDecoder().decode(nativeProgram.call(request)));configure(path,before);
+    for(var expected:List.of(first,second)) {
+      var actual=run(root,command,path);
+      if(actual.code()!=expected.code()||!actual.out().equals(expected.out())||!actual.error().equals(expected.error())||!java.util.Arrays.equals(actual.file(),expected.file()))throw new AssertionError("Custom guard entry differs: "+entry.substring(0,Math.min(200,entry.length()))+"\n"+actual+"\n"+expected);
+      cases++;
+    }
   }
   static void liveHosts(AdapterProbe.Client nativeCode,AdapterProbe.Client source) throws Exception {
     var name="te-guard-probe-"+java.util.UUID.randomUUID().toString().substring(0,8);
@@ -72,8 +96,20 @@ class GuardInstallProbe {
   }
   public static void main(String[] args) throws Exception {
     var root=Files.createTempDirectory("te-guard-install-");boolean passed=false;
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"guard_install_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"guard_install_host.py")) {
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"guard_install_host.py",List.of(args).contains("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"guard_install_host.py")) {
+      nativeProgram=nativeCode;
       compare(nativeCode,source,"");
+      for(var home:List.of("null","false","42","[]","{}",q("/fixture/é😀 home"),q("bad\ud800/")))compare(nativeCode,source,"\"mode\":\"paths\",\"home\":"+home);
+      for(var result:List.of("null","false","0","[]","{}",q("opaque value"))) {
+        compare(nativeCode,source,"\"mode\":\"attempts\",\"attempts_result\":"+result+",\"run_dir\":{\"opaque\":true}");
+        for(var agent:List.of("claude","codex"))compare(nativeCode,source,"\"mode\":\"register\",\"agent\":"+q(agent)+",\"writer_result\":"+result);
+      }
+      for(var mode:List.of("write","register"))for(var agent:List.of("claude","codex")) {
+        var base="\"mode\":"+q(mode)+",\"agent\":"+q(agent)+",\"program\":\"fixture program\"";
+        compare(nativeCode,source,base);
+        for(var response:List.of("{\"returncode\":1,\"stderr\":\"failure\",\"stdout\":\"partial\"}","{\"stdout\":\"unarmed\"}","{\"stdout\":null}","{\"stdout\":[]}","{\"stdout\":[\"armed\"]}","{\"returncode\":1,\"stderr\":7}","{\"returncode\":1,\"stderr\":[1],\"stdout\":[2]}"))compare(nativeCode,source,base+",\"responses\":["+response+"]");
+        for(var phase:List.of("program","exec"))for(var error:List.of("RuntimeError","OSError","KeyboardInterrupt","SystemExit"))compare(nativeCode,source,base+",\"fail\":"+q(phase)+",\"error\":"+q(error));
+      }
       for(var agent:List.of("claude","copilot","codex"))for(var mode:List.of("hosts","verify","blocks","graded_diff"))
         compare(nativeCode,source,"\"agent\":"+q(agent)+",\"mode\":"+q(mode)+",\"home\":\"/fixture/é😀 home\"");
       for(var allow:List.of("1","true","yes"," TRUE ","0"," 1 \u001f"))compare(nativeCode,source,"\"allow\":"+q(allow));
@@ -97,6 +133,9 @@ class GuardInstallProbe {
         for(var hooks:List.of("null","false","42","\"net_guard\"","{}","{\"net_guard\":1}","[{\"command\":\"rtk-rewrite\"}]","[{\"command\":\"already_net_guard\"}]"))config(root,source,agent,"{\"hooks\":{"+q(event)+":"+hooks+"}}");
         config(root,source,agent,"{\"metadata\":[NaN,Infinity,-Infinity,1e99,123456789012345678901234567890],\"unicode\":\"\\ud800\"}");
       }
+      for(var entry:List.of("null","false","42",q("net_guard string"),"[]","{}","{\"command\":\"other hook\"}","{\"matcher\":\"Bash\",\"hooks\":[{\"command\":\"net_guard\"}]}","{\"\\ud800\":\"é😀\",\"n\":NaN}"))
+        for(var before:java.util.Arrays.asList(null,"{}","{\"keep\":1,\"hooks\":{\"PreToolUse\":[{\"command\":\"rtk\"}]}}"))custom(root,source,before,entry);
+      custom(root,source,null,"{\"command\":"+q("net_guard "+"x".repeat(200_000))+"}");
       var unsupported=root.resolve("uncreated/settings.json");
       var rejected=run(root,List.of(Path.of("target/debug/te-net-guard").toAbsolutePath().toString(),"--install-hook","unknown",unsupported.toString(),"command"),unsupported);
       if(rejected.code()!=1 || Files.exists(unsupported.getParent()))throw new AssertionError("Unknown agent mutated the hook directory");selfChecks++;
@@ -108,6 +147,11 @@ class GuardInstallProbe {
       if(!installed.contains("\"value\":true"))throw new AssertionError("Native helper fixture did not install: "+installed);selfChecks++;
       var missing=nativeCode.call("{\"mode\":\"install\",\"artifact_root\":"+q(root.resolve("missing-artifacts"))+"}");
       if(!missing.contains("\"value\":false")||!missing.contains("UNGUARDED"))throw new AssertionError("Native binding ignored the changed helper root: "+missing);selfChecks++;
+      try(var bridge=new ContextProbe.Client(Path.of("target/debug/te-bridge").toAbsolutePath(),"experiment.swebench")) {
+        var invalid=bridge.call("experiment.swebench.provider.swebench.guard_unknown","");
+        if(!invalid.contains("\"raised\":\"ValueError\"")||!invalid.contains("unknown guard convenience operation"))throw new AssertionError("Unknown guard operation was not rejected: "+invalid);
+        if(!bridge.call("experiment.net_guard.hosts_block","").contains("TokenEconomizer answer-key guard"))throw new AssertionError("Unknown operation damaged the owned channel");selfChecks++;
+      }
       if(List.of(args).contains("--docker"))liveHosts(nativeCode,source);
       passed=true;System.out.println("Guard integration passes "+cases+" source comparisons and "+selfChecks+" native checks; DNS commands, refusal probes, exact counts, patch exclusions and hook-file merge passed");
     } finally {if(passed)ContainerProbe.clear(root);else System.err.println("Probe artifacts: "+root);}

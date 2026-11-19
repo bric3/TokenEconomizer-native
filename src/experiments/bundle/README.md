@@ -36,6 +36,8 @@ and their registry. Rust supplies their metadata, selects scaffolds and drives s
 Task-lifecycle and constructor bindings accept caller-provided harness namespaces,
 including opaque SDK references and subclass callbacks. Built-in SWE-bench and
 WebBench class assembly remains pending.
+Guard convenience APIs and hook-entry merging execute in Rust. The legacy
+merge-program API returns a Python I/O launcher for the bundled native installer.
 External agents, the official grader SDK, aider and Node remain caller-provided
 dependencies where the selected experiment uses them.
 

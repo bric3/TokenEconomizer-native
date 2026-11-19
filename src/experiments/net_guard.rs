@@ -1,6 +1,6 @@
 use crate::value::truthy;
 use regex::Regex;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::{
     fs::OpenOptions,
     io::{Read, Write},
@@ -9,7 +9,7 @@ use std::{
 };
 mod input;
 mod install;
-pub use install::install_hook;
+pub use install::{install_entry, install_hook};
 
 pub const ANSWER_KEY_HOSTS: &[&str] = &[
     "github.com",
@@ -24,6 +24,10 @@ pub const ANSWER_KEY_HOSTS: &[&str] = &[
 pub const HOSTS_MARKER: &str = "# TokenEconomizer answer-key guard";
 pub const LOG_ENV: &str = "TE_NET_GUARD_LOG";
 pub const REASON: &str = "Blocked: this benchmark's grading specs are public on GitHub, so fetching from it would read the answer key rather than solve the task. Work from the files in the workspace.";
+
+pub fn constants() -> Value {
+    json!({"ANSWER_KEY_HOSTS":ANSWER_KEY_HOSTS,"HOSTS_MARKER":HOSTS_MARKER,"LOG_ENV":LOG_ENV,"REASON":REASON})
+}
 
 pub fn hosts_block() -> String {
     let mut out = format!("{HOSTS_MARKER}\n");

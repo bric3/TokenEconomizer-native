@@ -61,6 +61,16 @@ class ContainerHelperProbe {
               if(!content.contains("rtk-rewrite")||!content.contains("\"other\": 1")||content.split("\"command\": \"/te-net-guard\"",-1).length!=2)throw new AssertionError("hook merge lost data or appended twice");checks++;
             }
           }
+          for(boolean marked:List.of(false,true)) {
+            var file=data.resolve("entry-"+marked+".json");Files.writeString(file,"{\"keep\":1,\"hooks\":{\"PreToolUse\":[{\"command\":\"rtk-rewrite\"}]}}");
+            var value=marked?"net_guard "+"x".repeat(200_000):"other hook";
+            for(int repeat=0;repeat<2;repeat++) {
+              var installed=run(root,data,image,List.of("--install-entry","PreToolUse","/data/"+file.getFileName()),"{\"command\":\""+value+"\"}");
+              if(installed.code()!=0||!installed.out().equals("armed\n"))throw new AssertionError("entry install failed: "+installed);
+              var content=Files.readString(file);int expected=marked?1:repeat+1;
+              if(!content.contains("rtk-rewrite")||!content.contains("\"keep\": 1")||content.split(marked?"net_guard ":"other hook",-1).length!=expected+1)throw new AssertionError("entry merge changed source idempotence or lost data");checks++;
+            }
+          }
           var blocked=run(root,data,image,List.of(),"{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"echo https://github.com/probe\"}}");
           if(blocked.code()!=2||!blocked.error().contains("Blocked"))throw new AssertionError("guard did not refuse: "+blocked);checks++;
           var allowed=run(root,data,image,List.of(),"{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"echo ordinary\"}}");

@@ -1,4 +1,5 @@
 use super::input::{self, Node, Text};
+use crate::python_json::{self, ParseError};
 use indexmap::IndexMap;
 use serde_json::json;
 use std::{fs, path::Path};
@@ -29,6 +30,35 @@ pub fn install_hook(
         ),
         _ => return Err(format!("ValueError: unsupported guard agent: {agent}")),
     };
+    merge_entry(path, event, Node::from(&entry), int_max_digits, true)
+}
+
+pub fn install_entry(
+    path: &Path,
+    event: &str,
+    entry_json: &[u8],
+    int_max_digits: usize,
+) -> Result<(), String> {
+    let document =
+        std::str::from_utf8(entry_json).map_err(|error| format!("UnicodeDecodeError: {error}"))?;
+    let entry = python_json::parse_result(entry_json, int_max_digits).map_err(|error| {
+        let kind = if matches!(error, ParseError::Syntax { .. }) {
+            "JSONDecodeError"
+        } else {
+            "ValueError"
+        };
+        format!("{kind}: {}", error.message(document))
+    })?;
+    merge_entry(path, event, entry, int_max_digits, false)
+}
+
+fn merge_entry(
+    path: &Path,
+    event: &str,
+    entry: Node,
+    int_max_digits: usize,
+    recognize_identical: bool,
+) -> Result<(), String> {
     let parent = path.parent().unwrap_or(Path::new(""));
     if parent.as_os_str().is_empty() {
         return Err("FileNotFoundError: [Errno 2] No such file or directory: ''".into());
@@ -45,12 +75,11 @@ pub fn install_hook(
     let pre = map(hooks)?
         .entry(Text::from(event))
         .or_insert_with(|| Node::List(Vec::new()));
-    let entry = Node::from(&entry);
     let seen = match pre {
         // Native executable names use hyphens; an identical entry also makes installation idempotent.
-        Node::List(items) => items
-            .iter()
-            .any(|item| item == &entry || item.json(false).contains("net_guard")),
+        Node::List(items) => items.iter().any(|item| {
+            recognize_identical && item == &entry || item.json(false).contains("net_guard")
+        }),
         Node::Dict(items) => items.keys().any(|key| key.json().contains("net_guard")),
         Node::String(_) => false,
         other => {

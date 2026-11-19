@@ -22,6 +22,16 @@ class _Grader:
     def score(self, instance_id, model_patch, log_path): raise AssertionError('unbound fixture API: _Grader.score')
 
 class ClaudeSwebenchRunner:
+    NET_GUARD_PROBE="echo https://github.com/probe"
+    @property
+    def NET_GUARD_SCRIPT(self): raise AssertionError("unbound guard script")
+    @property
+    def NET_GUARD_LOG(self): raise AssertionError("unbound guard log")
+    def _answer_key_attempts(self,run_dir_path): raise AssertionError("unbound attempts")
+    @staticmethod
+    def _net_guard_merge_program(entry): raise AssertionError("unbound merge program")
+    def _write_hook_entry(self,name,python,path): raise AssertionError("unbound hook entry")
+    def _register_net_guard(self,name,python): raise AssertionError("unbound guard registration")
     def __init__(self, agent="claude", model=None, grading_path=None, scaffold=None): raise AssertionError('unbound fixture API: ClaudeSwebenchRunner.__init__')
     def _write_run_config(self, run_dir_path, task, arm, injected, exclude_tools,
                               max_turns, run_kwargs, guard): raise AssertionError('unbound fixture API: ClaudeSwebenchRunner._write_run_config')
@@ -51,12 +61,15 @@ class ClaudeSwebenchRunner:
     def _merge_segments(self,a,b): raise AssertionError("unbound fixture API: _merge_segments")
 
 class CopilotSwebenchRunner(ClaudeSwebenchRunner):
+    def _register_net_guard(self,name,python): raise AssertionError("unbound copilot registration")
     def __init__(self, agent="copilot", model=None, grading_path=None, scaffold=None): raise AssertionError('unbound fixture API: CopilotSwebenchRunner.__init__')
     def _start(self, name, instance_id): raise AssertionError('unbound fixture API: CopilotSwebenchRunner._start')
     def run_task(self, task, *, arm, injected, exclude_tools, run_dir_path, **run_kwargs): raise AssertionError('unbound fixture API: CopilotSwebenchRunner.run_task')
     def _row_from_segment(self, result): raise AssertionError('unbound fixture API: CopilotSwebenchRunner._row_from_segment')
 
 class CodexSwebenchRunner(ClaudeSwebenchRunner):
+    _guard_python=""
+    def _register_net_guard(self,name,python): raise AssertionError("unbound codex registration")
     def __init__(self, agent="codex", model=None, grading_path=None, scaffold=None): raise AssertionError('unbound fixture API: CodexSwebenchRunner.__init__')
     def _start(self, name, instance_id): raise AssertionError('unbound fixture API: CodexSwebenchRunner._start')
     def run_task(self, task, *, arm, injected, exclude_tools, run_dir_path, **run_kwargs): raise AssertionError('unbound fixture API: CodexSwebenchRunner.run_task')

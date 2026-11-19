@@ -118,6 +118,9 @@ fn dispatch(request: &Value) -> Result<Value, String> {
                 args["depth"].as_i64().unwrap_or(4)
             ))
         }
+        "experiment.net_guard.constants" => {
+            json!(tokeneconomizer::experiments::net_guard::constants())
+        }
         "experiment.net_guard.hosts_block" => {
             json!(tokeneconomizer::experiments::net_guard::hosts_block())
         }

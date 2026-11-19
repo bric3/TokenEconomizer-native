@@ -680,6 +680,8 @@ complete while any runtime component delegates production behaviour to Python.
   nested JSON and filesystem error details outside its verified file corpus.
   Include scaffold merge callback failures and path objects outside string paths,
   including filenames with non-UTF-8 bytes or unpaired surrogate code points.
+  Include guard merge-launcher stderr and I/O error formats beyond the compared
+  final diagnostic line.
   Include WebBench launcher creation, executable permissions and paths outside
   the normal writable task homes in the I/O parity audit.
   Include the guard's numeric spelling, malformed Unicode and non-default stdin
@@ -764,10 +766,9 @@ complete while any runtime component delegates production behaviour to Python.
   invocation builders also have packaged bindings.
   Shared scaffold classes, RTK, Serena, repo-map and their registry are packaged too.
   Task-lifecycle and constructor object/I/O bindings are packaged and used by the
-  original API adapters. Complete built-in class assembly remains open, including
-  the guard convenience methods still exercised through original class bodies:
-  `_answer_key_attempts`, `_net_guard_merge_program`, `_write_hook_entry` and
-  `_register_net_guard`.
+  original API adapters. Guard properties, attempt forwarding, merge-program
+  construction, hook-entry writing and per-agent registration also execute in
+  Rust through the SDK. Complete built-in class assembly remains open.
   Process and SDK calls retain Python I/O bindings.
 - Benchmark driver runner and dataset selection, workload and task filtering,
   group matching and overhead-field copying are native. The arm registry and
@@ -2982,6 +2983,36 @@ complete while any runtime component delegates production behaviour to Python.
   simplification and performance passes remain at 0/3 each; final test conversion
   is pending.
 
+- The eight SWE-bench guard descriptors and convenience methods now execute in
+  Rust through packaged SDK bindings, replacing the original class bodies in
+  upstream tests. Native policy builds paths, forwards attempt counts, constructs
+  entries, preserves custom merge programs, checks process results and records
+  Codex hook trust. The legacy merge-program API returns a Python I/O launcher;
+  JSON hook merging and idempotence execute in the native helper.
+  The helper accepts entries over stdin, preserving arbitrary JSON values and
+  the source's marker-based idempotence. Native registration writes commands that
+  launch the guard executable directly. Generic merge callers retain their entry
+  data. Guard probes pass 554 source comparisons and five native checks through
+  both the original API and a reference-free SDK namespace, including malformed
+  files, repeated registration, callback failures, Unicode, arbitrary entries and
+  an entry exceeding 200,000 characters. All 33 original answer-key guard tests pass too;
+  recorded calls confirm that the convenience APIs reach Rust.
+  Unknown guard operations return a validation error and leave the owned channel
+  usable.
+  Both static Linux architectures were rebuilt and pass 26 scratch-container
+  checks, including large stdin entries and both idempotence rules, without Python,
+  a shell or network. The runtime bundle passes 173 checks with 15 SDK files and
+  34 payload hashes. Its relocated SDK executes both merge modes and verifies
+  native hook commands while rejecting reference imports. Standalone task
+  integration also passes 288 source comparisons, including real signal cases.
+  The unchanged upstream suite passes with 1,561 passed and 30 skipped (71.24
+  seconds), including the installed-opencode loopback fixture. All 24 Rust checks,
+  debug/release builds, Clippy and the 256-file reference check pass. IDE inspections
+  remain unavailable because this checkout is not open in the IDE. Windows, other
+  Python versions and live agents remain unverified. Full built-in class assembly
+  and the remaining parity audits stay open. Formal simplification and performance
+  passes remain at 0/3 each; final test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -3129,6 +3160,7 @@ jbang validation/RunnerControlProbe.java --sdk
 jbang validation/CodexConfigProbe.java --sdk
 jbang validation/RunnerSetupProbe.java --sdk
 jbang validation/WebSetupProbe.java --sdk
+jbang validation/GuardInstallProbe.java --sdk
 jbang validation/TaskProbe.java
 jbang validation/WebSegmentProbe.java
 jbang validation/WebAgentProbe.java

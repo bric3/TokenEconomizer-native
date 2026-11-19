@@ -32,7 +32,7 @@ class ExperimentBundleProbe {
       var hash=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(bundle.resolve(matches.group(1)))));
       require(hash.equals(matches.group(2)),"manifest hash differs: "+matches.group(1));count++;
     }
-    require(count==33,"manifest omitted files: "+count);
+    require(count==34,"manifest omitted files: "+count);
   }
   static void engine(Path bundle)throws Exception {
     try(var client=new ContextProbe.Client(bundle.resolve("bin/te-bridge"),"experiment.swebench")) {
@@ -97,8 +97,9 @@ class ExperimentBundleProbe {
           from te_runtime.scaffolds import bind as scaffold_bindings
           from te_runtime.runner_setup import bind as setup_bindings
           from te_runtime.swebench_task import bind_network
+          from te_runtime.swebench_guard import bind as guard_bindings
           from types import SimpleNamespace
-          import json, shutil, subprocess
+          import json, shlex, shutil, subprocess
           from pathlib import Path
           with Bridge(sys.argv[2]) as bridge:
               sdk=bind(bridge.request)
@@ -170,6 +171,15 @@ class ExperimentBundleProbe {
               class Interface:
                   def __init__(self,agent='claude',model=None,grading_path=None,scaffold=None):
                       raise AssertionError('unbound constructor interface executed')
+                  @property
+                  def NET_GUARD_SCRIPT(self): raise AssertionError('unbound script')
+                  @property
+                  def NET_GUARD_LOG(self): raise AssertionError('unbound log')
+                  @staticmethod
+                  def _net_guard_merge_program(entry): raise AssertionError('unbound program')
+                  def _answer_key_attempts(self,run_dir_path): raise AssertionError('unbound attempts')
+                  def _write_hook_entry(self,name,python,path): raise AssertionError('unbound writer')
+                  def _register_net_guard(self,name,python): raise AssertionError('unbound registration')
               class Claude(Interface): pass
               class Copilot(Interface): pass
               class Codex(Interface): pass
@@ -191,10 +201,32 @@ class ExperimentBundleProbe {
               try: assert 'WebSearch' in host.network_tool_block()
               finally:
                   if previous is not None: os.environ['TE_ALLOW_NETWORK_TOOLS']=previous
+              host=SimpleNamespace(ClaudeSwebenchRunner=Claude,CopilotSwebenchRunner=Copilot,CodexSwebenchRunner=Codex,
+                  json=json,answer_key_attempts=lambda path:dict(path=path))
+              guard_bindings(bridge,host)
+              runner=object.__new__(Claude)
+              runner.scaffold_profile=SimpleNamespace(home='/owned/guard-home')
+              assert runner.NET_GUARD_SCRIPT == '/owned/guard-home/net_guard.py'
+              assert runner.NET_GUARD_LOG == '/owned/guard-home/net_guard_blocks.jsonl'
+              assert runner._answer_key_attempts('fixture') == dict(path='fixture')
+              entry=dict(matcher='Bash',hooks=[dict(type='command',command='/owned/net_guard')])
+              program=Claude._net_guard_merge_program(entry)
+              path=Path(sys.argv[1]).parent.parent/'compat-guard/settings.json'
+              for repeat in range(2):
+                  result=subprocess.run([sys.executable,'-c',program,str(path)],capture_output=True,text=True,timeout=10)
+                  assert result.returncode == 0 and result.stdout == 'armed'+chr(10),result
+              assert json.loads(path.read_text(encoding='utf-8')) == dict(hooks=dict(PreToolUse=[entry]))
+              native_path=path.with_name('native.json')
+              helper=str(Path(sys.argv[2]).with_name('te-net-guard'))
+              result=subprocess.run([sys.executable,'-c',program,'--native-helper',helper,str(native_path)],capture_output=True,text=True,timeout=10)
+              assert result.returncode == 0 and result.stdout == 'armed'+chr(10),result
+              native_entry=json.loads(native_path.read_text(encoding='utf-8'))['hooks']['PreToolUse'][0]
+              assert shlex.split(native_entry['hooks'][0]['command']) == [helper]
+              shutil.rmtree(path.parent)
           print('packaged SDK bindings passed')
           """,moved.resolve("sdk").toString(),moved.resolve("bin/te-bridge").toString()));
       require(controller.code()==0&&controller.out().equals("packaged SDK bindings passed\n"),"relocated SDK binding failed: "+controller);
-      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==34,"benchmark command changed the runtime payload");}
+      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==35,"benchmark command changed the runtime payload");}
       var bootstrap=moved.resolve("sdk/bench.py");var bootstrapBytes=Files.readAllBytes(bootstrap);Files.delete(bootstrap);
       var absent=NativeCliProbe.process(root,Map.of("PATH","","TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString()),List.of(moved.resolve("bin/te-bench").toString(),"--help"));
       require(absent.code()!=0&&absent.err().contains("SDK binding is missing"),"missing bundled SDK selected development files: "+absent);Files.write(bootstrap,bootstrapBytes);

@@ -1,4 +1,8 @@
-use std::{env, io, path::PathBuf};
+use std::{
+    env,
+    io::{self, Read},
+    path::PathBuf,
+};
 use tokeneconomizer::experiments::net_guard;
 
 fn main() {
@@ -10,6 +14,34 @@ fn main() {
         .filter(|n| *n == 0 || *n >= 640)
         .unwrap_or(4300);
     let args = env::args_os().skip(1).collect::<Vec<_>>();
+    if args.first().is_some_and(|arg| arg == "--install-entry") {
+        if args.len() != 3 {
+            eprintln!("usage: te-net-guard --install-entry <event> <path> < entry.json");
+            std::process::exit(2);
+        }
+        let mut entry = Vec::new();
+        let result = io::stdin()
+            .read_to_end(&mut entry)
+            .map_err(|error| format!("OSError: {error}"))
+            .and_then(|_| {
+                net_guard::install_entry(
+                    &PathBuf::from(&args[2]),
+                    &args[1].to_string_lossy(),
+                    &entry,
+                    int_max_digits,
+                )
+            });
+        match result {
+            Ok(()) => {
+                println!("armed");
+                return;
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+        }
+    }
     if args.first().is_some_and(|arg| arg == "--merge-json") {
         if args.len() != 3 {
             eprintln!("usage: te-net-guard --merge-json <path> <patch-file>");
