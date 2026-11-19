@@ -183,6 +183,17 @@ restatement checks, evidence windows, candidate limits and legacy saved entries.
 The output extractor reads every saved output line. Python vocabulary identity
 checks compare the complete native vocabulary values.
 
+The thirteenth batch converts `test_winspawn.py` and `test_live_safety.py`:
+13 functions cover 15 original cases. Spawn tests retain hidden-console flags,
+WMI fallback, suffixed interpreters and the windowless runner command. Runtime
+fixtures record launch decisions without starting Windows processes.
+Safety tests retain symlink refusal, unchanged targets and malformed settings,
+external Git metadata and private state. The permission test also covers the
+native hook entry point; each child starts with umask 022. Both native entry
+points now set umask 077, matching the original bootstrap. Before this fix,
+the native CLI created `home/repos` with group and other read/execute bits.
+Permission-bit checks remain Unix-only. Native Windows execution stays open.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -198,8 +209,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 27 pytest modules are complete, covering 670 of
-1,591 original cases, including the conditional Windows case. The other 921
+Conversion remains in progress: 29 pytest modules are complete, covering 685 of
+1,591 original cases, including the conditional Windows case. The other 906
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

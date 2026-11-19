@@ -830,7 +830,7 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 27 of 67 pytest modules are complete, covering 670 of
+- Final test conversion: 29 of 67 pytest modules are complete, covering 685 of
   1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
@@ -4489,6 +4489,22 @@ complete while any runtime component delegates production behaviour to Python.
   all-target Clippy pass; production is unchanged. Logs use
   `validation/results/test-conversion-12-*`. Total conversion covers 670 cases
   across 27 complete modules. Remaining conversion and parity audits stay open.
+
+- The thirteenth test-conversion batch adds 13 private-state and detached-spawn
+  functions covering 15 original cases. Symlinked settings and Git exclude files
+  retain their targets; malformed settings remain unchanged. Spawn fixtures
+  retain hidden-console flags, WMI fallback and windowless interpreter selection.
+  The native CLI permission test found `home/repos` created with group/other
+  read and execute bits: only the root was tightened. The original Python
+  bootstrap sets umask 077 before dispatch, so both native plugin entry points
+  now do the same before state writes or threads start. The native CLI and hook
+  regression checks start children with umask 022 and inspect every created
+  state path. All 13 new tests, formatting and all-target Clippy pass. Logs use
+  `validation/results/test-conversion-13-*`. The full native suite passes 385
+  tests on macOS; all 15 unchanged original safety/spawn cases also pass through
+  the native adapter. All 256 pinned upstream files retain their recorded hashes.
+  Conversion covers 685 cases across
+  29 complete modules; remaining conversion and parity audits stay open.
 
 ## Dependencies
 
