@@ -747,10 +747,13 @@ complete while any runtime component delegates production behaviour to Python.
   `scripts/dead_code.py` has a native replacement, `te-dead-code`. Its 11 original
   tests invoke Rust scanner, deletion, sweep and report policy through the API
   binding and native CLI. Python supplies standard-library AST and reflection
-  operations through an embedded transport. Audit the documentation image
-  generators
-  `docs/assets/results_overview.py`, `framework_overview.py` and `teaser.py`,
-  including their regeneration and asset-validation requirements.
+  operations through an embedded transport. The static documentation figures,
+  `docs/assets/results_overview.py` and `framework_overview.py`, now have Rust
+  replacements through `te-figures`. Matplotlib retains its rendering SDK role;
+  layout, text, paper data, geometry and collision checks execute in Rust.
+  Port the animated `docs/assets/teaser.py`, including its font/logo loading,
+  timeline, layout, poster and ffmpeg export requirements. Its paper results must
+  continue to share the static results figure's data.
   The workload registry, manifest exporter, sweep planner, both task exporters,
   YAML mirror, paired comparison reports, shared launch helpers, fleet CPU
   controls, main sweep and Codex A/B launcher have native implementations.
@@ -3692,6 +3695,48 @@ complete while any runtime component delegates production behaviour to Python.
   supporting-tool and parity audits precede the three simplification passes,
   three performance passes and original-test conversion, all still pending.
 
+- The static documentation figures now regenerate through `te-figures results`
+  and `te-figures framework`. Rust owns paper rows, labels, colours, axis and
+  card geometry, rounded-bar transforms, marker placement, text-width checks,
+  tool chips, rollout spans and export options. A small embedded object binding
+  invokes [Matplotlib's figure and artist APIs](https://matplotlib.org/stable/api/figure_api.html).
+  Text placement uses the actual renderer's font metrics. SVG glyph outlines,
+  creation-date omission and the framework figure's fixed hash salt preserve
+  the original export choices. The results rows quote the paper's Table 1.
+  The renderer is an optional Python dependency for this developer tool,
+  selected with `--python` or `TE_PYTHON`. Matplotlib loads when a figure command
+  runs; Cargo dependencies are unchanged.
+  There are no original tests for these authoring scripts. The dedicated probe
+  instead runs the unchanged scripts into owned directories and compares the
+  native outputs with those fresh renders. It passes 100 checks, including
+  exact PNG pixels and bytes, exact SVG bytes, XML parsing, paper labels,
+  repeated exports, working-directory defaults, relocation with an empty PATH,
+  interpreter precedence, help, invalid arguments and missing-interpreter
+  refusal. Results renders match at 100 and 137 figure DPI; framework renders
+  match at 100 and 200. At 137 DPI, both framework implementations reject
+  `card 1 body is 13.01 units, room 13.00` before writing output. The collision
+  guard remains enabled. Source and native console output match after replacing
+  only their fixture output-directory names. The results SVG comparisons set
+  a fixed renderer hash salt; its default random IDs remain the source behaviour.
+  Comparisons use Python 3.15.2, Matplotlib 3.11.2, NumPy 2.5.5 and Pillow 13.0.0
+  on macOS. Native PNG previews were also inspected. Generated assets remain
+  under `validation/results`; all 256 archived files still match the pinned tree.
+  The full unchanged upstream suite passes with 1,561 passed and 30 skipped
+  (83.84 seconds), including installed opencode against its loopback fixture.
+  All 29 Rust tests, Clippy, formatting and debug/release builds pass.
+  Each Linux helper build passes 28 library tests. The helpers retain all 26
+  scratch-container checks across arm64 and amd64. The relocated experiment
+  bundle retains all 261 checks, 20 SDK files, 39 manifest hashes and 40 physical
+  files; this optional developer executable is built separately by Cargo.
+  Logs are under `validation/results/`: `figures-probe.log`, `figures-full.log`,
+  `figures-full-calls.json`, `figures-rust-tests.log`, `figures-clippy.log`,
+  `figures-debug.log`, `figures-release.log`, `figures-reference.log`,
+  `figures-container-build.log`, `figures-container-probe.log` and
+  `figures-bundle.log`.
+  The animated teaser, other renderer environments, Windows execution and
+  remaining production-parity audits stay open. Formal simplification and
+  performance passes remain at 0/3 each; original-test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -3943,6 +3988,7 @@ jbang validation/LaunchProbe.java
 jbang validation/MainSweepProbe.java
 jbang validation/CodexSweepProbe.java
 jbang validation/DeadCodeProbe.java
+jbang validation/FiguresProbe.java
 jbang validation/StandaloneBenchProbe.java
 jbang validation/StandaloneTransportProbe.java
 jbang validation/HermesGatewayProbe.java

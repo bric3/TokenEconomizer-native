@@ -41,6 +41,24 @@ standard-library AST and reflection APIs. Git and `python3` must be on `PATH`;
 `TE_PYTHON` selects another interpreter. The binary can move independently of the
 checkout and needs no Python packages or companion source files.
 
+Regenerate the static documentation figures with Rust layout and a Matplotlib
+renderer:
+
+```sh
+target/debug/te-figures results --out /path/to/figures --python /path/to/python
+target/debug/te-figures framework --out /path/to/figures --python /path/to/python
+```
+
+The interpreter needs [Matplotlib](https://matplotlib.org/stable/install/index.html).
+`--python` overrides `TE_PYTHON`; the fallback is `python3`. The default output
+directory is `./docs/assets`. The commands write `results_overview.{png,svg}`
+and `framework_overview.{png,svg}`, replacing existing files. Paper results and
+diagram text retain the pinned upstream values. Rust checks diagram text widths
+before exporting. Output depends on the selected Matplotlib version, fonts and
+configuration.
+This optional developer tool can move independently of the checkout and carries
+its renderer binding inside the executable.
+
 The native hook reads the host's JSON payload from stdin and writes its JSON
 response to stdout:
 

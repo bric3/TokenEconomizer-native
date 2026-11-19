@@ -61,5 +61,9 @@ name = "te-dead-code"
 path = "src/bin/dead_code.rs"
 
 [[bin]]
+name = "te-figures"
+path = "src/bin/figures.rs"
+
+[[bin]]
 name = "te-console-probe"
 path = "validation/console_probe.rs"

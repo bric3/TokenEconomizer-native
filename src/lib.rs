@@ -3,6 +3,7 @@ pub mod config;
 pub mod dead_code;
 pub mod envelope;
 pub mod experiments;
+pub mod figures;
 pub mod ledger;
 pub mod lifecycle;
 pub mod loopguard;
