@@ -11,6 +11,7 @@ fn run() -> Result<i32, Box<dyn Error>> {
             || arg == "webbench-from-yaml"
             || arg == "compare-arms"
             || arg == "fleet-budget"
+            || arg == "main-sweep"
     }) {
         let args = env::args_os()
             .skip(2)
@@ -61,7 +62,7 @@ fn run() -> Result<i32, Box<dyn Error>> {
                 )
                 .map_err(|e| e.message)?,
             )
-        } else if command == "fleet-budget" {
+        } else if command == "fleet-budget" || command == "main-sweep" {
             let mut settings = serde_json::Map::new();
             for (key, value) in env::vars_os() {
                 let key = key
@@ -71,6 +72,13 @@ fn run() -> Result<i32, Box<dyn Error>> {
                     .into_string()
                     .map_err(|_| "launch environment must be UTF-8")?;
                 settings.insert(key, serde_json::Value::String(value));
+            }
+            if command == "main-sweep" {
+                return Ok(launch::main_sweep::command(
+                    &args,
+                    settings,
+                    env::current_dir()?,
+                )?);
             }
             Some(launch::fleet::command(&args, settings, env::current_dir()?))
         } else if command == "compare-arms" {

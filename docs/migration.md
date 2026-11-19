@@ -744,14 +744,16 @@ complete while any runtime component delegates production behaviour to Python.
   outside their ordinary schemas. Captured configuration callables and arguments
   already retain their references when the prompt callback replaces them.
 - Finish supporting experiment tools, preserving their original test contracts.
-  The workload registry, manifest exporter and sweep planner have native
-  implementations.
-  The SWE-bench dataset exporter also has native policy and file generation.
-  Port the WebBench task exporter and YAML mirror tool, then audit reporting,
-  capture, launch and smoke scripts for production entry points that lack coverage.
-  Original shell-launcher fixtures still invoke Python children from the archived
-  tree. Parent-process function traces do not cover those children. Port their
-  launch workflows and verify their native process paths before closing this work.
+  The workload registry, manifest exporter, sweep planner, both task exporters,
+  YAML mirror, paired comparison reports, shared launch helpers, fleet CPU
+  controls and main sweep have native implementations. Port the Codex A/B
+  launcher and audit the remaining reporting, capture and development tools for
+  production entry points that lack coverage. Preserve the archived smoke test
+  until final test conversion. The Codex shell-launcher fixture still invokes
+  Python children from the archived tree. Parent-process function traces do not
+  cover those children. Verify the native launch process paths before closing
+  this work; the main-sweep oracle already uses the native planner, driver and
+  aggregator with no upstream import path.
   Aggregation has a native entry point, `te-bench aggregate`, and its source tests
   now call Rust through the validation binding. Weighted costs and per-cell totals
   retain f64 accounting. Include unusually large totals, non-finite JSON, non-UTF-8
@@ -3519,6 +3521,63 @@ complete while any runtime component delegates production behaviour to Python.
   locale-dependent shell text, non-UTF-8 variables, general Bash arithmetic
   expressions and interleaved probe stdout/stderr remain outside this corpus.
 
+- The main sweep now runs through `te-bench main-sweep`. Rust loads launcher
+  settings, normalises the model ID, rejects unpinned router IDs, selects the
+  workload and builds the plan before credential routing. The existing native
+  planner supplies cells, counts and the limit-aware estimate. Dry runs print
+  the plan, skip billed probes and create no results directory. The working
+  directory supplies `workloads/`, `.env` and the default results root.
+  Execution uses the shared native detachment helper and re-executes `te-bench`
+  for each cell. Child arguments preserve the arm, agent, group, seed, limit,
+  adapter, task file, workload, results tree, runner, model, optimizer agent and
+  fresh-state flag. The two archived built-in runner names resolve to the shipped
+  SDK factories. `PYTHON` is captured before loading `.env`, matching the source
+  launcher's interpreter selection, and supplies the fallback when
+  `TE_BENCH_PYTHON` is empty or unset; launcher and aggregation policy require
+  neither Python nor shell tools. Progress is flushed before credential probes and
+  before each cell starts.
+  Stored `row.json` counts and the workload's expected count control resume.
+  Partial cells rerun; completed cells skip. `ON_FAIL=continue` records every
+  failure, while `ON_FAIL=abort` stops the cell loop after its first failure.
+  Both paths aggregate every arm present in the results tree and return failure
+  when a cell failed. Existing arms remain in the comparison indexes.
+  The dedicated source oracle copies the archived scripts into owned fixtures;
+  it leaves the 256 archived files unchanged. 81 comparisons and checks
+  cover source/native dry runs, defaults, environment-file precedence, endpoint
+  and credential refusal, invalid domains/arms, missing manifests, web scaffold
+  filtering, real offline Claude/Codex SWE-bench and Copilot WebBench stub cells,
+  row counts and CSV/transcript outcomes, full and partial resume, whole-tree aggregation, failure policies,
+  literal limits including double-zero and octal resume counts, forced reruns,
+  native detachment, interpreter fallback/override and standalone startup.
+  Only run-name timestamps are normalised in execution output and CSV comparisons.
+  Native runs have an empty
+  `PATH` and no upstream Python import path. Stub execution still uses the
+  shipped task SDK for I/O; no model or real benchmark runner was called.
+  The full unchanged upstream suite passes with 1,561 passed and 30 skipped
+  (264.76 seconds), including the installed-opencode loopback fixture. Its native
+  call record is `validation/results/main-sweep-full-calls.json`. All 29 Rust
+  tests, Clippy, formatting and the release build pass. The shared launch-helper
+  regression probe still passes 164 checks plus three standalone fleet checks.
+  Both rebuilt Linux helpers pass 26 scratch-container checks across arm64 and
+  amd64; their builds also run all 28 library tests. Main-sweep execution
+  comparisons run on macOS. The relocated runtime bundle passes 256 checks,
+  including dry-run startup without Python, actual SDK execution through the
+  interpreter fallback and override, and resume. It still contains 20 SDK files,
+  39 manifest hashes and 40 physical files. All 256 archived upstream files
+  match the pinned Git tree.
+  Logs are `validation/results/main-sweep-full.log`,
+  `main-sweep-probe.log`, `main-sweep-rust-tests.log`,
+  `main-sweep-clippy.log`, `main-sweep-debug.log`, `main-sweep-release.log`,
+  `main-sweep-launch-regression.log`, `main-sweep-container-build.log`,
+  `main-sweep-container-probe.log` and `main-sweep-bundle.log`.
+  Original tests remain unconverted; none directly executes the main sweep.
+  The Codex A/B launcher and supporting-tool audit remain production work before
+  the three simplification and three performance passes. The archived smoke test
+  remains unchanged until final test conversion. General Bash expression/glob
+  expansion, custom shell utilities, malformed planner exception formatting,
+  non-UTF-8 settings, Windows detachment and filesystem errors beyond the tested
+  corpus remain outside these comparisons.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -3767,6 +3826,7 @@ jbang validation/WebExportProbe.java
 jbang validation/YamlMirrorProbe.java
 jbang validation/CompareProbe.java
 jbang validation/LaunchProbe.java
+jbang validation/MainSweepProbe.java
 jbang validation/StandaloneBenchProbe.java
 jbang validation/StandaloneTransportProbe.java
 jbang validation/HermesGatewayProbe.java

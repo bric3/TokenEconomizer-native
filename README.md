@@ -241,6 +241,21 @@ future containers. Missing or unwritable cgroups produce a warning. `0` and `non
 leave the budget unchanged. The command runs without Python or shell utilities;
 Docker supplies optional live usage data.
 
+Run one agent/model/domain sweep from the directory containing `workloads/`:
+
+```sh
+AGENT=claude MODEL=claude-sonnet-5 DOMAIN=swebench DRYRUN=1 \
+  target/release/te-bench main-sweep
+```
+
+The command reads `.env`, plans the cells and checks credential routing. `DRYRUN=1`
+prints the plan and skips billed probes. Set `TASKS_FILE` for execution, `RUNNER`
+for the task runner, and `DETACH=0` for foreground progress. Execution detaches by
+default, skips finished cells and aggregates every arm in the results tree.
+`ARMS`, `REPOS`, `SEEDS`, `LIMIT`, `SKIP_DONE`, `ON_FAIL`, `WORKLOAD` and
+`TOKENECONOMIZER_RESULTS` retain the upstream launcher settings. The planner,
+launcher and aggregator are native; task SDK I/O uses `TE_BENCH_PYTHON` or `PYTHON`.
+
 Use `--runner module:factory` for an external task runner. Python 3.10 or newer supplies
 standard-library I/O; `TE_BENCH_PYTHON` selects its interpreter. The runtime bundle
 carries the SDK and command, including the generic streamed-rollout controller

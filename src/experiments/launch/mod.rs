@@ -1,6 +1,7 @@
 //! Launch configuration and preflights shared by the sweep entry points.
 mod environment;
 pub mod fleet;
+pub mod main_sweep;
 
 use crate::plugin::{paths, process};
 use serde::{Deserialize, Serialize};
@@ -57,6 +58,18 @@ pub struct Context {
     pub stopped: bool,
 }
 impl Context {
+    pub fn new(env: Map<String, Value>, cwd: PathBuf) -> Self {
+        let exported = env.keys().cloned().collect();
+        Self {
+            env,
+            exported,
+            cwd,
+            stdout: String::new(),
+            stderr: String::new(),
+            code: 0,
+            stopped: false,
+        }
+    }
     pub fn get(&self, key: &str) -> &str {
         self.env.get(key).and_then(Value::as_str).unwrap_or("")
     }

@@ -24,7 +24,7 @@ fn scope(root: &Path, actual: &Path, depth: usize) -> Option<PathBuf> {
     }
     None
 }
-fn shell_integer(value: &str) -> Option<i64> {
+pub(super) fn shell_integer(value: &str) -> Option<i64> {
     let (negative, value) = if let Some(value) = value.strip_prefix('-') {
         (true, value)
     } else {
@@ -194,16 +194,7 @@ pub fn command(
     env: serde_json::Map<String, serde_json::Value>,
     cwd: PathBuf,
 ) -> CommandOutput {
-    let exported = env.keys().cloned().collect();
-    let mut ctx = Context {
-        env,
-        exported,
-        cwd,
-        stdout: String::new(),
-        stderr: String::new(),
-        code: 0,
-        stopped: false,
-    };
+    let mut ctx = Context::new(env, cwd);
     if let Some(cores) = args.first() {
         ctx.fleet_cap(Some(cores));
     }

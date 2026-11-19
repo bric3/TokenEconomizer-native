@@ -1,6 +1,6 @@
 //JAVA 25
 //SOURCES NativeCliProbe.java CliProbe.java ContextProbe.java ParserProbe.java ContainerProbe.java AdapterProbe.java ExtractProposerPrompts.java
-//SOURCES DatasetExportProbe.java WebExportProbe.java YamlMirrorProbe.java CompareProbe.java LaunchProbe.java
+//SOURCES DatasetExportProbe.java WebExportProbe.java YamlMirrorProbe.java CompareProbe.java LaunchProbe.java MainSweepProbe.java
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -123,6 +123,7 @@ class ExperimentBundleProbe {
       YamlMirrorProbe.standalone(checkout,root.resolve("yaml-mirror"),moved.resolve("bin/te-bench"));checks+=7;
       CompareProbe.standalone(checkout,root.resolve("compare"),moved.resolve("bin/te-bench"));checks+=3;
       LaunchProbe.standalone(checkout,root.resolve("fleet"),moved.resolve("bin/te-bench"));checks+=3;
+      MainSweepProbe.standalone(checkout,root.resolve("main-sweep"),moved.resolve("bin/te-bench"));checks+=4;
       try(var engine=new ContextProbe.Client(moved.resolve("bin/te-bridge"))) {
         var model=engine.call("experiment.launch.function","\"context\":{\"env\":{},\"exported\":[],\"cwd\":"+q(root)+"},\"name\":\"te_model_for_agent\",\"args\":[\"copilot\",\"claude-opus-4-8\"]");
         require(model.contains("\"stdout\":\"claude-opus-4.8\\n\"")&&model.contains("\"code\":0")&&model.contains("\"changed\":{}"),"relocated launch helpers required shell policy: "+model);
