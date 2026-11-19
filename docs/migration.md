@@ -744,10 +744,10 @@ complete while any runtime component delegates production behaviour to Python.
   outside their ordinary schemas. Captured configuration callables and arguments
   already retain their references when the prompt callback replaces them.
 - Finish supporting experiment tools, preserving their original test contracts.
-  A traced run of all 1,561 passing source tests found actual Python execution in
-  `sweep_plan.py`, `export_swebench_tasks.py`, `export_workloads.py` and
-  `te_bench/workloads.py`. Port these and audit the reporting, capture and smoke
-  scripts for production entry points that lack source-test coverage.
+  The workload registry and manifest exporter have native implementations.
+  A traced run of the source tests found remaining Python execution in
+  `sweep_plan.py` and `export_swebench_tasks.py`. Port these and audit the reporting,
+  capture, launch and smoke scripts for production entry points that lack coverage.
   Aggregation has a native entry point, `te-bench aggregate`, and its source tests
   now call Rust through the validation binding. Weighted costs and per-cell totals
   retain f64 accounting. Include unusually large totals, non-finite JSON, non-UTF-8
@@ -3249,6 +3249,38 @@ complete while any runtime component delegates production behaviour to Python.
   differences still need parity checks. Windows remains unverified. The existing
   Linux guard helpers were reused; this change adds no helper behaviour or dependencies.
 
+- The published workload registry and runnable-manifest exporter now execute in
+  Rust. Published SWE-bench counts stay at 229 tasks. New runs apply the one
+  exclusion and 49 additions to produce 277 tasks; the original stream order is
+  preserved. WebBench, CredData and ReposVul retain their own groups and seeds.
+  Task filtering preserves record identity and input order. The native registry
+  supplies image tags, task counts, published instances and runnable instances.
+  `te-bench export-workloads` writes the four manifests into `./workloads`;
+  `--check` reports missing or stale files without rewriting them. Generated JSON
+  bytes, provenance and original console output match the source. Check mode
+  accepts CRLF files using the source's universal-newline rule. The compiled
+  executable carries all task data; it needs no Python, SDK or source checkout.
+  Workload constants and descriptions are regenerated and checked by
+  `jbang validation/WorkloadProbe.java --write` and the same command without
+  `--write`. The probe exports data through the original module and compares
+  every field with the embedded asset. It adds 288 source comparisons for the
+  APIs, manifest bytes, errors, record identity, help and stale-file preservation.
+  All 78 original workload, sweep-arm and aggregation-index tests pass through
+  the bindings. A function trace of the 73 workload and sweep-arm tests executes
+  only module initialisers in the two ported source files. The full original
+  suite passes with 1,561 passed and 30 skipped
+  (69.77 seconds), including installed opencode against its local model fixture.
+  The 155 aggregation comparisons still pass after sharing relative-path and
+  console result handling. The relocated bundle passes 220 checks, including
+  byte comparisons of all four manifests with the committed source versions and
+  check mode with Python unavailable. All 27 Rust checks, debug/release builds,
+  Clippy, formatting and the unchanged 256-file source check pass.
+  The original tests remain unmodified. Sweep planning, dataset exports and the
+  supporting-script audit remain pending before the six improvement passes and
+  final test conversion. Windows, unusual paths and remaining CLI/I/O diagnostic
+  details remain unverified. Existing Linux guard helpers were reused because
+  their behaviour and dependencies did not change.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -3490,6 +3522,7 @@ jbang validation/ArmRegistryProbe.java
 jbang validation/EnvironmentProbe.java
 jbang validation/DriverMainProbe.java
 jbang validation/AggregateProbe.java
+jbang validation/WorkloadProbe.java
 jbang validation/StandaloneBenchProbe.java
 jbang validation/StandaloneTransportProbe.java
 jbang validation/HermesGatewayProbe.java

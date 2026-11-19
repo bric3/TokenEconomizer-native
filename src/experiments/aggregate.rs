@@ -1,4 +1,5 @@
 //! Flatten benchmark results into the per-task and per-cell comparison indexes.
+use super::{CommandOutput as Output, paths::relative};
 use crate::{
     ledger, pricing,
     python_json::Node,
@@ -7,7 +8,6 @@ use crate::{
 };
 use indexmap::IndexMap;
 use regex::Regex;
-use serde::Serialize;
 use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
@@ -183,25 +183,6 @@ pub fn normalize_repo(repo: &str, instance: &str) -> String {
         .replace("scikit-learn", "sklearn")
         .replace("pydata__xarray", "xarray");
     repo.split("__").next().unwrap_or("").into()
-}
-
-fn relative(path: &Path, base: &Path) -> io::Result<PathBuf> {
-    let path = Store::new(path)?.base;
-    let base = Store::new(base)?.base;
-    let path: Vec<_> = path.components().collect();
-    let base: Vec<_> = base.components().collect();
-    let common = path.iter().zip(&base).take_while(|(a, b)| a == b).count();
-    let mut result = PathBuf::new();
-    for _ in common..base.len() {
-        result.push("..");
-    }
-    for component in &path[common..] {
-        result.push(component);
-    }
-    if result.as_os_str().is_empty() {
-        result.push(".");
-    }
-    Ok(result)
 }
 
 pub fn cell_of(path: &Path, root: &Path, arm: &str) -> io::Result<(String, String)> {
@@ -595,19 +576,13 @@ pub fn write_indexes(
     .map_err(|e| e.to_string())
 }
 
-#[derive(Default, Serialize)]
-pub struct Output {
-    pub exit: Option<i32>,
-    pub stdout: String,
-    pub stderr: String,
-}
-
 pub fn command(program: &str, args: &[String]) -> Result<Output, String> {
     let usage = format!("usage: {program} [-h] [--arms [ARMS ...]] [--out OUT] root\n");
     let fail = |message: &str| Output {
         exit: Some(2),
         stdout: String::new(),
         stderr: format!("{usage}{program}: error: {message}\n"),
+        ..Output::default()
     };
     let mut root = None;
     let mut arms: Option<Vec<String>> = None;

@@ -1,0 +1,16 @@
+
+Export the canonical workloads to ``workloads/<domain>.json`` (committed, not ignored).
+
+``experiments/te_bench/workloads.py`` is the authority; these JSON files are the machine-readable
+copy the shell launchers and any non-Python harness can read without importing the package.
+They are tiny (ids only, no issue text) and therefore **committed** — unlike the results
+tree, which is regenerated per run and git-ignored.
+
+    python scripts/export_workloads.py           # rewrite workloads/*.json
+    python scripts/export_workloads.py --check    # verify they match (exit 1 if stale)
+
+``tests/test_workloads.py`` runs the same comparison, so drift fails the suite.
+
+options:
+  -h, --help  show this help message and exit
+  --check     do not write; exit 1 if any file is missing or stale

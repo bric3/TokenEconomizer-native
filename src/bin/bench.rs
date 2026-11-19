@@ -1,19 +1,32 @@
 use std::{env, error::Error, process::Command};
-use tokeneconomizer::experiments::{aggregate, sdk};
+use tokeneconomizer::experiments::{aggregate, sdk, workloads};
 
 fn run() -> Result<i32, Box<dyn Error>> {
-    if env::args_os().nth(1).is_some_and(|arg| arg == "aggregate") {
+    if let Some(command) = env::args_os()
+        .nth(1)
+        .filter(|arg| arg == "aggregate" || arg == "export-workloads")
+    {
         let args = env::args_os()
             .skip(2)
             .map(|arg| {
                 arg.into_string()
-                    .map_err(|_| "aggregate arguments must be UTF-8")
+                    .map_err(|_| "benchmark tool arguments must be UTF-8")
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let output = aggregate::command("te-bench aggregate", &args)?;
+        let output = if command == "aggregate" {
+            aggregate::command("te-bench aggregate", &args)?
+        } else {
+            let root = env::current_dir()?;
+            workloads::export_command(
+                "te-bench export-workloads",
+                &args,
+                &root.join("workloads"),
+                &root,
+            )?
+        };
         print!("{}", output.stdout);
         eprint!("{}", output.stderr);
-        return Ok(output.exit.unwrap_or(0));
+        return Ok(output.exit.or(output.returncode).unwrap_or(0));
     }
     let executable = env::current_exe()?;
     let bin = executable

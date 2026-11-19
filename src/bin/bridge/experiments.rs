@@ -12,6 +12,7 @@ use tokeneconomizer::experiments::{
     swebench::providers,
     swebench::setup,
     swebench::web_contract,
+    workloads,
 };
 use tokeneconomizer::{ledger, microskills::distiller};
 
@@ -42,6 +43,52 @@ fn response(result: Result<Value, Error>) -> Value {
     }
 }
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
+    if let Some(method) = op.strip_prefix("experiment.workloads.") {
+        let domain = args["domain"].as_str().unwrap_or("");
+        let group = args["group"].as_str();
+        let value = match method {
+            "constants" => Ok(workloads::constants().clone()),
+            "instances" => workloads::instances(domain, group).map(|ids| json!(ids)),
+            "runnable_instances" => workloads::runnable_instances(domain).and_then(|groups| {
+                if let Some(group) = group {
+                    groups
+                        .get(group)
+                        .map(|ids| json!(ids))
+                        .ok_or_else(|| Error::Invalid("KeyError", group.into()))
+                } else {
+                    Ok(json!(groups))
+                }
+            }),
+            "task_counts" => workloads::task_counts(domain).map(|counts| json!(counts)),
+            "total_tasks" => workloads::total_tasks(domain).map(|count| json!(count)),
+            "swebench_image_tag" => Ok(json!(workloads::swebench_image_tag(
+                args["instance_id"].as_str().ok_or("expected instance_id")?
+            ))),
+            "filter_tasks" => workloads::filter_task_indices(
+                args["tasks"].as_array().ok_or("expected tasks")?,
+                domain,
+                group,
+            )
+            .map(|indices| json!(indices)),
+            "build" => workloads::manifest(domain),
+            "path_for" => Ok(json!(
+                workloads::path_for(
+                    Path::new(args["out"].as_str().ok_or("expected out")?),
+                    domain
+                )
+                .to_string_lossy()
+            )),
+            "main" => workloads::export_command(
+                args["program"].as_str().ok_or("expected program")?,
+                &strings(args, "argv")?,
+                Path::new(args["out"].as_str().ok_or("expected out")?),
+                Path::new(args["base"].as_str().ok_or("expected base")?),
+            )
+            .map(|output| json!(output)),
+            _ => return Ok(None),
+        };
+        return Ok(Some(response(value)));
+    }
     if let Some(method) = op.strip_prefix("experiment.aggregate.") {
         let text = |key: &str| args[key].as_str().ok_or_else(|| format!("expected {key}"));
         let mut output = Vec::new();

@@ -156,6 +156,18 @@ Aggregation runs entirely in Rust. It keeps the newest run of each task and
 requires `--out` when `--arms` selects a subset of the tree. Use `--out` to write
 a subset index elsewhere.
 
+Export the four runnable workload manifests into `./workloads`, or check the
+existing files without rewriting them:
+
+```sh
+target/release/te-bench export-workloads
+target/release/te-bench export-workloads --check
+```
+
+The executable carries the task registry and preserves published workload counts
+separately from the additions and exclusions used for new runs. Workload exports
+also run entirely in Rust.
+
 Use `--runner module:factory` for an external task runner. Python 3.10 or newer supplies
 standard-library I/O; `TE_BENCH_PYTHON` selects its interpreter. The runtime bundle
 carries the SDK and command, including the generic streamed-rollout controller
