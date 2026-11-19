@@ -30,10 +30,10 @@ complete while any runtime component delegates production behaviour to Python.
 
 ## Status
 
-- Current phase: all three simplification passes are complete. The unchanged original
-  suite passes; the remaining parity and platform audits below stay open through
-  final verification. Three measured performance passes precede original-test
-  conversion.
+- Current phase: all three simplification passes and performance pass 1 of 3
+  are complete. The unchanged original suite passes. Two further measured
+  performance passes precede original-test conversion. The parity and platform
+  audits below stay open through final verification.
 - Git initialised on `main`.
 - Upstream archived at the revision recorded in `reference/revision.txt`.
 - Python test environment: `.venv`, pytest 9.2.0.
@@ -829,7 +829,7 @@ complete while any runtime component delegates production behaviour to Python.
   coordination and the offline stub runner are native. The standalone benchmark
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
-- Simplification passes: 3 of 3. Performance passes: 0 of 3.
+- Simplification passes: 3 of 3. Performance passes: 1 of 3.
 - Final test conversion: pending until the preceding gates pass.
 
 ## Verified milestones
@@ -4191,6 +4191,47 @@ complete while any runtime component delegates production behaviour to Python.
   original-test conversion is pending. The remaining parity and platform audits
   stay open through final verification.
 
+- Performance pass 1 removes repeated default construction from
+  `LiveConfig::set`. Each field-name check previously constructed the full
+  default configuration, including its maps, strings and list values. A
+  process-local `LazyLock<HashSet<String>>` now retains only the declared field
+  names. Each configuration still owns its values. Tests cover independent
+  nested defaults and schema validation after instance fields are changed.
+  No dependency was added. The cache has no external inputs or growing key set.
+
+  `ConfigLoadBenchmark.java` compares complete file loads and JSON responses
+  against the preserved `fb4117d` release bridge. Warm values are medians of
+  nine alternating batches after warmup. Fresh values are medians of 21 paired
+  process launches through the first response; input files are reused. An
+  identical-binary warm control varied by less than 2%.
+
+  | Configuration         | Warm before (us) | Warm after (us) | Fresh before (us) | Fresh after (us) |
+  | --------------------- | ---------------: | --------------: | ----------------: | ---------------: |
+  | Empty                 |             63.2 |            62.5 |          10,559.8 |         10,511.5 |
+  | One field             |             72.0 |            68.0 |          11,098.8 |         10,501.9 |
+  | Typical, eight fields |            123.9 |            82.6 |           9,665.2 |          9,638.1 |
+  | All default fields    |            273.9 |            83.7 |          10,337.8 |         10,138.1 |
+  | 2,000 unknown fields  |         10,253.3 |         1,859.0 |          21,546.4 |         12,526.3 |
+
+  Warm typical, complete and pathological loads improve by 33%, 69% and 82%.
+  Process startup dominates the ordinary fresh-process cases. The pathological
+  first response improves by 42%. These measurements cover bridge startup,
+  configuration I/O and response encoding on this host.
+  All 42 Rust tests, formatting, Clippy and debug/release builds pass. The
+  unchanged original suite passes with 1,561 passed and 30 skipped
+  (81.84 seconds). Numeric configuration passes 9,837 source comparisons and
+  244 persistence checks. Native CLI commands, folding, diagnostics and spawn
+  execution pass, including six exact status comparisons. Both Linux builds
+  pass 33 library tests, the helpers pass 28 scratch-container checks and the
+  relocated runtime bundle passes 272 checks.
+  Logs are under `validation/results/performance-1-*`. The baseline binary,
+  revision and toolchain are under
+  `validation/results/performance-baselines/simplified/`.
+  Performance passes are now 1/3; simplification remains complete at 3/3.
+  Original tests remain unchanged and their conversion follows the remaining
+  performance passes. The earlier numeric-read regression and the parity and
+  platform audits remain open.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -4422,6 +4463,7 @@ jbang validation/SidecallFailureProbe.java
 jbang validation/CleanupProbe.java
 jbang validation/ConfigNumberProbe.java
 jbang validation/NumberCodecProbe.java
+jbang validation/ConfigLoadBenchmark.java /path/to/baseline/te-bridge target/release/te-bridge
 jbang scripts/VerifySerdeJson.java
 jbang validation/LedgerSumProbe.java
 jbang validation/AccountingSumProbe.java

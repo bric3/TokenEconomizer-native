@@ -1,6 +1,8 @@
 use std::{
+    collections::HashSet,
     fs,
     path::{Path, PathBuf},
+    sync::LazyLock,
 };
 
 use serde::{Deserialize, Serialize};
@@ -263,7 +265,15 @@ impl LiveConfig {
         if key == "paid" {
             return true;
         }
-        if key == "warnings" || !Self::default().values.contains_key(&key) {
+        // Field names come from the schema, independently of instance mutations.
+        static KEYS: LazyLock<HashSet<String>> = LazyLock::new(|| {
+            LiveConfig::default()
+                .values
+                .into_iter()
+                .map(|(key, _)| key)
+                .collect()
+        });
+        if key == "warnings" || !KEYS.contains(&key) {
             self.warnings.push(format!(
                 "{source}: unknown key {}",
                 python_repr(&json!(key))
