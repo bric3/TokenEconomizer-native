@@ -32,7 +32,7 @@ complete while any runtime component delegates production behaviour to Python.
 
 - Current phase: all three simplification passes and all three performance
   passes are complete. The unchanged original suite passes. Original-test
-  conversion is next. The parity and platform audits below stay open through
+  conversion is in progress. The parity and platform audits below stay open through
   final verification.
 - Git initialised on `main`.
 - Upstream archived at the revision recorded in `reference/revision.txt`.
@@ -830,7 +830,9 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: ready to start.
+- Final test conversion: 11 of 67 pytest modules, covering 149 of 1,591 original
+  cases. See [the conversion record](test-conversion.md). Standalone executable
+  smoke tests and the remaining modules are pending.
 
 ## Verified milestones
 
@@ -4330,6 +4332,24 @@ complete while any runtime component delegates production behaviour to Python.
   Original tests remain unchanged. Their conversion is the next phase. The
   earlier numeric-read regression and the remaining parity and platform audits
   stay open.
+
+- Original-test conversion has started after signed performance pass 3,
+  `7dafd38`. Eleven original modules now have direct Rust integration tests:
+  mechanism configuration, integer thresholds, finite settings, ledger,
+  one-hour cache pricing, new-model pricing, malformed calls, label failures,
+  environment repository keys, store records and Windows-style identities.
+  All original assertions and parameter values in these modules are retained
+  across 55 Rust tests, covering 149 original cases. Filesystem fixtures use
+  isolated temporary directories and preserve failed artifacts.
+  `TestConversionInventory.java` collects all 1,591 original test IDs and
+  reports mapped names and remaining functions. Its name mapping requires
+  assertion and fixture review; it does not establish native execution.
+  The [conversion record](test-conversion.md) records scope and commands.
+  All 100 Rust tests, formatting and Clippy pass. Logs are retained under
+  `validation/results/test-conversion-1-*`. This batch changes tests and their
+  records; the production implementation remains at the performance-pass gate.
+  Original reference files stay unchanged. Remaining pytest modules, standalone
+  smoke tests and final parity and platform audits are still pending.
 
 ## Dependencies
 
