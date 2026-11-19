@@ -830,7 +830,7 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 11 of 67 pytest modules, covering 149 of 1,591 original
+- Final test conversion: 14 of 67 pytest modules, covering 198 of 1,591 original
   cases. See [the conversion record](test-conversion.md). Standalone executable
   smoke tests and the remaining modules are pending.
 
@@ -4350,6 +4350,19 @@ complete while any runtime component delegates production behaviour to Python.
   records; the production implementation remains at the performance-pass gate.
   Original reference files stay unchanged. Remaining pytest modules, standalone
   smoke tests and final parity and platform audits are still pending.
+
+- The second test-conversion batch adds all original trace seam, store retry
+  and vendor-cost assertions and parameter values: 47 Rust tests cover 49
+  original cases. The six attempt-result tests call the actual aggregator
+  instead of retaining the original copied helper. Store failure injection
+  reaches the reader and atomic writer used by `Store`; its Windows-only real
+  held-file case remains conditional and unverified on macOS.
+  Original-test conversion now covers 14 of 67 pytest modules and 198 of 1,591
+  original cases. All 146 native tests on macOS, formatting and Clippy pass;
+  the additional Windows-only test body is excluded on this platform. Logs
+  use the `validation/results/test-conversion-2-*` prefix.
+  Original reference files remain unchanged. Remaining modules,
+  standalone smoke tests and final parity and platform audits are pending.
 
 ## Dependencies
 

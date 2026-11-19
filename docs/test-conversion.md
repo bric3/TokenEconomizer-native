@@ -24,7 +24,8 @@ The first batch converts all assertions and parameter values in these modules:
 
 Each module is in `tests/` with the same basename and `.rs`, omitting `test_`.
 The source path is recorded at the top of each converted file.
-The 55 converted tests run alongside 45 existing native regression tests.
+The first batch's 55 converted tests run alongside 45 existing native regression
+tests.
 
 The configuration tests retain integer-type checks and verify that rejected
 updates preserve saved bytes. The cache fixtures retain duplicate Claude message
@@ -37,6 +38,24 @@ deprecation-warning filter is unnecessary for that implementation.
 `tests/support/mod.rs` supplies isolated temporary directories for filesystem
 fixtures. It removes successful fixtures and retains failed fixtures with their
 path in the test output. No Python runtime or transport is used by these tests.
+
+The second batch adds the trace seam, atomic-store retries and vendor costs:
+
+| Original module                       | Rust tests | Original cases |
+| ------------------------------------- | ---------: | -------------: |
+| test_trace.py                         |         26 |             26 |
+| test_store_windows_replace.py         |          8 |             10 |
+| experiments/tests/test_vendor_cost.py |         13 |             13 |
+| Batch total                           |         47 |             49 |
+
+The trace fixtures retain request-blob duplicates, all catalog sources, prompt
+types, Pi branch links and non-object JSON lines. The six attempt-result tests
+now inspect the real aggregator's single-row counts; the original tests checked
+a copied calculation helper. Store retry tests inject permission failures into
+the same reader and atomic writer that `Store` calls. They check retry counts,
+propagated errors, retained state and temporary-file cleanup. The real held-file
+test uses Windows reader-sharing flags and a delayed close. That test is
+conditional on Windows and has not been compiled or run on macOS.
 
 Run the native suite and the conversion inventory from the checkout root:
 
@@ -52,7 +71,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 11 of 67 pytest modules are converted, covering
-149 original cases. The other 1,442 cases and standalone executable smoke tests
+Conversion remains in progress: 14 of 67 pytest modules have native equivalents,
+covering 198 original cases, including the conditional Windows case. The other
+1,393 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.
