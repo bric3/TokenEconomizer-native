@@ -1,6 +1,6 @@
 //JAVA 25
 //SOURCES NativeCliProbe.java CliProbe.java ContextProbe.java ParserProbe.java ContainerProbe.java AdapterProbe.java ExtractProposerPrompts.java
-//SOURCES DatasetExportProbe.java
+//SOURCES DatasetExportProbe.java WebExportProbe.java
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -119,6 +119,7 @@ class ExperimentBundleProbe {
       var dataset=DatasetExportProbe.command(checkout,datasetRoot,moved.resolve("bin/te-bench"),"--out-dir","native");
       require(dataset.code()==0&&dataset.out().contains("wrote 277 tasks"),"relocated dataset export failed: "+dataset);
       for(var name:List.of("swebench_tasks.json","swebench_grading.json","image_tags.txt"))require(Files.mismatch(datasetRoot.resolve("native").resolve(name),datasetRoot.resolve("reference/out").resolve(name))==-1,"relocated dataset bytes changed: "+name);
+      WebExportProbe.standalone(checkout,root.resolve("web-export"),moved.resolve("bin/te-bench"));checks+=5;
       var builtin=NativeCliProbe.process(root,Map.of("PATH","","HOME",root.toString(),"TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString(),"TOKENECONOMIZER_ENV_FILE",root.resolve("absent.env").toString(),"ANTHROPIC_API_KEY",""),List.of(moved.resolve("bin/te-bench").toString(),"--arm","baseline","--runner","te_runtime.swebench:make_runner","--agent","claude","--tasks-file",tasks.toString(),"--results-root",root.resolve("builtin-results").toString()));
       require(builtin.code()!=0&&builtin.err().contains("ANTHROPIC_API_KEY is unset"),"built-in runner did not reach credential validation: "+builtin);
       var webBuiltin=NativeCliProbe.process(root,Map.of("PATH","","HOME",root.toString(),"TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString(),"TOKENECONOMIZER_ENV_FILE",root.resolve("absent.env").toString(),"ANTHROPIC_API_KEY",""),List.of(moved.resolve("bin/te-bench").toString(),"--arm","baseline","--runner","te_runtime.webbench:make_runner","--agent","claude","--tasks-file",tasks.toString(),"--results-root",root.resolve("web-builtin-results").toString()));

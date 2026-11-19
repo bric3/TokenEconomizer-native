@@ -7,6 +7,7 @@ fn run() -> Result<i32, Box<dyn Error>> {
             || arg == "export-workloads"
             || arg == "sweep-plan"
             || arg == "export-swebench"
+            || arg == "export-webbench"
     }) {
         let args = env::args_os()
             .skip(2)
@@ -30,6 +31,32 @@ fn run() -> Result<i32, Box<dyn Error>> {
             Some(
                 sweep::command("te-bench sweep-plan", &args, &root, &root)
                     .map_err(|e| e.message)?,
+            )
+        } else if command == "export-webbench" {
+            let mut settings = serde_json::Map::new();
+            for key in [
+                datasets::webbench::PROJECTS_ENV,
+                datasets::webbench::TASKS_ENV,
+            ] {
+                if let Some(value) = env::var_os(key) {
+                    settings.insert(
+                        key.into(),
+                        serde_json::Value::String(
+                            value
+                                .into_string()
+                                .map_err(|_| "benchmark tool environment must be UTF-8")?,
+                        ),
+                    );
+                }
+            }
+            Some(
+                datasets::webbench::command(
+                    "te-bench export-webbench",
+                    &args,
+                    &settings,
+                    &env::current_dir()?,
+                )
+                .map_err(|e| e.message)?,
             )
         } else {
             datasets::parse_swebench("te-bench export-swebench", &args).err()

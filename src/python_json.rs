@@ -25,6 +25,9 @@ impl Text {
         self.json_prefix(self.0.len())
     }
     pub(super) fn json_prefix(&self, limit: usize) -> String {
+        self.encode_json(limit, true)
+    }
+    fn encode_json(&self, limit: usize, ascii: bool) -> String {
         let mut out = String::from("\"");
         for point in self.0.iter().take(limit).copied() {
             match point {
@@ -35,6 +38,9 @@ impl Text {
                 13 => out.push_str("\\r"),
                 34 => out.push_str("\\\""),
                 92 => out.push_str("\\\\"),
+                32.. if !ascii && char::from_u32(point).is_some() => {
+                    out.push(char::from_u32(point).unwrap());
+                }
                 32..=126 => out.push(char::from_u32(point).unwrap()),
                 ..=0xffff => write!(out, "\\u{point:04x}").unwrap(),
                 _ => {
@@ -218,6 +224,12 @@ impl Node {
         out
     }
     pub(super) fn json(&self, pretty: bool) -> String {
+        self.encode_json(pretty, true)
+    }
+    pub(super) fn json_utf8(&self, pretty: bool) -> String {
+        self.encode_json(pretty, false)
+    }
+    fn encode_json(&self, pretty: bool, ascii: bool) -> String {
         enum Part<'a> {
             Node(&'a Node, usize),
             Text(String),
@@ -236,7 +248,7 @@ impl Node {
                 Self::Null => out.push_str("null"),
                 Self::Bool(true) => out.push_str("true"),
                 Self::Bool(false) => out.push_str("false"),
-                Self::String(v) => out.push_str(&v.json()),
+                Self::String(v) => out.push_str(&v.encode_json(v.0.len(), ascii)),
                 Self::Number(v, _) => out.push_str(match v.as_str() {
                     "nan" => "NaN",
                     "inf" => "Infinity",
@@ -287,7 +299,7 @@ impl Node {
                     }));
                     for (i, (k, v)) in items.iter().enumerate().rev() {
                         stack.push(Part::Node(v, level + 1));
-                        stack.push(Part::Text(format!("{}: ", k.json())));
+                        stack.push(Part::Text(format!("{}: ", k.encode_json(k.0.len(), ascii))));
                         if pretty {
                             stack.push(Part::Text("  ".repeat(level + 1)));
                         }

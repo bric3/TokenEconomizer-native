@@ -3349,6 +3349,39 @@ complete while any runtime component delegates production behaviour to Python.
   passes and final test conversion. Windows, additional CLI spellings and values
   outside the dataset's JSON row schema remain outside the verified corpus.
 
+- WebBench driver task export now runs entirely in Rust as `te-bench
+  export-webbench`. It reads the five local project files, selects all 102 tasks
+  in registry order, uses the last record for duplicate IDs and preserves
+  description values. Flags override the two environment defaults; empty flags
+  fall back to those defaults. The exporter validates every project before
+  writing, compares existing output with universal newline handling and leaves
+  matching files untouched. `--check` refuses missing or stale output without
+  writing. Missing parent directories and file errors retain the source's
+  behaviour. Native JSON output preserves UTF-8, key order, Python numeric
+  spellings, two-space indentation and the final newline.
+  The dedicated probe passes 71 source comparisons and five standalone checks
+  with an empty PATH and an unavailable Python interpreter. It also passes all
+  32 original workload tests with populated project and task paths, including
+  the exporter assertions that otherwise return early. The existing SWE-bench
+  exporter retains 57 comparisons and the official grader retains 127, including
+  35 exact JSON diagnostics. The relocated runtime bundle passes 238 checks;
+  its WebBench command reproduces the reference bytes and checks stale output
+  without Python. Payload counts remain 20 SDK files, 39 manifest hashes and
+  40 physical files. The full original suite passes with 1,561 passed and 30
+  skipped (70.27 seconds), including installed opencode against its local model
+  fixture. All 27 Rust checks, debug/release builds, Clippy, formatting and the
+  unchanged 256-file reference check pass. The full-suite log is
+  `validation/results/web-export-full.log`; counted native calls are in
+  `validation/results/web-export-full-calls.json`. The suite needs the configured
+  Git signing agent and localhost socket access; its sandboxed attempt failed
+  on those restrictions, and the rerun with that access passed.
+  Original tests remain unmodified. The YAML mirror, launch
+  workflows and supporting tools remain pending before the three simplification
+  passes, three performance passes and final test conversion. Windows and the
+  remaining CLI/JSON edge audits remain unverified. JSONL currently decodes each
+  complete file before parsing its lines, so compound malformed-JSON/late-UTF-8
+  failures can occur in a different order from the source's buffered reader.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -3593,6 +3626,7 @@ jbang validation/AggregateProbe.java
 jbang validation/WorkloadProbe.java
 jbang validation/SweepProbe.java
 jbang validation/DatasetExportProbe.java
+jbang validation/WebExportProbe.java
 jbang validation/StandaloneBenchProbe.java
 jbang validation/StandaloneTransportProbe.java
 jbang validation/HermesGatewayProbe.java

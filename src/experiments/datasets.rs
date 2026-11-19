@@ -1,4 +1,5 @@
-//! SWE-bench dataset selection and the files consumed by the benchmark harness.
+//! Dataset selection and the files consumed by the benchmark harness.
+pub mod webbench;
 use super::{
     CommandOutput,
     swebench::{Failure, Result, Runtime},

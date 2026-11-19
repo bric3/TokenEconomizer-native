@@ -1,0 +1,33 @@
+
+Export the Web-Bench DRIVER task list (registry A) from `workloads.WEBBENCH_TASKS`.
+
+Web-Bench needs three registries to agree, and this writes the one that is neither committed
+nor derivable at run time:
+
+  A  driver task list   this file            $TOKENECONOMIZER_WEBBENCH_TASKS   (JSON list of
+                                             {instance_id, problem_statement, repo})
+  B  projects tree      the Web-Bench checkout, $TOKENECONOMIZER_WEBBENCH_PROJECTS
+  C  workload record    workloads/webbench.json, via scripts/export_workloads.py
+
+`experiments/te_bench/workloads.py` is the authority for WHICH projects and tasks are in the
+sweep; A and C are both projections of it. Changing the project list therefore means three
+commands, in this order:
+
+    python scripts/webbench_tasks_from_yaml.py --all    # B: yml-only projects need a jsonl
+    python scripts/export_workloads.py                  # C
+    python scripts/export_webbench_tasks.py             # A
+
+Leaving A stale does not fail loudly -- the driver simply streams the OLD project's tasks
+into the new project's evaluator session, and the harness raises
+`session is running 'X' but the task belongs to 'Y'` partway in.
+
+    python scripts/export_webbench_tasks.py             # write to $TOKENECONOMIZER_WEBBENCH_TASKS
+    python scripts/export_webbench_tasks.py --check     # verify only, exit 1 if stale
+
+options:
+  -h, --help            show this help message and exit
+  --out OUT             default: $TOKENECONOMIZER_WEBBENCH_TASKS
+  --projects-root PROJECTS_ROOT
+                        default: $TOKENECONOMIZER_WEBBENCH_PROJECTS
+  --check               verify the file matches the registry; write nothing,
+                        exit 1 if stale

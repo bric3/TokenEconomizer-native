@@ -193,6 +193,18 @@ orders the runnable tasks, prefers Verified rows and writes all three files.
 Missing tasks stop the export before it creates files. Help and argument errors
 run without Python.
 
+Export the WebBench driver task list from a local projects tree with:
+
+```sh
+target/release/te-bench export-webbench --projects-root /path/to/projects --out /path/to/webbench_tasks.json
+target/release/te-bench export-webbench --projects-root /path/to/projects --out /path/to/webbench_tasks.json --check
+```
+
+`TOKENECONOMIZER_WEBBENCH_PROJECTS` and `TOKENECONOMIZER_WEBBENCH_TASKS` supply the
+default paths. The command runs entirely in Rust, reads each project's
+`tasks.jsonl` and preserves the workload's task order. `--check` exits with status
+1 when the output is missing or stale and leaves the file untouched.
+
 Use `--runner module:factory` for an external task runner. Python 3.10 or newer supplies
 standard-library I/O; `TE_BENCH_PYTHON` selects its interpreter. The runtime bundle
 carries the SDK and command, including the generic streamed-rollout controller

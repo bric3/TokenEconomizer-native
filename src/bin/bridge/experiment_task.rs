@@ -31,6 +31,39 @@ pub(super) fn failure(error: Failure) -> Value {
 
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
     if let Some(method) = op.strip_prefix("experiment.datasets.") {
+        if method == "web_constants" {
+            return Ok(Some(datasets::webbench::constants()));
+        }
+        if matches!(method, "web_build" | "web_main") {
+            let cwd = Path::new(args["process_cwd"].as_str().unwrap_or("."));
+            let value = if method == "web_build" {
+                datasets::webbench::build(
+                    Path::new(
+                        args["projects_root"]
+                            .as_str()
+                            .ok_or("missing projects_root")?,
+                    ),
+                    cwd,
+                )
+                .map(|rows| json!(rows))
+            } else {
+                let argv = serde_json::from_value::<Vec<String>>(args["argv"].clone())
+                    .map_err(|e| e.to_string())?;
+                let env = args["env"]
+                    .as_object()
+                    .ok_or("missing exporter environment")?;
+                datasets::webbench::command(
+                    args["program"]
+                        .as_str()
+                        .unwrap_or("export_webbench_tasks.py"),
+                    &argv,
+                    env,
+                    cwd,
+                )
+                .map(|output| json!(output))
+            };
+            return Ok(Some(value.unwrap_or_else(failure)));
+        }
         if method == "constants" {
             return Ok(Some(datasets::constants()));
         }

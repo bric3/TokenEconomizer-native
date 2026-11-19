@@ -46,7 +46,7 @@ pub fn swebench_repo(env: &Map<String, Value>, cwd: &Path) -> Result<String> {
         .map_err(|e| Failure::new("OSError", e))
 }
 
-fn parse(text: &str) -> Result<Value> {
+pub(in crate::experiments) fn parse(text: &str) -> Result<Value> {
     serde_json::from_str(text).map_err(|error| {
         if let Err(crate::python_json::ParseError::Syntax { message, position }) =
             crate::python_json::parse_result(text.as_bytes(), 0)
@@ -77,6 +77,10 @@ fn parse(text: &str) -> Result<Value> {
 }
 
 pub fn load(path: &Path, cwd: &Path) -> Result<Value> {
+    parse(&load_text(path, cwd)?)
+}
+
+pub(in crate::experiments) fn load_text(path: &Path, cwd: &Path) -> Result<String> {
     if path.as_os_str().as_encoded_bytes().contains(&0) {
         return Err(Failure::new("ValueError", "embedded null byte"));
     }
@@ -95,7 +99,7 @@ pub fn load(path: &Path, cwd: &Path) -> Result<Value> {
         failure.details = Some(Box::new(json!({"bytes":bytes,"start":start,"end":start+utf8.error_len().unwrap_or(bytes.len()-start),"reason":reason})));
         failure
     })?;
-    parse(&text.replace("\r\n", "\n").replace('\r', "\n"))
+    Ok(text.replace("\r\n", "\n").replace('\r', "\n"))
 }
 
 fn kind(value: &Value) -> &'static str {
