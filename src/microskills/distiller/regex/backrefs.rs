@@ -2,7 +2,7 @@ use pcre2::bytes::{Regex, RegexBuilder};
 use pcre2_sys as ffi;
 use std::{collections::BTreeMap, ffi::c_void, ops::Range, ptr::NonNull};
 
-use super::super::unicode17::LOWER;
+use crate::unicode17::LOWER;
 
 #[derive(Clone, Copy)]
 pub(super) struct Reference {

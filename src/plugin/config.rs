@@ -6,7 +6,10 @@ use std::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
-use crate::value::{json_pretty, number, python_repr, scalar_text, truthy};
+use crate::value::{
+    decimal_integer, json_pretty, normalize_decimal_digits, number, python_repr, scalar_text,
+    truthy,
+};
 
 pub const MICROSKILLS: &[&str] = &["off", "envfacts", "envfacts+distiller", "distiller"];
 pub const LOCAL_MODELS: &[&str] = &["off", "fm"];
@@ -179,8 +182,7 @@ fn type_name(value: &Value) -> &'static str {
 }
 
 fn numeric_text(value: &str) -> Option<String> {
-    // shortcut: numeric coercion uses ASCII digits and i64, extend both in the parity audit.
-    let chars: Vec<_> = value.trim().chars().collect();
+    let chars: Vec<_> = normalize_decimal_digits(value.trim()).chars().collect();
     for (index, character) in chars.iter().enumerate() {
         if *character == '_'
             && (index == 0
@@ -261,8 +263,9 @@ impl SettingValue {
                 .is_some_and(|v| v.as_number().is_some_and(|n| n.is_f64()))
     }
     fn integer(&self) -> Result<i64, String> {
+        // shortcut: configuration integers use i64, widen them in the numeric parity audit.
         if let Some(Value::String(s)) = self.json() {
-            numeric_text(s)
+            decimal_integer(s)
                 .and_then(|s| s.parse::<i64>().ok())
                 .ok_or_else(|| {
                     format!(

@@ -1,9 +1,41 @@
 use regex::Regex;
+use regex_syntax::hir::{Class, ClassUnicode, ClassUnicodeRange, HirKind};
 use serde::Serialize;
 use serde_json::Value;
 use serde_json::ser::Formatter;
 use std::io::{self, Write};
 use std::sync::LazyLock;
+
+pub(crate) fn normalize_decimal_digits(text: &str) -> String {
+    static DIGITS: LazyLock<ClassUnicode> = LazyLock::new(|| {
+        let hir = regex_syntax::Parser::new().parse(r"\d").unwrap();
+        let HirKind::Class(Class::Unicode(mut class)) = hir.into_kind() else {
+            unreachable!("expected decimal digit class");
+        };
+        class.union(&ClassUnicode::new(
+            crate::unicode17::DIGIT_ADDED
+                .iter()
+                .map(|&(first, last)| ClassUnicodeRange::new(first, last)),
+        ));
+        class
+    });
+    text.chars()
+        .map(|c| {
+            if c.is_ascii() {
+                return c;
+            }
+            let ranges = DIGITS.ranges();
+            let index = ranges.partition_point(|range| range.end() < c);
+            ranges
+                .get(index)
+                .filter(|range| range.start() <= c)
+                // Contiguous decimal blocks contain successive groups of ten digits.
+                .map_or(c, |range| {
+                    char::from(b'0' + ((u32::from(c) - u32::from(range.start())) % 10) as u8)
+                })
+        })
+        .collect()
+}
 
 pub(crate) fn python_type(value: &Value) -> &'static str {
     match value {
@@ -24,28 +56,12 @@ pub(crate) fn python_type(value: &Value) -> &'static str {
 
 pub fn decimal_integer(text: &str) -> Option<String> {
     static INTEGER: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"^[+-]?\p{Nd}+(?:_\p{Nd}+)*$").unwrap());
-    static DIGIT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\p{Nd}$").unwrap());
-    let text = text.trim();
-    if !INTEGER.is_match(text) {
+        LazyLock::new(|| Regex::new(r"^[+-]?[0-9]+(?:_[0-9]+)*$").unwrap());
+    let text = normalize_decimal_digits(text.trim());
+    if !INTEGER.is_match(&text) {
         return None;
     }
-    let mut normalized = String::new();
-    for c in text.chars().filter(|c| *c != '_') {
-        if c.is_ascii() {
-            normalized.push(c);
-            continue;
-        }
-        let code = c as u32;
-        let mut start = code;
-        // Decimal digit blocks contain consecutive groups of ten values.
-        while char::from_u32(start - 1).is_some_and(|c| DIGIT.is_match(c.encode_utf8(&mut [0; 4])))
-        {
-            start -= 1;
-        }
-        normalized.push(char::from(b'0' + ((code - start) % 10) as u8));
-    }
-    Some(normalized)
+    Some(text.chars().filter(|c| *c != '_').collect())
 }
 
 struct JsonFormatter {

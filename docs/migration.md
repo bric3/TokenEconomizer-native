@@ -703,9 +703,10 @@ complete while any runtime component delegates production behaviour to Python.
   Include non-string protected tool names and scaffold paths in the schema audit.
   Include malformed judge/writer token totals and partial threshold dictionaries
   in the exception-diagnostics audit.
-  Configuration numeric coercion still needs Unicode decimal digits and integers
-  outside the current i64 range. Audit path-normalisation edge cases and typed I/O
-  errors from repository identity too.
+  Configuration numeric coercion now accepts Unicode 17 decimal digits. Audit
+  integers outside the current i64 range and direct integer inputs converted
+  through f64 above 2^53. Audit path-normalisation edge cases and typed I/O errors
+  from repository identity too.
 - Verify tilde expansion on a native Windows host, including home-directory
   fallback through `USERPROFILE`, `HOMEDRIVE` and `HOMEPATH`. Claude history now
   uses the shared expansion helper. Environment-file selection calls the supplied
@@ -3940,6 +3941,37 @@ complete while any runtime component delegates production behaviour to Python.
   simplification and performance passes remain at 0/3 each; original-test
   conversion is pending.
 
+- Configuration numeric strings now accept Unicode 17 decimal digits, including
+  signs, decimal points, exponents and underscores where Python accepts them.
+  `LiveConfig` uses the shared decimal-integer parser for integer settings and
+  normalises decimal digits before floating-point parsing. The shared parser
+  also recognises the ten Tolong Siki digits introduced in Unicode 17. The
+  generated correction tables now live at `src/unicode17.rs`, shared with the
+  regular-expression compiler. Their source hashes and generator output are
+  verified; no dependency was added.
+  The new Java probe found 6,692 differences in 9,465 source comparisons before
+  the fix. All 9,465 now pass, covering all 770 Unicode 17 decimal digits,
+  mixed scripts, signs, separators, exponents, whitespace, non-finite spellings
+  and rejected numeric-looking characters. It compares acceptance, saved values
+  and warnings with the unchanged source. The adjacent Codex configuration probe
+  also passes all 466 comparisons, including its Unicode timeout input.
+  All 34 Rust tests, formatting, Clippy and debug/release builds pass. The
+  unchanged original suite passes with 1,561 passed and 30 skipped (79.90 seconds).
+  All 256 archived files still match the pinned tree. Both Linux builds pass
+  33 library tests. The helpers pass 28 scratch-container checks, and relocated
+  experiment bundles pass all 270 checks.
+  Logs are under `validation/results/`: `config-number-before.log`,
+  `config-number-probe.log`, `config-number-codex.log`,
+  `config-number-unicode-tables.log`, `config-number-rust-tests.log`,
+  `config-number-clippy.log`, `config-number-debug.log`,
+  `config-number-release.log`, `config-number-full.log`,
+  `config-number-full-calls.json`, `config-number-reference.log`,
+  `config-number-container-build.log`, `config-number-container-probe.log` and
+  `config-number-bundle.log`.
+  Integer range and precision limits remain in the numeric audit above. Native
+  Windows execution remains unverified. Formal simplification and performance
+  passes remain at 0/3 each; original-test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -4165,6 +4197,7 @@ jbang validation/LocalModelProbe.java
 jbang validation/HermesCallProbe.java
 jbang validation/SidecallFailureProbe.java
 jbang validation/CleanupProbe.java
+jbang validation/ConfigNumberProbe.java
 jbang validation/RunnerProbe.java
 jbang validation/ToolcheckProbe.java
 jbang validation/DiscoveryProbe.java

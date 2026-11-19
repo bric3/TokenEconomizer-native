@@ -6,7 +6,7 @@ use regex_syntax::{
 };
 use std::{collections::BTreeMap, ops::Range, sync::LazyLock};
 
-use super::unicode17::{CASE_FOLD_ADDED, DIGIT_ADDED, WORD_ADDED};
+use crate::unicode17::{CASE_FOLD_ADDED, DIGIT_ADDED, WORD_ADDED};
 use backrefs::{Matcher, Reference};
 
 pub struct Pattern {
