@@ -194,6 +194,15 @@ points now set umask 077, matching the original bootstrap. Before this fix,
 the native CLI created `home/repos` with group and other read/execute bits.
 Permission-bit checks remain Unix-only. Native Windows execution stays open.
 
+The fourteenth batch converts `test_local_model.py`: 22 functions cover 29
+original cases. It preserves settings, platform and availability routing,
+schema-based local verdicts, host fallback, zero charge, greedy arguments,
+stdin prompts, ANSI stripping and failure logs. Judge jobs use the real store
+and routed runner with supplied model replies. Tests retain the local
+confidence floor, local nudge and host-spend cases. The paused-host hook checks
+its judge mode without probing availability or starting a process. No on-device
+model is invoked.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -209,8 +218,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 29 pytest modules are complete, covering 685 of
-1,591 original cases, including the conditional Windows case. The other 906
+Conversion remains in progress: 30 pytest modules are complete, covering 714 of
+1,591 original cases, including the conditional Windows case. The other 877
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.
