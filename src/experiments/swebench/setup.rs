@@ -13,6 +13,15 @@ pub fn constants() -> Value {
         "copilot":{"EFFORT_LEVELS":["none","low","medium","high","xhigh","max"],
             "CONTAINER_LOG_DIR":"/home/agent/.copilot-runlog"},
         "codex":codex,
+        "swebench":{"NET_GUARD_PROBE":"echo https://github.com/probe",
+            "profiles":{
+                "claude":{"kind":"claude","home":"/tmp/agent-home","instructions_file":"CLAUDE.md",
+                    "nav_tools":["Read","Grep","Glob"],"patch_excludes":["CLAUDE.md"]},
+                "copilot":{"kind":"copilot","home":"/home/agent","instructions_file":".github/copilot-instructions.md",
+                    "nav_tools":["view","grep","glob"],"patch_excludes":[".github/copilot-instructions.md",".github/hooks"]},
+                "codex":{"kind":"codex","home":"/tmp/agent-home","instructions_file":"AGENTS.md",
+                    "nav_tools":[],"patch_excludes":["AGENTS.md","RTK.md"],"env":{"CODEX_HOME":super::codex_config::HOME}}
+            }},
         "web":{"WEBBENCH_SCAFFOLDS":["rtk"],"WEBBENCH_UNDICI_ABORT_DEFAULT_S":300,
             "WEBBENCH_TASK_TIMEOUT_HEADROOM_S":40,"WEBBENCH_TASK_TIMEOUT_DEFAULT":240}
     })

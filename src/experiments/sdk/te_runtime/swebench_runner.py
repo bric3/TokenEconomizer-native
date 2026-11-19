@@ -25,6 +25,9 @@ def bind(bridge,module,*,container_helpers=None):
         method(module.ClaudeSwebenchRunner,name,agent,operation)
     for name,agent,operation in (("make_runner","claude","runner_factory_swebench"),
                                  ("_cleanup_containers","swebench","cleanup_containers"),
-                                 ("_install_signal_cleanup","swebench","signal_install")):
+                                 ("_install_signal_cleanup","swebench","signal_install"),
+                                 ("claude_bin","swebench","claude_bin"),
+                                 ("cli_version","swebench","cli_version"),
+                                 ("_import_swebench","swebench","_import_swebench")):
         method(module,name,agent,operation)
     return replacements

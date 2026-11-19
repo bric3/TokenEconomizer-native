@@ -745,7 +745,8 @@ complete while any runtime component delegates production behaviour to Python.
   scaffold merge helpers are deployed through harness callbacks. Both harnesses
   select native guard executables. The runtime bundle ships executables and
   assets. The standalone benchmark command and its SDK are packaged. Bindings
-  for complete built-in SWE-bench and WebBench class assembly remain open.
+  for built-in WebBench class assembly remain open. SWE-bench's built-in
+  namespace assembles all three agent classes, profiles, grader and helpers.
   Generic and Codex controller SDK bindings are packaged and used by the original
   controller tests. The driver uses the Codex policy binding too; state transitions
   remain native.
@@ -770,7 +771,8 @@ complete while any runtime component delegates production behaviour to Python.
   construction, hook-entry writing and per-agent registration also execute in
   Rust through the SDK. SWE-bench segments, retained scaffold callbacks, optimizer
   wrappers, factories and cleanup also have packaged bindings. Complete built-in
-  class assembly remains open.
+  WebBench class assembly remains open. SWE-bench assembly is packaged and is
+  selected with `te_runtime.swebench:make_runner`.
   Process and SDK calls retain Python I/O bindings.
 - Benchmark driver runner and dataset selection, workload and task filtering,
   group matching and overhead-field copying are native. The arm registry and
@@ -3039,6 +3041,34 @@ complete while any runtime component delegates production behaviour to Python.
   passes remain at 0/3 each; final test conversion is pending. IDE inspections,
   Windows, other Python versions and live agents remain unverified.
 
+- Built-in SWE-bench class assembly is now packaged. The SDK supplies all three
+  runner classes, their descriptors and signatures, the grader, profiles and
+  helper namespaces. Every declared method is bound before the namespace is
+  returned. The benchmark driver retains this namespace for
+  `te_runtime.swebench:make_runner`; external factories continue through the
+  standard import binding. Native metadata supplies the three profiles and guard
+  probe command. Claude binary discovery, CLI version decisions and official
+  grader import order now execute in Rust too, preserving opaque return values
+  and exception boundaries through SDK callbacks.
+  The standalone validation host now uses these production classes, removing its
+  SWE-bench signature-only fixtures. It passes 489 constructor, 288 task, 1,067
+  segment, 820 scaffold-context, 457 runner/factory and 272 cleanup comparisons.
+  Guard integration passes 554 source comparisons and five native checks.
+  The new host-helper probe passes 263 comparisons through both the original API
+  and standalone SDK, including real version processes, local official-grader
+  package imports, repeated-path handling and the three agent profiles. All 24
+  owned offline agent process checks pass through the assembled classes.
+  The relocated bundle passes 182 checks with 17 SDK files and 36 payload hashes.
+  It verifies bound descriptors, profile assembly, retained factory namespaces,
+  native selection and startup credential validation without reference imports.
+  Driver main/stub validation retains 198 checks, and standalone WebBench
+  constructors retain 861 comparisons. The unchanged upstream suite passes with
+  1,561 passed and 30 skipped (69.45 seconds). All 24 Rust checks, debug/release
+  builds, Clippy and the 256-file reference check pass. WebBench assembly and
+  remaining parity audits stay open. Formal simplification and performance passes
+  remain at 0/3 each; final test conversion is pending. IDE inspections, Windows,
+  other Python versions and live agents remain unverified.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -3192,6 +3222,7 @@ jbang validation/WebCleanupProbe.java swebench --sdk
 jbang validation/SweSegmentProbe.java --sdk
 jbang validation/SweSegmentProcessProbe.java --sdk
 jbang validation/SweScaffoldContextProbe.java --sdk
+jbang validation/SweHostProbe.java --sdk
 jbang validation/TaskProbe.java
 jbang validation/WebSegmentProbe.java
 jbang validation/WebAgentProbe.java

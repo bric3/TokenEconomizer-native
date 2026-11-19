@@ -34,7 +34,10 @@ Copilot discovery, and sealed Copilot and Codex invocation builders.
 Scaffold bindings include the shared profile/context classes, RTK, Serena, repo-map
 and their registry. Rust supplies their metadata, selects scaffolds and drives setup.
 Task-lifecycle and constructor bindings accept caller-provided harness namespaces,
-including opaque SDK references and subclass callbacks. Built-in SWE-bench and
+including opaque SDK references and subclass callbacks. Built-in SWE-bench
+classes, profiles and helpers are assembled by the SDK. Select them with
+`--runner te_runtime.swebench:make_runner` and the desired `--agent`. The native
+driver retains the assembled namespace across factory lookups. Built-in
 WebBench class assembly remains pending.
 Guard convenience APIs and hook-entry merging execute in Rust. The legacy
 merge-program API returns a Python I/O launcher for the bundled native installer.

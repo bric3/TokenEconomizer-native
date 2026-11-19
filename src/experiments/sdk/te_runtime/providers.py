@@ -294,7 +294,7 @@ def bind(bridge,*,shared=None,adapters=None,container_helpers=None):
                         elif method == "stream_list_function": values["function"] = getattr(module,"list",builtins.list)
                         elif method == "stream_set": setattr(values["self"],parameters[0],values[parameters[1]])
                         elif method == "scaffold_setattr": setattr(values[parameters[0]],parameters[1],values[parameters[2]])
-                        elif method == "container_helper_root": value = container_helpers
+                        elif method == "container_helper_root": value = container_helpers() if callable(container_helpers) else container_helpers
                         elif method == "host_guard_write":
                             with getattr(module,"open",builtins.open)(values[parameters[0]],"w",encoding="utf-8") as file: file.write(parameters[1])
                             module.os.chmod(values[parameters[0]],0o755)
@@ -452,6 +452,9 @@ def bind(bridge,*,shared=None,adapters=None,container_helpers=None):
                             handler.__qualname__ = original.__qualname__+".<locals>.handler"
                             handler.__module__ = module.__name__
                             values["handler"] = bind_function(module,handler,agent,"signal_handler")
+                        elif method == "runner_import":
+                            imported=builtins.__import__(parameters[0],fromlist=[parameters[1]])
+                            values[parameters[2]]=getattr(imported,parameters[1])
                         elif method == "workspace_iter": values[parameters[1]] = iter(values[parameters[0]])
                         elif method == "task_format": value = list(map(ord,repr(values[parameters[0]]) if parameters[1] == "!r" else format(values[parameters[0]],parameters[1])))
                         elif method == "task_raise": raise values[parameters[0]]

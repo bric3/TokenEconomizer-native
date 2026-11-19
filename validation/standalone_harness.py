@@ -1,9 +1,7 @@
-"""Bind signature-only test interfaces using the shipped SDK and owned engine."""
+"""Run the production SWE-bench assembly while rejecting reference imports."""
 import atexit
 import builtins
-import inspect
 from pathlib import Path
-import signal
 import sys
 from types import SimpleNamespace
 
@@ -16,54 +14,20 @@ def guarded(name,*args,**kwargs):
 builtins.__import__=guarded
 sys.path.insert(0,str(ROOT/"src/experiments/sdk"))
 from te_runtime.transport import Bridge, checked
-from te_runtime.optimizer import bind as optimizer_bindings
-from te_runtime.codex_install import bind as install_bindings
-from te_runtime.codex_spiral import bind as spiral_bindings
-from te_runtime.nudge_guard import bind as guard_bindings
-from te_runtime.scaffolds import bind as scaffold_bindings
-from te_runtime.usage import bind as usage_bindings
-from te_runtime.swebench_task import bind as task_bindings, bind_network
+from te_runtime.swebench import bind
+from te_runtime.swebench_task import bind_network
 from te_runtime.runner_setup import bind as setup_bindings
 from te_runtime.providers import bind as provider_bindings
-from te_runtime.swebench_runner import bind as runner_bindings
 import harness_interfaces as interfaces
 
 bridge=Bridge(ROOT/"target/debug/te-bridge")
 atexit.register(bridge.close)
-optimizer=optimizer_bindings(bridge)
-sw=optimizer.claude
+sw=bind(bridge,container_helpers=lambda:str(ROOT/"target/container-helpers"))
+codex,copilot=sw.codex,sw.copilot
+# Preserve source API metadata in differential callback descriptions.
 sw.__name__="te_harness.swebench"
-codex,copilot=optimizer.codex,optimizer.copilot
-for name,value in vars(interfaces).items():
-    if not name.startswith("__") and name not in ("CodexInterface","CopilotInterface"):
-        setattr(sw,name,value)
-for module,interface in ((codex,interfaces.CodexInterface),(copilot,interfaces.CopilotInterface)):
-    for name in vars(interface):
-        if not name.startswith("__"): setattr(module,name,getattr(interface,name))
 metadata=checked(bridge.request("experiment.harness.constants",{}))
-for name,module in (("claude",sw),("copilot",copilot),("codex",codex)):
-    for key,value in metadata[name].items():
-        setattr(module,key,tuple(value) if key == "DEFAULT_SYSTEM_SKILLS" else frozenset(value) if isinstance(value,list) else value)
-sw.codex,sw.copilot=codex,copilot
-sw.net_guard=SimpleNamespace(**bridge.request("experiment.net_guard.constants",{}),
-    hosts_block=lambda:bridge.request("experiment.net_guard.hosts_block",{}))
-sw.inspect=inspect
-sw.scaffolds_pkg=scaffold_bindings(bridge).registry
-sw.NudgeGuard=guard_bindings(bridge.request).NudgeGuard
-sw.codex_spiral=spiral_bindings(bridge.request)
-sw._LIVE_CONTAINERS=set()
-sw.signal=signal
-sw.RUNNERS={"claude":sw.ClaudeSwebenchRunner,"copilot":sw.CopilotSwebenchRunner,"codex":sw.CodexSwebenchRunner}
-codex.signal=signal
-install_bindings(bridge,codex)
-accounting=usage_bindings(bridge.request,lambda message:sw._log(message))
-vars(sw).update(vars(accounting.claude))
-vars(copilot).update(vars(accounting.copilot))
-vars(codex).update(vars(accounting.codex))
 provider=provider_bindings(bridge)
-task_bindings(bridge,sw,container_helpers=lambda:str(ROOT/"target/container-helpers"))
-setup_bindings(bridge,sw)
-runner_bindings(bridge,sw,container_helpers=str(ROOT/"target/container-helpers"))
 wb=SimpleNamespace(network_tool_block=interfaces.network_tool_block)
 bind_network(bridge,wb)
 for name in ("os","shutil","subprocess","scaffolds_pkg","pricing","codex","copilot","resolve_anthropic_key","claude_bin","cli_version","_log","EFFORT_LEVELS","PROTECTED_TOOLS","_ANTHROPIC_DIRECT"):

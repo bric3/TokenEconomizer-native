@@ -162,7 +162,16 @@ Guard convenience APIs also use Rust. The legacy merge-program API returns an I/
 launcher for the native installer.
 SWE-bench segment, scaffold-callback, optimizer, factory and cleanup bindings are
 packaged too, including cleanup through a separate native engine connection.
-Built-in SWE-bench and WebBench class assembly remains pending.
+The built-in SWE-bench namespace assembles all three agent runners and their
+grader, profiles and helpers. Select its factory in an experiment runtime bundle:
+
+```sh
+bin/te-bench --runner te_runtime.swebench:make_runner --agent claude --arm baseline \
+  --tasks-file /path/to/tasks.json --results-root /path/to/results
+```
+
+The selected agent CLI, credentials and official grader remain external
+dependencies. Built-in WebBench class assembly remains pending.
 
 SWE-bench controller selection, constructor parameters, continuation dispatch and
 telemetry fields run in Rust for all three agents. SDK bindings retain controller,

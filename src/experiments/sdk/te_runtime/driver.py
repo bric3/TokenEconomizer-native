@@ -104,8 +104,10 @@ class Driver:
         registry=bridge.request("experiment.arms.registry",{})
         self.codex_spiral=codex_bindings(bridge.request)
         self.policy=self.codex_spiral.CodexSpiralPolicy
+        self.harnesses={}
         def factory(name): return lambda: bridge.request("experiment.arms.config",{"name":name})
-        self.module=SimpleNamespace(os=os,json=json,time=time,argparse=argparse,inspect=inspect,importlib=importlib,
+        self.module=SimpleNamespace(os=os,json=json,time=time,argparse=argparse,inspect=inspect,
+            importlib=SimpleNamespace(import_module=self._import_module),
             _REPO_ROOT=os.fspath(root),__doc__=constants["description"],ledger=SimpleNamespace(OVERHEAD_KEYS=tuple(constants["overhead_keys"])),
             ARMS={key:SimpleNamespace(mode=value["mode"],cfg=factory(key),env=value["env"],scaffold=value["scaffold"]) for key,value in registry["arms"].items()},SCAFFOLD_ARMS=registry["scaffolds"])
         host=self
@@ -122,6 +124,13 @@ class Driver:
             setattr(self.module,name,getattr(self,name))
 
     def main(self): return self.call("main",{})
+    def _import_module(self,name):
+        if name == "te_runtime.swebench":
+            if name not in self.harnesses:
+                from .swebench import bind
+                self.harnesses[name]=bind(self.bridge)
+            return self.harnesses[name]
+        return importlib.import_module(name)
     def load_runner(self,spec,agent,model=None,scaffold=None): return self.call("load_runner",dict(spec=spec,agent=agent,model=model,scaffold=scaffold))
     def load_adapter(self,name,tasks_file,repo=""): return self.call("load_adapter",dict(name=name,tasks_file=tasks_file,repo=repo))
     def workload_ids(self,workload_file,repo): return self.call("workload_ids",dict(workload_file=workload_file,repo=repo))

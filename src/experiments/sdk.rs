@@ -62,6 +62,10 @@ pub(super) const FILES: &[(&str, &[u8])] = &[
         "sdk/te_runtime/swebench_runner.py",
         include_bytes!("sdk/te_runtime/swebench_runner.py"),
     ),
+    (
+        "sdk/te_runtime/swebench.py",
+        include_bytes!("sdk/te_runtime/swebench.py"),
+    ),
 ];
 
 /// Resolve the SDK bootstrap and the caller's configuration root.

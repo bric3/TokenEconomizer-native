@@ -389,6 +389,9 @@ pub fn dispatch(method: &str, rt: &mut dyn Runtime) -> Result<Value> {
         name if agent == "swebench" && name.starts_with("guard_") => {
             super::guard_convenience::run(&name[6..], rt)
         }
+        "claude_bin" | "cli_version" | "_import_swebench" if agent == "swebench" => {
+            super::host::run(name, rt)
+        }
         name if matches!(agent, "copilot" | "codex") && name.starts_with("invocation_") => {
             super::invocation::dispatch(&name[11..], agent, rt)
         }

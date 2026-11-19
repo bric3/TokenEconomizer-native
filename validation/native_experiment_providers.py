@@ -246,7 +246,7 @@ def install(runner_module=None,scaffold_module=None,driver_module=None):
             setattr(module,name,replacements[original])
     webbench = sys.modules.get("te_harness.webbench")
     if webbench is not None:
-        for name in ("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call","set_optimizer_context","_cell_of","_log"):
+        for name in ("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call","set_optimizer_context","_cell_of","_log","claude_bin","cli_version"):
             original = getattr(webbench,name,None)
             if original in replacements: setattr(webbench,name,replacements[original])
     runner_calls(webbench,"webbench",("WebBenchRunner","CopilotWebBenchRunner","CodexWebBenchRunner"))
