@@ -22,6 +22,25 @@ target/debug/te --host claude --cwd /path/to/repo config show
 It reads and writes the existing TokenEconomizer state formats. Background folds,
 judges and map refreshes use the same native executable.
 
+Scan a Git checkout for unreferenced Python definitions with the developer tool:
+
+```sh
+target/debug/te-dead-code --root /path/to/repo
+target/debug/te-dead-code --root /path/to/repo --json
+target/debug/te-dead-code --root /path/to/repo --fix
+```
+
+The default root is the working directory. Scanning reads tracked text files;
+`--fix` repeatedly removes eligible unreferenced definitions. Test-only names,
+allowlisted names, methods that would empty their class and statements sharing a
+line are kept. Each edited file must still parse before it is written. Review
+the diff after fixing: references are counted as words, so dynamic uses need the
+allowlist in `scripts/dead_code_allowlist.txt`.
+Rust owns scanning, deletion and reports. The embedded binding uses Python 3.10+
+standard-library AST and reflection APIs. Git and `python3` must be on `PATH`;
+`TE_PYTHON` selects another interpreter. The binary can move independently of the
+checkout and needs no Python packages or companion source files.
+
 The native hook reads the host's JSON payload from stdin and writes its JSON
 response to stdout:
 

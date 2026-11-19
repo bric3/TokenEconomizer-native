@@ -744,10 +744,11 @@ complete while any runtime component delegates production behaviour to Python.
   outside their ordinary schemas. Captured configuration callables and arguments
   already retain their references when the prompt callback replaces them.
 - Finish supporting experiment tools, preserving their original test contracts.
-  `scripts/dead_code.py` still has no native replacement. Its 11 original tests
-  currently exercise the Python scanner, deletion safeguards, repeated sweep and
-  report/CLI implementation. Port that policy before counting those tests as
-  native coverage. Audit the documentation image generators
+  `scripts/dead_code.py` has a native replacement, `te-dead-code`. Its 11 original
+  tests invoke Rust scanner, deletion, sweep and report policy through the API
+  binding and native CLI. Python supplies standard-library AST and reflection
+  operations through an embedded transport. Audit the documentation image
+  generators
   `docs/assets/results_overview.py`, `framework_overview.py` and `teaser.py`,
   including their regeneration and asset-validation requirements.
   The workload registry, manifest exporter, sweep planner, both task exporters,
@@ -3645,6 +3646,52 @@ complete while any runtime component delegates production behaviour to Python.
   general Bash arithmetic and glob expansion, shell-special variables, malformed
   schema diagnostics and filesystem failures outside the corpus remain open.
 
+- The developer dead-code scanner now runs through `te-dead-code`. Rust owns
+  tracked-file selection, word counts, allowlists, exports, decorator and override
+  policy, deletion safeguards, repeated sweeps, JSON and Markdown reports, and
+  argument handling. The binary embeds a standard-library Python binding for
+  [AST parsing](https://docs.python.org/3/library/ast.html#ast.parse),
+  [standard-library module names](https://docs.python.org/3/library/sys.html#sys.stdlib_module_names)
+  and [module imports](https://docs.python.org/3/library/importlib.html#importlib.import_module).
+  Rust selects the imports and performs inheritance and dynamic-dispatch checks;
+  the binding retains Python objects and invokes reflection APIs. `TE_PYTHON`
+  selects the interpreter. The standalone default root is the working directory.
+  The original test binding preserves the archived script's default root.
+  Python 3.10+ and Git are runtime requirements; no third-party Python package or
+  companion source file is needed. Parser and standard-library behaviour follow
+  the selected interpreter; these comparisons use Python 3.15.2 on macOS.
+  An additional deletion guard keeps statements that share a line. The oracle
+  reproduces the source fixer deleting referenced `B` when it removes unused
+  `A` from `A = 1; B = 2`. The native fixer keeps that line and reports why.
+  Original safeguards for chained assignments, decorated classes, methods,
+  comments, newlines and parse failures remain covered. Markdown tables use
+  padded columns, with only table padding normalised in report comparisons.
+  The dedicated probe passes 328 checks covering source results, file edits,
+  Unicode paths and literals, binary files, symlinks, inheritance, dynamic
+  dispatch, exports, sweep limits, large literals, deep ASTs, report output and
+  argument errors. Relocation checks run the copied binary outside the checkout,
+  verify help without Python or Git, and check deletion and executable-mode
+  preservation in owned fixtures. The 11 unchanged original scanner tests pass;
+  the full unchanged suite passes with 1,561 passed and 30 skipped (80.31 seconds),
+  including installed opencode against its loopback fixture. Its call record,
+  `validation/results/dead-code-full-calls.json`, records nine native scans,
+  three native fixes and four native CLI processes for the scanner tests.
+  All 29 Rust tests, formatting, Clippy and debug/release builds pass. All 256
+  reference files still match the pinned tree. Each Linux helper build passes
+  all 28 library tests; the helpers pass 26 scratch-container checks across arm64
+  and amd64. The relocated experiment bundle retains all 261 checks, 20 SDK
+  files, 39 manifest hashes and 40 physical files. That runtime payload excludes
+  this developer tool; its separate executable is built by Cargo.
+  Logs are under `validation/results/`: `dead-code-probe.log`,
+  `dead-code-focused.log`, `dead-code-full.log`, `dead-code-rust-tests.log`,
+  `dead-code-clippy.log`, `dead-code-debug.log`, `dead-code-release.log`,
+  `dead-code-container-build.log`, `dead-code-container-probe.log` and
+  `dead-code-bundle.log`.
+  Windows scanner execution, non-UTF-8 paths, custom Python import state and
+  filesystem error details outside the corpus remain unverified. The remaining
+  supporting-tool and parity audits precede the three simplification passes,
+  three performance passes and original-test conversion, all still pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -3895,6 +3942,7 @@ jbang validation/CompareProbe.java
 jbang validation/LaunchProbe.java
 jbang validation/MainSweepProbe.java
 jbang validation/CodexSweepProbe.java
+jbang validation/DeadCodeProbe.java
 jbang validation/StandaloneBenchProbe.java
 jbang validation/StandaloneTransportProbe.java
 jbang validation/HermesGatewayProbe.java

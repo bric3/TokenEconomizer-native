@@ -57,5 +57,9 @@ name = "te-package"
 path = "src/bin/package.rs"
 
 [[bin]]
+name = "te-dead-code"
+path = "src/bin/dead_code.rs"
+
+[[bin]]
 name = "te-console-probe"
 path = "validation/console_probe.rs"

@@ -1,5 +1,6 @@
 pub mod accounting;
 pub mod config;
+pub mod dead_code;
 pub mod envelope;
 pub mod experiments;
 pub mod ledger;

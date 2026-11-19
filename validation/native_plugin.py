@@ -55,6 +55,13 @@ EXPERIMENT_HARNESS_REPLACEMENTS = {}
 
 def native_cli_process(*args, **kwargs):
     argv = args[0] if args else kwargs.get("args")
+    if (isinstance(argv, (list, tuple)) and len(argv) >= 2 and argv[0] == sys.executable
+            and str(argv[1]) == str(ROOT / "reference/upstream/scripts/dead_code.py")):
+        argv = [str(ROOT / "target/debug/te-dead-code"), "--root", str(ROOT / "reference/upstream"), *argv[2:]]
+        kwargs["env"] = dict(kwargs.get("env") or os.environ, TE_PYTHON=sys.executable)
+        if args: args = (argv, *args[1:])
+        else: kwargs["args"] = argv
+        with LOCK: CALLS["dead_code.cli_process"] += 1
     if isinstance(argv, (list, tuple)) and argv and Path(str(argv[0])).name == "bash":
         from native_launch import rewrite
         changed = rewrite(argv, kwargs)
@@ -129,6 +136,9 @@ def native_package_module(loader, module):
             "source": module.REPO, "out": str(out), "droid": False})
         module.build_droid = lambda out: invoke("package.build_reference", {
             "source": module.REPO, "out": str(out), "droid": True})
+    elif str(loader.path) == str(ROOT / "reference/upstream/scripts/dead_code.py"):
+        from native_dead_code import install
+        install(module)
     elif str(loader.path) == str(ROOT / "reference/upstream/plugin/hermes/__init__.py"):
         install_hermes_gateway(module)
     elif str(loader.path) == str(ROOT / "reference/upstream/experiments/scripts/run_experiment.py"):

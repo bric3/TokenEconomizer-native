@@ -3,6 +3,8 @@ use std::path::Path;
 
 #[path = "bridge/callback.rs"]
 mod callback;
+#[path = "bridge/dead_code.rs"]
+mod dead_code_dispatch;
 #[path = "bridge/experiments.rs"]
 mod experiments_dispatch;
 #[path = "bridge/experiment_facade.rs"]
@@ -50,6 +52,13 @@ use tokeneconomizer::{
 
 fn dispatch(request: &Value) -> Result<Value, String> {
     let args = &request["args"];
+    if let Some(op) = request["op"]
+        .as_str()
+        .unwrap_or("")
+        .strip_prefix("dead_code.")
+    {
+        return dead_code_dispatch::dispatch(op, args);
+    }
     if let Some(value) = task_dispatch::dispatch(request["op"].as_str().unwrap_or(""), args)? {
         return Ok(value);
     }
