@@ -57,6 +57,34 @@ propagated errors, retained state and temporary-file cleanup. The real held-file
 test uses Windows reader-sharing flags and a delayed close. That test is
 conditional on Windows and has not been compiled or run on macOS.
 
+The third batch adds adapters, index protection and the learned-fact lifecycle:
+
+| Original module                             | Rust tests | Original cases |
+| ------------------------------------------- | ---------: | -------------: |
+| experiments/tests/test_adapters.py          |          7 |              7 |
+| experiments/tests/test_aggregate_index.py   |          5 |              5 |
+| experiments/tests/test_envfacts_profiles.py |          7 |              7 |
+| experiments/tests/test_facade.py            |          3 |              3 |
+| test_injection.py                           |          4 |              4 |
+| test_distiller_payload_types.py             |          6 |             32 |
+| Batch total                                 |         32 |             58 |
+
+Adapter protocol conformance is checked against Rust's `DomainAdapter` trait;
+non-null return contracts use Rust's concrete return types. Index tests write
+actual row trees and check both CSVs, including preserving the canonical index
+after a refused subset rewrite. The CSV reader accepts only these fixtures'
+unquoted fields and asserts that restriction before reading them.
+
+The distiller and facade tests keep proposer payloads and token charges in a
+recording runner. No model process is started. The composed profile keeps the
+six-task learning sequence and the additional telemetry task. The Codex facade
+keeps the full ten-task sequence that reaches its paid proposer cadence. Cadence
+is supplied through `ProposeContext`, keeping each test's configuration local.
+The injection-profile constants are checked through the native arm registry,
+which owns those configurations. Shared Claude and Codex transcript writers
+retain the original fixtures' call IDs, optional working directories, item
+defaults and event wrappers.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -71,8 +99,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 14 of 67 pytest modules have native equivalents,
-covering 198 original cases, including the conditional Windows case. The other
-1,393 cases and standalone executable smoke tests
+Conversion remains in progress: 20 of 67 pytest modules have native equivalents,
+covering 256 original cases, including the conditional Windows case. The other
+1,335 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

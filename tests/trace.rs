@@ -1,6 +1,8 @@
 // Converted from reference/upstream/tests/test_trace.py.
+pub mod fixtures;
 mod support;
 
+use fixtures::write_claude_transcript;
 use serde_json::{Map, Value, json};
 use std::{
     collections::BTreeSet,
@@ -22,26 +24,10 @@ fn jsonl(path: &Path, records: &[Value]) -> PathBuf {
     path.into()
 }
 
-fn claude_transcript(path: &Path, calls: &[Value]) -> PathBuf {
-    let mut lines = Vec::new();
-    for (i, call) in calls.iter().enumerate() {
-        let id = format!("t{i}");
-        let mut use_event = json!({"message":{"content":[{"type":"tool_use", "id":id,
-            "name":call[0], "input":call[1]}]}});
-        if let Some(cwd) = call.get(3) {
-            use_event["cwd"] = cwd.clone();
-        }
-        lines.push(use_event.to_string());
-        lines.push(json!({"message":{"content":[{"type":"tool_result", "tool_use_id":id, "content":call[2]}]}}).to_string());
-    }
-    fs::write(path, lines.join("\n")).unwrap();
-    path.into()
-}
-
 #[test]
 fn load_trajectory_claude() {
     let root = TempDir::new("trace-claude");
-    let path = claude_transcript(
+    let path = write_claude_transcript(
         &root.path().join("t.jsonl"),
         &[
             json!(["bash", {"command":"python -m pytest tests/test_x.py"}, "2 passed"]),
@@ -95,7 +81,7 @@ fn a_claude_request_blob_repeating_the_conversation_adds_no_call() {
 #[test]
 fn tool_usage_counts() {
     let root = TempDir::new("trace-tool-count");
-    let path = claude_transcript(
+    let path = write_claude_transcript(
         &root.path().join("t.jsonl"),
         &[
             json!(["bash", {"command":"ls"}, ""]),

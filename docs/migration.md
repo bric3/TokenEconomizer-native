@@ -830,7 +830,7 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 14 of 67 pytest modules, covering 198 of 1,591 original
+- Final test conversion: 20 of 67 pytest modules, covering 256 of 1,591 original
   cases. See [the conversion record](test-conversion.md). Standalone executable
   smoke tests and the remaining modules are pending.
 
@@ -4363,6 +4363,21 @@ complete while any runtime component delegates production behaviour to Python.
   use the `validation/results/test-conversion-2-*` prefix.
   Original reference files remain unchanged. Remaining modules,
   standalone smoke tests and final parity and platform audits are pending.
+
+- The third test-conversion batch adds complete adapter, aggregate-index,
+  injection, malformed-proposer, environment-profile and facade modules.
+  Their 32 Rust tests preserve 58 original cases, including the six-task composed
+  profile and the ten-task Codex trimech workflow. Tests call native stages,
+  record proposer prompts and charges, check saved state and CSV contents,
+  and keep configuration local through `ProposeContext`. Shared transcript
+  writers retain the original Claude and Codex fixture formats.
+  All 178 native tests on macOS, formatting and Clippy pass. The conditional
+  Windows held-file test remains uncompiled and unrun. The 256-file upstream
+  integrity check passes; production code and archived tests are unchanged.
+  Logs use the `validation/results/test-conversion-3-*` prefix.
+  Original-test conversion now covers 20 of 67 pytest modules and 256 of 1,591
+  cases. Remaining modules, standalone smoke tests and the final parity and
+  platform audits stay open.
 
 ## Dependencies
 
