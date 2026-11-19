@@ -20,6 +20,35 @@ pub fn write_claude_transcript(path: &Path, calls: &[Value]) -> PathBuf {
     path.into()
 }
 
+// Interactive fixture from reference/upstream/tests/test_live_hooks.py.
+pub fn write_claude_session(path: &Path, prompts: &[Value], model: &str) -> PathBuf {
+    let mut lines = Vec::new();
+    let mut n = 0;
+    for prompt in prompts {
+        lines.push(json!({"type":"user","message":{"role":"user","content":prompt[0]}}));
+        for call in prompt[1].as_array().unwrap() {
+            n += 1;
+            lines.push(json!({"type":"assistant","message":{"id":format!("msg_{}_{n}",path.file_name().unwrap().to_str().unwrap()),"model":model,"role":"assistant",
+                "usage":{"input_tokens":10,"cache_read_input_tokens":1000,"cache_creation_input_tokens":100,"output_tokens":50},
+                "content":[{"type":"tool_use","id":format!("tu{n}"),"name":call[0],"input":call[1]}]}}));
+            lines.push(json!({"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":format!("tu{n}"),"content":call[2],"is_error":call[3]}]}}));
+        }
+    }
+    fs::write(
+        path,
+        format!(
+            "{}\n",
+            lines
+                .iter()
+                .map(Value::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        ),
+    )
+    .unwrap();
+    path.into()
+}
+
 pub fn write_codex_transcript(path: &Path, items: &[Value]) -> PathBuf {
     let lines: Vec<_> = items
         .iter()

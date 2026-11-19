@@ -203,6 +203,16 @@ confidence floor, local nudge and host-spend cases. The paused-host hook checks
 its judge mode without probing availability or starting a process. No on-device
 model is invoked.
 
+The fifteenth batch converts `test_status_explain.py`: 22 functions cover 34
+original cases. It retains opt-in text, unchanged JSON fields, lifecycle and
+proposal states, warmup, paused calls, shadow mode and private-error filtering.
+The status fixture supplies the selected context and captures output; its
+runtime delegates only the saved-state operations that status uses. Byte
+snapshots check that explanations change no saved files. The interactive Claude
+fixture drives real native hooks through four learning sessions. A native CLI
+test selects a repository containing spaces and quotes from another directory
+and preserves its pending proposal.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -218,8 +228,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 30 pytest modules are complete, covering 714 of
-1,591 original cases, including the conditional Windows case. The other 877
+Conversion remains in progress: 31 pytest modules are complete, covering 748 of
+1,591 original cases, including the conditional Windows case. The other 843
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.
