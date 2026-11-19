@@ -522,7 +522,7 @@ pub fn run(
     if keep {
         runtime.say(&format!("  kept: {}", root_path.display()))?;
     } else {
-        let _ = fs::remove_dir_all(root_path);
+        let _ = super::temporary::remove_tree(&root_path);
     }
     result
 }

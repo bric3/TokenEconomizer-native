@@ -443,7 +443,7 @@ impl WorkDir {
 }
 impl Drop for WorkDir {
     fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
+        let _ = super::temporary::remove_tree(&self.0);
     }
 }
 

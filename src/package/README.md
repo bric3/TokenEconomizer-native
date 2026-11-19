@@ -22,4 +22,4 @@ It reads and writes the existing TokenEconomizer state formats.
 
 `LICENSE` preserves the upstream Apache-2.0 licence. `THIRD-PARTY-NOTICES.txt`
 contains the legal texts for locked Rust dependencies, Unicode data and the
-CPython-derived timestamp code.
+CPython-derived parsing and cleanup code.

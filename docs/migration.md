@@ -728,8 +728,9 @@ complete while any runtime component delegates production behaviour to Python.
 - Include side-call usage beyond i128 in the numeric parity audit.
 - Include tool-measurement totals and savings outside JSON's i64/u64 range in the
   numeric parity audit.
-- Audit temporary-directory cleanup against Python's permission-repair retries,
-  including native Windows behaviour. Current removal uses `remove_dir_all`.
+- Verify temporary-directory cleanup on native Windows and other filesystems,
+  including ACL failures. Unix `TemporaryDirectory` cleanup now repairs permissions
+  through open directory handles; plain `rmtree` callers retain their original policy.
 - Verify native CLI interruption and heartbeat cleanup when packaging the executables.
 - Verify each host integration in its own runtime, including Windows launchers.
 - Include SDK JSON nesting, environment snapshots and exit-control packet bounds
@@ -3905,6 +3906,40 @@ complete while any runtime component delegates production behaviour to Python.
   Formal simplification and performance passes remain at 0/3 each; original-test
   conversion is pending.
 
+- Temporary-directory cleanup now follows each source caller's policy. The first
+  permission probe found seven differences in 12 cases: restricted directories
+  survived native cleanup, and a replaced root symlink was removed. Side calls
+  using `TemporaryDirectory` now repair permissions after a permission failure.
+  Fold, probe and Copilot capture retain their plain `rmtree` policy. Root
+  symlinks are retained, and strict callers receive the cleanup error.
+  Unix recovery uses directory descriptors with `openat`, `fstatat` and
+  `unlinkat`; permission and flag changes operate on the entry itself. The
+  temporary directory's external parent and symlink targets keep their contents
+  and permissions. On macOS, metadata handles use `O_SYMLINK` without
+  `O_NOFOLLOW`, following the platform's
+  [open contract](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/open.2.html).
+  A constrained-descriptor comparison found an extra descriptor at each depth;
+  the directory stream now owns the traversal descriptor. A 50-level tree cleans
+  up with a soft descriptor limit of 64, matching the source.
+  All 23 source comparisons pass, covering permission modes, immutable flags,
+  replaced roots, missing roots, external links and the two cleanup policies.
+  Three Rust regression tests bring the native total to 34. Both Linux builds
+  pass 33 library tests, including permission repair in a child running as an
+  unprivileged user. Formatting, Clippy and debug/release builds pass. The
+  unchanged original suite passes with 1,561 passed and 30 skipped (81.44 seconds).
+  Both Linux helpers pass 28 scratch-container checks; relocated bundles pass
+  270 checks. All 256 archived files and 104 locked crate legal texts are verified.
+  Logs are under `validation/results/`: `cleanup-before.log`,
+  `cleanup-limited-before.log`, `cleanup-fd.log`, `cleanup-probe.log`,
+  `cleanup-rust-tests.log`, `cleanup-clippy.log`, `cleanup-debug.log`,
+  `cleanup-release.log`, `cleanup-full.log`, `cleanup-full-calls.json`,
+  `cleanup-container-build.log`, `cleanup-container-probe.log`,
+  `cleanup-bundle.log`, `cleanup-reference.log`, `cleanup-notices.log` and
+  `cleanup-notices-check.log`.
+  Native Windows, other filesystems and ACL failures remain unverified. Formal
+  simplification and performance passes remain at 0/3 each; original-test
+  conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -4129,6 +4164,7 @@ jbang validation/AgentCallsProbe.java
 jbang validation/LocalModelProbe.java
 jbang validation/HermesCallProbe.java
 jbang validation/SidecallFailureProbe.java
+jbang validation/CleanupProbe.java
 jbang validation/RunnerProbe.java
 jbang validation/ToolcheckProbe.java
 jbang validation/DiscoveryProbe.java

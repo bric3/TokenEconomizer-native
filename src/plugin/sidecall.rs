@@ -445,13 +445,9 @@ impl WorkDir {
     pub(crate) fn path(&self) -> &Path {
         &self.0
     }
-    fn close(mut self) -> io::Result<()> {
-        // shortcut: cleanup omits permission repair, add retries during the filesystem parity audit.
+    fn close(mut self, ignore_errors: bool) -> io::Result<()> {
         let path = std::mem::take(&mut self.0);
-        match fs::remove_dir_all(path) {
-            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
-            result => result,
-        }
+        super::temporary::remove(&path, ignore_errors)
     }
 }
 pub(crate) fn temporary_directory(prefix: &str, base: &Path) -> io::Result<PathBuf> {
@@ -482,7 +478,7 @@ pub(crate) fn temporary_directory(prefix: &str, base: &Path) -> io::Result<PathB
 impl Drop for WorkDir {
     fn drop(&mut self) {
         if !self.0.as_os_str().is_empty() {
-            let _ = fs::remove_dir_all(&self.0);
+            let _ = super::temporary::remove_tree(&self.0);
         }
     }
 }
@@ -511,8 +507,11 @@ pub(crate) fn with_directory<T, R: Runtime + ?Sized>(
     let result = call(path, runtime);
     if external.is_some() {
         runtime.remove_temporary_directory(path)?;
-    } else if !ignore_cleanup_errors {
-        owned.unwrap().close().map_err(|e| e.to_string())?;
+    } else {
+        owned
+            .unwrap()
+            .close(ignore_cleanup_errors)
+            .map_err(|e| e.to_string())?;
     }
     result
 }

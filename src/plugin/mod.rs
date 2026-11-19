@@ -22,5 +22,6 @@ pub mod repomap;
 pub mod repos;
 pub mod runtime;
 pub mod sidecall;
+mod temporary;
 pub mod toolcheck;
 pub mod winspawn;
