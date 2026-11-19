@@ -271,6 +271,7 @@ def install(runner_module=None,scaffold_module=None,driver_module=None):
                         from te_bench.adapters import SwebenchAdapter, WebBenchAdapter, CredDataAdapter, ReposVulAdapter
                         values.update(SwebenchAdapter=SwebenchAdapter,WebBenchAdapter=WebBenchAdapter,CredDataAdapter=CredDataAdapter,ReposVulAdapter=ReposVulAdapter)
                     elif method == "driver_env_lines": value = [list(map(ord,line)) for line in values["text"].splitlines()]
+                    elif method == "driver_argument": values["ap"].add_argument(parameters[0],**parameters[1],**{key:values[slot] for key,slot in parameters[2]})
                     elif method == "runner_member": values[parameters[1]] = getattr(values["self"],parameters[0])
                     elif method == "runner_invoke": values["called"] = values["function"](*[values[key] for key in parameters[0]],**{key:values[slot] for key,slot in parameters[1]})
                     elif method == "runner_label": value = values["model"] in tuple(parameters[0])
@@ -543,11 +544,17 @@ def install(runner_module=None,scaffold_module=None,driver_module=None):
         native._te_provider_operation = agent,name
         return native
     if driver_module is not None:
-        for name in (("env_path","_parse","load_env","require_keys") if hasattr(driver_module,"require_keys") else ("load_runner","load_adapter","workload_ids","_same_group","load_tasks","lift_overhead")):
+        for name in (("env_path","_parse","load_env","require_keys") if hasattr(driver_module,"require_keys") else ("load_runner","load_adapter","workload_ids","_same_group","load_tasks","lift_overhead","main")):
             original = getattr(driver_module,name)
             if getattr(original,"_te_provider_operation",None) == ("driver",name): continue
             replacements[original] = function(driver_module,original,"driver",name)
             setattr(driver_module,name,replacements[original])
+        if hasattr(driver_module,"StubRunner"):
+            for name,operation in (("__init__","new"),("optimizer_call","optimizer"),("_write_transcript","transcript"),("run_task","task")):
+                original=getattr(driver_module.StubRunner,name)
+                if getattr(original,"_te_provider_operation",None) == ("driver","stub_"+operation): continue
+                replacements[original]=function(driver_module,original,"driver","stub_"+operation)
+                setattr(driver_module.StubRunner,name,replacements[original])
         return replacements
     def scaffold_calls(owner):
         if owner.__name__ == "te_bench.baselines.repomap":

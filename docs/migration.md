@@ -757,9 +757,9 @@ complete while any runtime component delegates production behaviour to Python.
   Process and SDK calls retain Python I/O bindings.
 - Benchmark driver runner and dataset selection, workload and task filtering,
   group matching and overhead-field copying are native. The arm registry and
-  environment-file parsing, selection and application are native too. The driver
-  command, main stream loop and offline stub runner remain open alongside
-  standalone host bindings.
+  environment-file parsing, selection and application are native too. Main stream
+  coordination and the offline stub runner are native. A standalone benchmark
+  command and host bindings remain open.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
 
@@ -2699,6 +2699,36 @@ complete while any runtime component delegates production behaviour to Python.
   bindings and remaining parity audits stay open. Formal simplification and
   performance passes remain at 0/3 each; final test conversion is pending.
 
+- The benchmark main loop now executes in Rust, including argument definitions,
+  optimizer-label validation, arm overlays, the preflight signal before runner
+  construction, stream setup, task coordination, UTC run-directory names and
+  row/stream output. Argparse and SDK object operations remain host bindings.
+  The loop preserves existing row fields, lifts declared mechanism overhead,
+  counts only `resolved is True` and closes stream resources on failures within
+  the task loop. Context suppression and active exceptions reach cleanup hooks.
+  The offline stub's construction, transcript selection, default model, synthetic
+  token/grade row and fixed optimizer answer also execute in Rust. Transcript
+  bytes, tuple results, float optimizer cost and arbitrary-size task indices match
+  the source. Unknown stub operations fail before requesting I/O.
+  The dedicated probe passes 198 checks: 197 source comparisons and one protocol
+  rejection check. It covers CLI output/errors, setup order, actual stub bytes,
+  accounting, preserved fields, strict resolve counts and failures around stream
+  and row files, task execution and cleanup. Five comparisons run the real
+  driver/facade/adapter/registry/environment/stub path: baseline on all three
+  agents, free Codex environment facts and a ten-task injection stream that
+  records the stub optimizer's synthetic cost. These compare row/stream JSON
+  values and transcript bytes. They make no agent or external service calls.
+  The unchanged upstream suite passes with 1,561 passed and 30 skipped
+  (71.50 seconds), including installed-opencode tests against the loopback model
+  fixture. Main-loop and stub execution evidence comes from the dedicated probe.
+  The 427 driver-selection, 1,099 task-selection and 230 environment regressions
+  also pass. All 24 Rust checks, debug/release builds, Clippy, formatting and the
+  256-file reference check pass. IDE inspections remain unavailable because this
+  checkout is not open in the IDE. Windows and live agents remain unverified.
+  The standalone benchmark command, host bindings and remaining parity audits
+  stay open. Formal simplification and performance passes remain at 0/3 each;
+  final test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2881,6 +2911,7 @@ jbang validation/DriverSelectionProbe.java
 jbang validation/DriverTasksProbe.java
 jbang validation/ArmRegistryProbe.java
 jbang validation/EnvironmentProbe.java
+jbang validation/DriverMainProbe.java
 jbang validation/HermesGatewayProbe.java
 jbang validation/PiSdkProbe.java
 jbang validation/OpencodeSdkProbe.java

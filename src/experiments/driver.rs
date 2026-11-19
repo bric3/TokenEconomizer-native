@@ -10,6 +10,8 @@ use crate::{python_json::Text, value::truthy};
 use serde_json::{Value, json};
 
 mod environment;
+mod stream;
+mod stub;
 pub use environment::parse_env;
 
 fn returned(slot: &str) -> Value {
@@ -421,6 +423,8 @@ pub fn dispatch(name: &str, rt: &mut dyn Runtime) -> Result<Value> {
         "_same_group" => same_group(rt),
         "load_tasks" => load_tasks(rt),
         "lift_overhead" => lift_overhead(rt),
+        "main" => stream::main(rt),
+        name if name.starts_with("stub_") => stub::run(&name[5..], rt),
         "env_path" | "_parse" | "load_env" | "require_keys" => environment::run(name, rt),
         _ => Err(Failure::new(
             "ValueError",
