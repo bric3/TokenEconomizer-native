@@ -174,7 +174,7 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
             _ => return Err(format!("unknown facade operation: {method}")),
         };
         let mut data = json!(econ);
-        data["injection"] = super::prefix_dispatch::prefix_data(&econ.injection);
+        data["injection"] = super::prefix_dispatch::prefix_data(&econ.injection)?;
         Ok(
             json!({"self":data,"value":result.unwrap_or_else(failure),"srow":srow,"messages":messages}),
         )

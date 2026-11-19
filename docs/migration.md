@@ -666,8 +666,11 @@ complete while any runtime component delegates production behaviour to Python.
   Python's `datetime.fromisoformat`. Trace consumers still run through the reference
   plugin during migration.
 - Audit regular-expression compatibility with Python in the production parity
-  pass, including word boundaries, whitespace classes and syntax. The current
-  library rejects Python's `(?a)` flag; this remains a required compatibility fix.
+  pass, including word boundaries, whitespace classes and syntax. Detector and
+  extractor patterns now support Python's global and scoped ASCII flags through
+  the native compiler. Unicode character-name escapes and patterns combining
+  ASCII and Unicode caseless backreferences remain unsupported. Include Unicode
+  backreference case folding, syntax errors and engine runtime errors in the audit.
   Include Unicode-version differences outside the evaluator stdout pattern,
   whose explicit Tolong Siki range matches Python 3.15 and the
   [Unicode 17 numeric data](https://www.unicode.org/Public/17.0.0/ucd/extracted/DerivedNumericType.txt).
@@ -3096,9 +3099,35 @@ complete while any runtime component delegates production behaviour to Python.
   at 0/3 each; final test conversion is pending. IDE inspections, Windows, other
   Python versions and live agents remain unverified.
 
+- Detector and extractor patterns now compile Python's global and scoped ASCII
+  flags in Rust, including Unicode overrides, character classes, word boundaries,
+  case folding, backreferences and conditionals. Original pattern text remains in
+  snapshots. Invalid syntax remains a missing matcher; incompatible global ASCII
+  and Unicode flags propagate the source error through detector, extractor, fact
+  and composed-stage construction. PCRE2 replaces the detector's matching engine
+  because the previous engine rejected valid mixed-character ASCII backreferences
+  and compared some Unicode backreferences using the wrong byte length. Complete
+  UTF-8 atoms preserve character boundaries during ASCII caseless byte matching.
+  The compiler passes 199 source comparisons, including 40 detector verdict cases,
+  12 extractor cases, invalid references, Unicode group names and quantifiers.
+  All 14 focused injection, profile and facade tests pass. The unchanged upstream
+  suite passes with 1,561 passed and 30 skipped (68.33 seconds), including installed
+  opencode tests against their local stand-in model. All 24 Rust checks,
+  debug/release builds, Clippy, formatting and the 256-file reference check pass.
+  Both rebuilt static Linux helpers pass 26 scratch-container checks without
+  Python, a shell or network. The relocated bundle passes 196 checks, including
+  ASCII detector matches, mixed-character backreferences and a rejected match.
+  The macOS bridge has no dynamic PCRE2 dependency. Third-party notices cover all
+  86 locked registry crates and include bundled PCRE2 and JIT licence headers.
+  Unicode character-name escapes, combined ASCII/Unicode caseless backreferences,
+  remaining Unicode-version differences and error parity remain open. Formal
+  simplification and performance passes remain at 0/3 each; final test conversion
+  is pending. IDE inspections remain unavailable because this checkout is not
+  open in the IDE. Windows and other Python versions remain unverified.
+
 ## Dependencies
 
-Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
+Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
 Rust 1.99.1. The SQLite wrapper requires the minimum Rust version change; its
 unused cache and WebAssembly default features are disabled. Clippy's conditional
 syntax fixes after that version change are part of the port, not one of the
@@ -3109,7 +3138,15 @@ timezone handling. [Rusqlite](https://docs.rs/rusqlite/0.43.0/rusqlite/) supplie
 SQLite connections opened explicitly with `SQLITE_OPEN_READ_ONLY`. Trace readers
 use a five-second busy timeout; gateway lookups retain the SDK's two-second limit.
 The lockfile pins both libraries and their transitive dependencies.
-`fancy-regex` 0.20.2 preserves the upstream patterns' lookarounds and backreferences.
+`fancy-regex` 0.20.2 supplies existing fixed-pattern matching elsewhere in the port.
+Detector and extractor patterns use `pcre2` 0.2.11 with bundled PCRE2 10.46. The
+native compiler expands Python character classes, case folding and boundaries
+before matching, and retains the original pattern text in saved metadata.
+ASCII caseless backreferences use byte matching with complete UTF-8 character
+atoms. `.cargo/config.toml` selects static PCRE2 linking for host builds; the
+dependency selects static linking for the Linux musl helpers too. `regex-syntax`
+was already locked transitively and now supplies character ranges and UTF-8
+encoding directly. The notice generator includes embedded C licence headers.
 The existing `serde_json` dependency enables `raw_value` so Hermes can validate
 tool JSON before copying its existing field text after a redirect. Python's
 non-finite extensions remain in the JSON parity audit.

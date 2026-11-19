@@ -16,15 +16,15 @@ fn strings(args: &Value, key: &str) -> Result<Vec<String>, String> {
 fn commands(args: &Value, key: &str) -> Result<Vec<distiller::Command>, String> {
     serde_json::from_value(args[key].clone()).map_err(|e| e.to_string())
 }
-pub(super) fn data(distiller: &Distiller) -> Value {
+pub(super) fn data(distiller: &Distiller) -> Result<Value, String> {
     let mut data = serde_json::to_value(distiller).unwrap();
     for (id, fact) in &distiller.facts {
-        data["facts"][id] = fact.data();
+        data["facts"][id] = fact.data()?;
     }
     for (id, extractor) in &distiller.extractors {
         data["extractors"][id] = extractor.data();
     }
-    data
+    Ok(data)
 }
 fn forgetting(result: Result<Value, ForgetError>) -> Result<Value, String> {
     match result {
@@ -33,19 +33,19 @@ fn forgetting(result: Result<Value, ForgetError>) -> Result<Value, String> {
         Err(error) => Err(error.to_string()),
     }
 }
-fn detector(args: &Value) -> Detector {
+fn detector(args: &Value) -> Result<Detector, String> {
     let mut detector = Detector::new(
         &args["self"]["raw"],
         args["self"]
             .get("features")
             .filter(|v| !v.is_null())
             .cloned(),
-    );
+    )?;
     detector.scope = args["self"]["scope"].clone();
     detector.fired = args["self"]["fired"].clone();
-    detector.confirm = distiller::rx(&args["self"]["confirm"]);
-    detector.contra = distiller::rx(&args["self"]["contra"]);
-    detector
+    detector.confirm = distiller::rx(&args["self"]["confirm"])?;
+    detector.contra = distiller::rx(&args["self"]["contra"])?;
+    Ok(detector)
 }
 fn distiller_method(op: &str, args: &Value) -> Result<Value, String> {
     let mut distiller: Distiller =
@@ -106,7 +106,7 @@ fn distiller_method(op: &str, args: &Value) -> Result<Value, String> {
             }
             "distiller._restates_forgotten" => json!(distiller.restates_forgotten(&input_spec)?),
             "distiller._ground" => json!(distiller.ground(&input_spec)?),
-            "distiller._build_fact" => distiller.build_fact(&input_spec)?.data(),
+            "distiller._build_fact" => distiller.build_fact(&input_spec)?.data()?,
             "distiller._frozen_view" => Distiller::frozen_view(&input_spec),
             "distiller._admit" => json!(distiller.admit(&mut input_spec)?),
             "distiller.save" => {
@@ -135,11 +135,11 @@ fn distiller_method(op: &str, args: &Value) -> Result<Value, String> {
                     &args["dg"],
                     strings(args, "files")?,
                 )?;
-                json!({"fact":fact.data(),"value":value})
+                json!({"fact":fact.data()?,"value":value})
             }
             _ => return Err(format!("unknown proposer operation: {op}")),
         };
-        Ok(json!({"self":data(&distiller),"value":value,"spec":input_spec}))
+        Ok(json!({"self":data(&distiller)?,"value":value,"spec":input_spec}))
     })();
     tape.into_inner().finish_result(result)
 }
@@ -186,12 +186,12 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
         )?,
         "distiller.proposer_view" => distiller::proposer_view(&args["dg"]),
         "distiller._rx" => json!(
-            distiller::rx(&args["pat"])
+            distiller::rx(&args["pat"])?
                 .as_ref()
-                .map(fancy_regex::Regex::as_str)
+                .map(|pattern| pattern.as_str())
         ),
         "distiller.regex_search" => json!(distiller::search(
-            &distiller::rx(&args["pattern"]),
+            &distiller::rx(&args["pattern"])?,
             text(args, "text")
         )?),
         "distiller.predicate" => json!(distiller::predicate(text(args, "name"), &args["dg"])),
@@ -208,19 +208,19 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
         "distiller._detector_fields_ok" => json!(distiller::detector_fields_ok(&args["det"])),
         "distiller._reparse_cmds" => json!(distiller::reparse_cmds(&args["dg"])),
         "distiller._forgotten_evidence" => json!(distiller::forgotten_evidence(&args["rec"])),
-        "detector.new" => Detector::new(&args["spec"], args.get("features").cloned()).data(),
-        "detector._lookup" => json!(detector(args).lookup(&args["name"], &args["dg"])?),
-        "detector._exercised" => json!(detector(args).exercised(&args["dg"])?),
-        "detector._fired" => json!(detector(args).fired(&args["dg"])?),
-        "detector.verdict" => json!(detector(args).verdict(&args["dg"])?),
+        "detector.new" => Detector::new(&args["spec"], args.get("features").cloned())?.data(),
+        "detector._lookup" => json!(detector(args)?.lookup(&args["name"], &args["dg"])?),
+        "detector._exercised" => json!(detector(args)?.exercised(&args["dg"])?),
+        "detector._fired" => json!(detector(args)?.fired(&args["dg"])?),
+        "detector.verdict" => json!(detector(args)?.verdict(&args["dg"])?),
         "extractor.new" => Extractor::new(&args["spec"])?.data(),
         "extractor.compute" => {
             let extractor = Extractor::new(&args["self"]["spec"])?;
             json!(extractor.compute(&commands(args, "cmds")?)?)
         }
         "extractor.to_dict" => args["self"]["spec"].clone(),
-        "proposed_fact.new" => Fact::new(&args["spec"])?.data(),
-        "proposed_fact.from_dict" => Fact::from_record(&args["d"])?.data(),
+        "proposed_fact.new" => Fact::new(&args["spec"])?.data()?,
+        "proposed_fact.from_dict" => Fact::from_record(&args["d"])?.data()?,
         "proposed_fact.state"
         | "proposed_fact.injectable"
         | "proposed_fact.firing_rate"
@@ -239,19 +239,19 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
                     strings(args, "files")?
                 )?),
             };
-            json!({"self":fact.data(),"value":value})
+            json!({"self":fact.data()?,"value":value})
         }
         "distiller.new" => data(&Distiller::new(
             text(args, "repo"),
             args["model"].as_str().unwrap_or("agent"),
             args["generic"].as_bool().unwrap_or(false),
-        )),
+        ))?,
         "distiller.load" => data(&Distiller::load(
             text(args, "repo"),
             Path::new(text(args, "root")),
             args["model"].as_str().unwrap_or("agent"),
             args["generic"].as_bool().unwrap_or(false),
-        )?),
+        )?)?,
         "distiller._path" => json!(Distiller::path(
             Path::new(text(args, "root")),
             text(args, "repo")

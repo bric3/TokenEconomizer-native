@@ -9,7 +9,7 @@ validation commands and the required order of work.
 
 The Apache-2.0 licence and upstream attribution are preserved.
 
-Build with Rust 1.89 or newer and a C compiler for bundled SQLite.
+Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2.
 
 The native CLI runs the implemented command services directly:
 

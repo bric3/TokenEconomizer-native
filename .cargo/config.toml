@@ -1,0 +1,3 @@
+[env]
+# Runtime bundles carry the matcher and do not require a system PCRE2 library.
+PCRE2_SYS_STATIC = "1"

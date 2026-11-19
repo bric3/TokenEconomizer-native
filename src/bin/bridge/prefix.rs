@@ -28,12 +28,19 @@ fn vocabulary(args: &Value) -> Result<Vocabulary, String> {
     }
 }
 
-fn layers_data(layers: &FactLayers) -> Value {
-    json!({"env":layers.env,"dist":layers.dist.as_ref().map(proposer_dispatch::data)})
+fn layers_data(layers: &FactLayers) -> Result<Value, String> {
+    let dist = layers
+        .dist
+        .as_ref()
+        .map(proposer_dispatch::data)
+        .transpose()?;
+    Ok(json!({"env":layers.env,"dist":dist}))
 }
 
-pub(super) fn prefix_data(prefix: &PrefixStage) -> Value {
-    json!({"results_root":prefix.results_root,"reason":prefix.reason,"distiller":layers_data(&prefix.distiller)})
+pub(super) fn prefix_data(prefix: &PrefixStage) -> Result<Value, String> {
+    Ok(
+        json!({"results_root":prefix.results_root,"reason":prefix.reason,"distiller":layers_data(&prefix.distiller)?}),
+    )
 }
 
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
@@ -45,7 +52,7 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
                 stage::saved_layers(repo, root, &vocabulary(args)?)?
                     .iter()
                     .map(layers_data)
-                    .collect::<Vec<_>>()
+                    .collect::<Result<Vec<_>, _>>()?
             ),
             "stage.forgotten_facts" => {
                 json!(stage::forgotten_facts(repo, root, &vocabulary(args)?)?)
@@ -107,7 +114,7 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
                 vocabulary(args)?,
                 &mut context,
             )?;
-            return Ok(json!({"self":prefix_data(&prefix),"propose_every":context.propose_every}));
+            return Ok(json!({"self":prefix_data(&prefix)?,"propose_every":context.propose_every}));
         }
         if op.starts_with("prefix.") {
             let mut prefix: PrefixStage =
@@ -124,7 +131,7 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
                 )?),
                 _ => return Err(format!("unknown prefix operation: {op}")),
             };
-            return Ok(json!({"self":prefix_data(&prefix),"value":value,"srow":srow}));
+            return Ok(json!({"self":prefix_data(&prefix)?,"value":value,"srow":srow}));
         }
         let mut layers: FactLayers =
             serde_json::from_value(args["self"].clone()).map_err(|e| e.to_string())?;
@@ -165,7 +172,7 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
             "layers.debug_row" => layers.debug_row(),
             _ => return Err(format!("unknown composition operation: {op}")),
         };
-        Ok(json!({"self":layers_data(&layers),"value":value}))
+        Ok(json!({"self":layers_data(&layers)?,"value":value}))
     })();
     Ok(Some(tape.into_inner().finish_result(result)?))
 }

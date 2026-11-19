@@ -6,6 +6,7 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -19,6 +20,21 @@ class ThirdPartyNotices {
   static boolean legal(Path path) {
     var name=path.getFileName().toString().toUpperCase(Locale.ROOT);
     return name.startsWith("LICENSE") || name.startsWith("LICENCE") || name.startsWith("COPYING") || name.startsWith("NOTICE") || name.startsWith("COPYRIGHT");
+  }
+  static void nativeHeaders(Path source,StringBuilder output)throws Exception {
+    var upstream=source.resolve("upstream");
+    if(!Files.isDirectory(upstream))return;
+    var headers=new LinkedHashMap<String,Path>();
+    var prefix=Pattern.compile("(?s)\\A\\s*((?:/\\*.*?\\*/\\s*)+)");
+    try(var paths=Files.walk(upstream)) {
+      for(var path:paths.filter(Files::isRegularFile).filter(path->path.toString().endsWith(".c")||path.toString().endsWith(".h")).sorted().toList()) {
+        var match=prefix.matcher(Files.readString(path));
+        if(!match.find())continue;
+        var header=match.group(1).strip();
+        if(header.contains("Copyright")&&(header.contains("Redistribution and use")||header.contains("Permission is hereby granted")))headers.putIfAbsent(header,path);
+      }
+    }
+    for(var entry:headers.entrySet())output.append("\n--- ").append(source.relativize(entry.getValue()).toString().replace('\\','/')).append(" (leading licence comments) ---\n").append(entry.getKey()).append('\n');
   }
   public static void main(String[] args) throws Exception {
     if(args.length>1 || args.length==1 && !args[0].equals("--check"))throw new IllegalArgumentException("usage: ThirdPartyNotices.java [--check]");
@@ -52,16 +68,19 @@ class ThirdPartyNotices {
         files.add(file);
       }
       var ordered=files.stream().distinct().sorted(Comparator.comparing(source::relativize)).toList();
+      if(ordered.isEmpty()&&Files.isRegularFile(source.resolve("AUTHORS"))&&Files.readString(source.resolve("AUTHORS")).contains("LICENSE:"))ordered=List.of(source.resolve("AUTHORS"));
       if(ordered.isEmpty())throw new IllegalStateException("No legal text found for "+id);
       text.append("\n===============================================================================\n").append(id).append("\nDeclared licence: ").append(field(manifest,"license")).append('\n');
       for(var file:ordered)text.append("\n--- ").append(source.relativize(file).toString().replace('\\','/')).append(" ---\n").append(Files.readString(file)).append('\n');
+      nativeHeaders(source,text);
       count++;
     }
     if(count==0)throw new IllegalStateException("No registry packages found in Cargo.lock");
     var output=root.resolve("src/package/THIRD-PARTY-NOTICES.txt");
+    var rendered=text.toString().replace("\r\n","\n");
     if(args.length==1) {
-      if(!Files.readString(output).contentEquals(text))throw new IllegalStateException("Third-party notices are stale; run jbang scripts/ThirdPartyNotices.java");
-    } else Files.writeString(output,text);
+      if(!Files.readString(output).equals(rendered))throw new IllegalStateException("Third-party notices are stale; run jbang scripts/ThirdPartyNotices.java");
+    } else Files.writeString(output,rendered);
     System.out.println("Verified legal texts for "+count+" locked registry crates"+(args.length==0?"; wrote "+root.relativize(output):""));
   }
 }

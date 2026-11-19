@@ -1,6 +1,7 @@
 mod detector;
 mod digest;
 mod prompt;
+mod regex;
 
 pub use detector::*;
 pub use digest::*;
@@ -261,7 +262,7 @@ impl Distiller {
             if Detector::new(
                 spec,
                 Some(digest.get("features").cloned().unwrap_or(json!({}))),
-            )
+            )?
             .verdict(digest)?
             .0
             .as_deref()
@@ -303,7 +304,7 @@ impl Distiller {
             if Detector::new(
                 &spec["detector"],
                 Some(digest.get("features").cloned().unwrap_or(json!({}))),
-            )
+            )?
             .verdict(digest)?
             .0
             .as_deref()
@@ -364,7 +365,7 @@ impl Distiller {
             return Ok((false, "revise-not-contradict-only".into()));
         }
         let contra = &spec["detector"]["contradict"];
-        if truthy(contra) && rx(contra).is_none() {
+        if truthy(contra) && rx(contra)?.is_none() {
             return Ok((false, "revise-bad-regex".into()));
         }
         if *contra == old.spec["detector"]["contradict"] {

@@ -1,4 +1,4 @@
-use fancy_regex::Regex;
+use super::regex::Pattern as Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Value, json};
 
@@ -8,12 +8,11 @@ use crate::{
     value::truthy,
 };
 
-pub fn rx(pattern: &Value) -> Option<Regex> {
-    // shortcut: Python-only flags such as (?a) are unmapped, finish regex compatibility before release.
-    pattern
-        .as_str()
-        .filter(|p| !p.is_empty())
-        .and_then(|p| Regex::new(p).ok())
+pub fn rx(pattern: &Value) -> Result<Option<Regex>, String> {
+    match pattern.as_str().filter(|p| !p.is_empty()) {
+        Some(pattern) => Regex::new(pattern),
+        None => Ok(None),
+    }
 }
 pub fn search(pattern: &Option<Regex>, text: &str) -> Result<bool, String> {
     pattern
@@ -50,19 +49,19 @@ pub struct Detector {
 }
 
 impl Detector {
-    pub fn new(spec: &Value, features: Option<Value>) -> Self {
-        Self {
+    pub fn new(spec: &Value, features: Option<Value>) -> Result<Self, String> {
+        Ok(Self {
             raw: spec.clone(),
             scope: spec.get("scope").cloned().unwrap_or(json!("")),
-            confirm: rx(&spec["confirm"]),
-            contra: rx(&spec["contradict"]),
+            confirm: rx(&spec["confirm"])?,
+            contra: rx(&spec["contradict"])?,
             fired: spec
                 .get("fired")
                 .filter(|v| truthy(v))
                 .cloned()
                 .unwrap_or(spec.get("scope").cloned().unwrap_or(Value::Null)),
             features,
-        }
+        })
     }
     pub fn lookup(&self, name: &Value, digest: &Value) -> Result<bool, String> {
         let Some(name) = name.as_str() else {
@@ -75,7 +74,7 @@ impl Detector {
             return Ok(value);
         }
         search(
-            &rx(&json!(name)),
+            &rx(&json!(name))?,
             digest["_cmd_blob"].as_str().unwrap_or(""),
         )
     }
@@ -130,7 +129,7 @@ impl Extractor {
                 .and_then(Value::as_str)
                 .unwrap_or("cmd_regex")
                 .into(),
-            rx: rx(&spec["pattern"]),
+            rx: rx(&spec["pattern"])?,
             spec: spec.clone(),
         })
     }
@@ -180,11 +179,14 @@ pub struct Fact {
     pub life: Lifecycle,
 }
 impl Fact {
-    pub fn data(&self) -> Value {
-        json!({"spec":self.spec,"life":self.life,"id":self.id(),"claim":self.claim(),"injection":self.injection(),"high":truthy(&self.spec["high_stakes"]),"detector":Detector::new(&self.spec["detector"],None).data()})
+    pub fn data(&self) -> Result<Value, String> {
+        Ok(
+            json!({"spec":self.spec,"life":self.life,"id":self.id(),"claim":self.claim(),"injection":self.injection(),"high":truthy(&self.spec["high_stakes"]),"detector":Detector::new(&self.spec["detector"],None)?.data()}),
+        )
     }
     pub fn new(spec: &Value) -> Result<Self, String> {
         let id = spec["id"].as_str().ok_or("expected fact id")?;
+        Detector::new(&spec["detector"], None)?;
         Ok(Self {
             spec: spec.clone(),
             life: Lifecycle::new(id.into(), truthy(&spec["high_stakes"]), true),
@@ -211,7 +213,7 @@ impl Fact {
         let verdict = Detector::new(
             &self.spec["detector"],
             Some(digest.get("features").cloned().unwrap_or(json!({}))),
-        )
+        )?
         .verdict(digest)?;
         self.life.update(
             now,
