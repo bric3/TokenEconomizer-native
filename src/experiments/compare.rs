@@ -8,7 +8,7 @@ use crate::{
     microskills::envfacts::EnvFactsDistiller,
     pricing,
     python_json::Node,
-    value::{number, python_repr, python_type, sum_floats, sum_numbers, truthy},
+    value::{Numeric, number, python_repr, python_type, sum_numbers, truthy},
 };
 use num_rational::BigRational;
 use num_traits::ToPrimitive;
@@ -215,7 +215,7 @@ pub fn cost(row: &Value) -> Result<Value> {
             return int_value(exact);
         }
     }
-    Ok(json!(execution + ledger::overhead(row)))
+    Ok(json!(execution + ledger::overhead_number(row).as_f64()))
 }
 fn sum(values: &[Value]) -> Result<Value> {
     if let Some(values) = values.iter().map(integer).collect::<Option<Vec<_>>>() {
@@ -224,7 +224,7 @@ fn sum(values: &[Value]) -> Result<Value> {
     for value in values {
         numeric(value)?;
     }
-    Ok(json!(sum_numbers(values)))
+    Ok(sum_numbers(values).json())
 }
 fn mean(values: &[Value]) -> Result<Value> {
     if let Some(integers) = values.iter().map(integer).collect::<Option<Vec<_>>>() {
@@ -472,7 +472,7 @@ fn run(
         .collect();
     let oh = pairs
         .iter()
-        .map(|id| ledger::overhead(find(&arm, id).unwrap()))
+        .map(|id| ledger::overhead_number(find(&arm, id).unwrap()))
         .collect::<Vec<_>>();
     stdout.push_str(&format!("\n== paired comparison over {} tasks ==\n  {:22} {:>12} {:>12} {:>9}\n  {:22} {br:12} {ar:12} {:+9}\n",pairs.len(),"","baseline","arm","delta","resolved",(ar as i64)-(br as i64)));
     let (bm, am) = (mean(&bc)?, mean(&ac)?);
@@ -535,7 +535,7 @@ fn run(
     ));
     stdout.push_str(&format!(
         "  mechanism overhead charged to the arm: {} eff tokens\n",
-        display(sum_floats(oh), 0, true, false, 0)
+        display(Numeric::sum(oh).as_f64(), 0, true, false, 0)
     ));
     stdout.push_str(&format!(
         "  resolve flips: lost {} {}  won {} {}\n",

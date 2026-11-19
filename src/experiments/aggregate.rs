@@ -296,7 +296,7 @@ pub fn collect(root: &Path, arms: &[String], output: &mut dyn Write) -> Result<V
                 ""
             };
             let eff = pricing::effective_tokens(&data, None).map_err(|e| e.to_string())?;
-            let overhead = ledger::overhead(&data);
+            let overhead = ledger::overhead_number(&data).as_f64();
             let exec_integer = if pricing::has_breakdown(&data) {
                 None
             } else {

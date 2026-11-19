@@ -724,10 +724,10 @@ complete while any runtime component delegates production behaviour to Python.
   Include Codex probe timeouts and version objects outside the tested JSON schemas,
   including non-finite numbers and custom numeric or string conversion methods.
 - Include CLI and ledger counts beyond i64 in the numeric parity audit.
-  Mixed ledger sums and paired-report totals now preserve integer prefixes and
-  follow CPython's float-summation transitions. Ledger results still use f64;
-  retain all-integer result types and audit execution/overhead totals across
-  session records with the remaining numeric codecs.
+  Mixed ledger sums, paired-report totals and session accounting now retain
+  integer or float results through aggregation. Integer outputs within i64/u64
+  keep their type. Extend numeric JSON results beyond that range and session
+  counters beyond i64 with the remaining numeric codecs.
 - Include `probe --sessions` integers outside i64 in that audit.
 - Include displayed tool counters in that audit, and audit CLI errors for malformed
   saved state and invalid encodings.
@@ -4059,6 +4059,47 @@ complete while any runtime component delegates production behaviour to Python.
   This shared iterator is part of the correctness port. Formal simplification
   and performance passes remain at 0/3 each; original-test conversion is pending.
 
+- Session accounting now retains integer and float totals across records through
+  the shared `Numeric` value. Execution costs and per-record overheads use the
+  same summation rules; an integer overhead keeps its type when the next record
+  is processed. Direct ledger and accounting overhead APIs also return integers
+  within JSON's i64/u64 range. Aggregation converts to floats at its existing
+  report boundary, while paired reports retain types through their overhead sum.
+  When both totals are integers, the overhead fraction rounds the exact ratio
+  after both sums and their addition, using the existing rational-number
+  dependency. Zero numerators use float division to retain a negative zero when
+  the total is negative.
+  The initial probe found 1,036 differences in 1,273 complete summaries. The
+  expanded matrix exposed seven signed-zero cases during the implementation.
+  All 1,724 final comparisons now pass, covering integer result types, mixed
+  sums, cancellation, large ratios, nested overhead sums, imported sessions,
+  overhead-only records and ignored records. Direct overhead APIs pass 3,170
+  comparisons. Paired reports pass 97 source comparisons and three standalone
+  checks, including overhead sums across tasks. Aggregation passes all 155
+  comparisons. The native CLI matches the source in six added text and JSON
+  status comparisons, alongside its existing command, fold and worker checks.
+  All 34 Rust tests, formatting, Clippy and debug/release builds pass. The
+  unchanged original suite passes with 1,561 passed and 30 skipped (92.59 seconds).
+  Both Linux builds pass 33 library tests and 28 scratch-container checks.
+  Relocated experiment bundles pass all 270 checks.
+  All 256 archived files still match the pinned tree, and all 104 locked crate
+  legal texts are verified. No dependency was added.
+  Logs are under `validation/results/`: `accounting-sum-before.log`,
+  `accounting-sum-zero-before.log`, `accounting-sum-probe.log`,
+  `accounting-sum-ledger.log`, `accounting-sum-compare.log`,
+  `accounting-sum-aggregate.log`, `accounting-sum-cli.log`,
+  `accounting-sum-rust-tests.log`, `accounting-sum-clippy.log`,
+  `accounting-sum-debug.log`, `accounting-sum-release.log`,
+  `accounting-sum-full.log`, `accounting-sum-full-calls.json`,
+  `accounting-sum-reference.log`, `accounting-sum-notices.log`,
+  `accounting-sum-container-build.log`, `accounting-sum-container-probe.log` and
+  `accounting-sum-bundle.log`.
+  JSON results outside i64/u64 still project to f64, and session counters retain
+  their i64 limit. Those limits and the remaining numeric codecs stay in the
+  production-parity audit. Native Windows execution remains unverified. Formal
+  simplification and performance passes remain at 0/3 each; original-test
+  conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -4287,6 +4328,7 @@ jbang validation/SidecallFailureProbe.java
 jbang validation/CleanupProbe.java
 jbang validation/ConfigNumberProbe.java
 jbang validation/LedgerSumProbe.java
+jbang validation/AccountingSumProbe.java
 jbang validation/RunnerProbe.java
 jbang validation/ToolcheckProbe.java
 jbang validation/DiscoveryProbe.java

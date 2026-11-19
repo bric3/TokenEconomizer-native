@@ -66,6 +66,16 @@ class CompareProbe {
         var data = "["+String.join(",",rows)+"]";
         compare(nativeCode, source, request("main", base, "\"baseline\":"+data+",\"arm\":"+data));
       }
+      for (var values : List.of(List.of("9007199254740993", "-9007199254740992", "0.0"),
+          List.of("18446744073709551615", "-9223372036854775808", "-9223372036854775808", "3"))) {
+        var baseline = new java.util.ArrayList<String>();
+        var arm = new java.util.ArrayList<String>();
+        for (int i=0;i<values.size();i++) {
+          baseline.add(row("overhead-"+i, "1e20", ""));
+          arm.add(row("overhead-"+i, "1e20", "\"optimizer_tokens\":"+values.get(i)));
+        }
+        compare(nativeCode, source, request("main", base, "\"baseline\":["+String.join(",",baseline)+"],\"arm\":["+String.join(",",arm)+"]"));
+      }
       for (var row : List.of("{}", "{\"tokens_total\":10}", "{\"tokens_total\":10.0}", "{\"tokens_total\":true,\"optimizer_tokens\":4}", "{\"tokens_total\":100,\"optimizer_tokens\":3.5}", "{\"input_tokens\":10,\"output_tokens\":4,\"model\":\"claude-sonnet-4-5\"}", "{\"input_tokens\":\"bad\"}", "{\"model\":\"unknown-model\",\"input_tokens\":1}"))
         compare(nativeCode, source, request("cost", base, "\"row\":" + row));
       for (var rows : List.of("[]", "[{}]", "[null]", "[1]", "[{\"_raw\":\"{\"}]", "[" + row("x", "1", "\"_config\":{\"version\":1}") + "," + row("x", "2", "\"_config\":null") + "]", "[" + row("x", "1", "\"_config\":{\"version\":1}") + "," + row("x", "2", "\"_config\":\"{\"") + "]"))

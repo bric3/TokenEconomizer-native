@@ -37,6 +37,10 @@ class LedgerSumProbe {
         List.of("2147483647", "1", "1e20", "3.14", "-1e20", "0"),
         List.of("2147483648", "1e20", "3.14", "-1e20", "0", "0"),
         List.of("0.0", "1e100", "1.0", "-1e100", "0", "0"))) row(values);
+    for (var values : List.of(List.<String>of(), List.of("0"), List.of("1"), List.of("true", "false"),
+        List.of("9007199254740993"), List.of("18446744073709551615"), List.of("-9223372036854775808"),
+        List.of("18446744073709551615", "-9223372036854775808", "-9223372036854775808"),
+        List.of("9007199254740993", "1", "-9007199254740992"))) row(values);
     int failures=0;
     var checkout=Path.of("").toAbsolutePath();
     try (var nativeCode=new AdapterProbe.Client(checkout,true,"ledger_sum_host.py");
@@ -55,6 +59,6 @@ class LedgerSumProbe {
       }
     }
     if(failures!=0)throw new AssertionError(failures+" mismatches in "+CASES.size()+" mixed ledger sum cases");
-    System.out.println("Ledger and accounting overheads match source floats in "+CASES.size()+" mixed numeric cases; integer prefixes, cancellation and machine-integer overflow transitions passed");
+    System.out.println("Ledger and accounting overheads match source numbers in "+CASES.size()+" cases; integer result types, mixed sums, cancellation and machine-integer overflow transitions passed");
   }
 }

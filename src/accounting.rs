@@ -1,9 +1,11 @@
+use num_rational::BigRational;
+use num_traits::ToPrimitive;
 use serde_json::{Value, json};
 
 use crate::{
     ledger,
     pricing::{self, PricingError, Weights},
-    value::{integer, number, truthy},
+    value::{Numeric, integer, truthy},
 };
 
 pub const FALLBACK_WEIGHTS: Weights = Weights {
@@ -32,39 +34,41 @@ pub fn effective(usage: &Value) -> Result<(Option<f64>, &'static str), PricingEr
     ))
 }
 
-pub fn overhead_total(overhead: &Value) -> f64 {
+pub fn overhead_total(overhead: &Value) -> Value {
     ledger::overhead(overhead)
 }
 
 pub fn summarize(records: &[Value]) -> Result<Value, String> {
-    let mut sessions = 0;
-    let mut imported_sessions = 0;
-    let mut priced_sessions = 0;
-    let mut exec_total = 0.0;
-    let mut oh_total = 0.0;
+    let active = records
+        .iter()
+        .filter(|r| r.is_object() && !truthy(&r["imported"]));
+    let imported_sessions = records
+        .iter()
+        .filter(|r| r.is_object() && r["kind"] == "session" && truthy(&r["imported"]))
+        .count();
+    let exec_total = Numeric::sum(
+        active
+            .clone()
+            .filter(|r| r["kind"] == "session")
+            .filter_map(|r| Numeric::from_value(&r["effective_tokens"])),
+    );
+    let oh_total = Numeric::sum(
+        active
+            .clone()
+            .filter(|r| r["kind"] == "session" || r["kind"] == "overhead")
+            .map(|r| ledger::overhead_number(&r["overhead"])),
+    );
+    let mut sessions = 0usize;
+    let mut priced_sessions = 0usize;
     let mut requests = 0i64;
     let mut nudges = 0i64;
     let mut aborts = 0i64;
     let mut turns = 0i64;
-    let mut injected_sessions = 0;
-    for record in records.iter().filter(|r| r.is_object()) {
-        let session = record["kind"] == "session";
-        if truthy(&record["imported"]) {
-            if session {
-                imported_sessions += 1;
-            }
-            continue;
-        }
-        if session || record["kind"] == "overhead" {
-            oh_total += overhead_total(&record["overhead"]);
-        }
-        if !session {
-            continue;
-        }
+    let mut injected_sessions = 0usize;
+    for record in active.filter(|r| r["kind"] == "session") {
         sessions += 1;
-        if let Some(effective) = number(&record["effective_tokens"]) {
+        if Numeric::from_value(&record["effective_tokens"]).is_some() {
             priced_sessions += 1;
-            exec_total += effective;
         }
         let add = |total: i64, key: &str| {
             let value = &record[key];
@@ -90,11 +94,29 @@ pub fn summarize(records: &[Value]) -> Result<Value, String> {
             injected_sessions += 1;
         }
     }
-    let total = exec_total + oh_total;
+    let total = match (exec_total, oh_total) {
+        (Numeric::Integer(execution), Numeric::Integer(overhead)) => {
+            Numeric::Integer(execution + overhead)
+        }
+        _ => Numeric::Float(exec_total.as_f64() + oh_total.as_f64()),
+    };
+    let fraction = if total.as_f64() == 0.0 {
+        0.0
+    } else {
+        match (oh_total, total) {
+            // Round the exact integer ratio once; float division preserves zero's sign.
+            (Numeric::Integer(overhead), Numeric::Integer(total)) if overhead != 0 => {
+                BigRational::new(overhead.into(), total.into())
+                    .to_f64()
+                    .unwrap()
+            }
+            _ => oh_total.as_f64() / total.as_f64(),
+        }
+    };
     Ok(
         json!({ "sessions": sessions, "imported_sessions": imported_sessions,
-        "priced_sessions": priced_sessions, "effective_tokens": exec_total,
-        "overhead_tokens": oh_total, "overhead_frac": if total != 0.0 { oh_total / total } else { 0.0 },
+        "priced_sessions": priced_sessions, "effective_tokens": exec_total.json(),
+        "overhead_tokens": oh_total.json(), "overhead_frac": fraction,
         "requests": requests, "nudges": nudges, "aborts": aborts, "turns": turns,
         "injected_sessions": injected_sessions }),
     )

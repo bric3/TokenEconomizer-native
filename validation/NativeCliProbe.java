@@ -72,6 +72,30 @@ class NativeCliProbe {
     var result=process(root,env,List.of(command.toString(),"--run-spawn-spec",spec.toString()));
     require(result.code()==0 && !Files.exists(spec) && Files.readString(log).startsWith("usage: te"),result.toString());
   }
+  static void accounting(Path checkout,Path root,Map<String,String> env,Path base) throws Exception {
+    var ledger=base.resolve("ledger.jsonl");
+    var previous=Files.exists(ledger)?Files.readAllBytes(ledger):null;
+    try {
+      for(var records:List.of("""
+          {"kind":"session","effective_tokens":9007199254740993}
+          {"kind":"session","effective_tokens":-9007199254740992}
+          {"kind":"session","effective_tokens":0.0}
+          """, """
+          {"kind":"session","effective_tokens":9007199254740993,"overhead":{"optimizer_tokens":1}}
+          """, """
+          {"kind":"session","effective_tokens":1,"overhead":{"optimizer_tokens":9007199254740993}}
+          {"kind":"overhead","overhead":{"optimizer_tokens":-9007199254740992}}
+          {"kind":"overhead","overhead":{"optimizer_tokens":9007199254740993,"untool_classify_tokens":-9007199254740992,"untool_judge_tokens":0.0}}
+          """)) {
+        Files.writeString(ledger,records);
+        compare(checkout,root,env,0,"claude","status");
+        compare(checkout,root,env,0,"claude","status","--json");
+      }
+    } finally {
+      if(previous==null) Files.deleteIfExists(ledger); else Files.write(ledger,previous);
+    }
+    System.out.println("Native status matches source in six human-readable and JSON session accounting comparisons");
+  }
   public static void main(String[] args) throws Exception {
     var checkout=Path.of("").toAbsolutePath();
     var root=Files.createTempDirectory(checkout.resolve("validation/results"),"native-cli-");
@@ -120,6 +144,7 @@ class NativeCliProbe {
       var statePath=Pattern.compile("\"state\"\\s*:\\s*\"([^\"]+)\"").matcher(status.out());
       require(statePath.find(),status.toString());
       var base=Path.of(statePath.group(1));
+      accounting(checkout,root,env,base);
       Files.createDirectories(base.resolve("sessions"));
       var transcript=root.resolve("session.jsonl");
       Files.writeString(transcript,"");

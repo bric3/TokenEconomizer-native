@@ -278,34 +278,70 @@ pub(crate) fn sum_floats(values: impl IntoIterator<Item = f64>) -> f64 {
     }
 }
 
-// Sum numeric JSON values on a floating-point output boundary; other values contribute zero.
-pub(crate) fn sum_numbers<'a>(values: impl IntoIterator<Item = &'a Value>) -> f64 {
-    let mut values = values.into_iter();
-    let (mut integer, mut fast) = (0i128, true);
-    while let Some(value) = values.next() {
-        if let Some(value) = value.as_number().filter(|n| n.is_f64()) {
-            // Python adds the first float normally, then compensates only its fast sum.
-            let first = integer as f64 + value.as_f64().unwrap();
-            let rest = values.map(|value| number(value).unwrap_or(0.0));
-            return if fast {
-                sum_floats(std::iter::once(first).chain(rest))
-            } else {
-                rest.fold(first, |total, value| total + value)
-            };
-        }
-        let next = match value {
-            Value::Bool(value) => i128::from(*value),
+#[derive(Clone, Copy)]
+pub(crate) enum Numeric {
+    Integer(i128),
+    Float(f64),
+}
+impl Numeric {
+    pub(crate) fn from_value(value: &Value) -> Option<Self> {
+        match value {
+            Value::Bool(value) => Some(Self::Integer(i128::from(*value))),
             value => value
                 .as_i64()
                 .map(i128::from)
                 .or_else(|| value.as_u64().map(i128::from))
-                .unwrap_or(0),
-        };
-        // Python leaves its fast integer loop after C-integer overflow, even if a later sum fits.
-        fast &= libc::c_long::try_from(next).is_ok() && isize::try_from(integer + next).is_ok();
-        integer += next;
+                .map(Self::Integer)
+                .or_else(|| value.as_f64().map(Self::Float)),
+        }
     }
-    integer as f64
+    pub(crate) fn as_f64(self) -> f64 {
+        match self {
+            Self::Integer(value) => value as f64,
+            Self::Float(value) => value,
+        }
+    }
+    pub(crate) fn json(self) -> Value {
+        match self {
+            Self::Integer(value) => serde_json::Number::from_i128(value)
+                .map(Value::Number)
+                // shortcut: integers outside JSON's i64/u64 range use f64, widen the numeric codec.
+                .unwrap_or_else(|| Value::from(value as f64)),
+            Self::Float(value) => Value::from(value),
+        }
+    }
+    pub(crate) fn sum(values: impl IntoIterator<Item = Self>) -> Self {
+        let mut values = values.into_iter();
+        let (mut integer, mut fast) = (0i128, true);
+        while let Some(value) = values.next() {
+            let next = match value {
+                Self::Float(value) => {
+                    // Python adds the first float normally, then compensates only its fast sum.
+                    let first = integer as f64 + value;
+                    let rest = values.map(Self::as_f64);
+                    return Self::Float(if fast {
+                        sum_floats(std::iter::once(first).chain(rest))
+                    } else {
+                        rest.fold(first, |total, value| total + value)
+                    });
+                }
+                Self::Integer(value) => value,
+            };
+            // Python leaves its fast integer loop after C-integer overflow, even if a later sum fits.
+            fast &= libc::c_long::try_from(next).is_ok() && isize::try_from(integer + next).is_ok();
+            integer += next;
+        }
+        Self::Integer(integer)
+    }
+}
+
+// Sum JSON numbers and booleans; other values contribute zero.
+pub(crate) fn sum_numbers<'a>(values: impl IntoIterator<Item = &'a Value>) -> Numeric {
+    Numeric::sum(
+        values
+            .into_iter()
+            .map(|value| Numeric::from_value(value).unwrap_or(Numeric::Integer(0))),
+    )
 }
 
 pub fn count(value: &Value, field: &str) -> Result<f64, String> {
