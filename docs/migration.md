@@ -30,6 +30,10 @@ complete while any runtime component delegates production behaviour to Python.
 
 ## Status
 
+- Current phase: simplification pass 1 of 3 is complete. The unchanged original
+  suite passes; the remaining parity and platform audits below stay open through
+  final verification. Performance passes and original-test conversion follow
+  the three simplification passes.
 - Git initialised on `main`.
 - Upstream archived at the revision recorded in `reference/revision.txt`.
 - Python test environment: `.venv`, pytest 9.2.0.
@@ -825,7 +829,7 @@ complete while any runtime component delegates production behaviour to Python.
   coordination and the offline stub runner are native. The standalone benchmark
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
-- Simplification passes: 0 of 3. Performance passes: 0 of 3.
+- Simplification passes: 1 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
 
 ## Verified milestones
@@ -4138,6 +4142,21 @@ complete while any runtime component delegates production behaviour to Python.
   Integer digit limits, surrogate and nesting support, bounded arithmetic in
   consumers and native Windows execution remain open. Formal simplification
   and performance passes remain at 0/3 each; original-test conversion is pending.
+
+- Simplification pass 1 removes the configuration-only `SettingValue` enum.
+  Configuration setters accept `serde_json::Value` directly, including non-finite
+  floats supported by the shared codec. Numeric coercion stays with configuration;
+  scalar text, representations and type names use the shared value helpers.
+  The bridge and validation adapter pass non-finite values through ordinary JSON,
+  removing the separate string field and float variant. The three code files
+  lose 76 lines overall. No original test was changed or converted.
+  All 40 Rust tests, formatting, Clippy and the debug build pass. The unchanged
+  original suite passes with 1,561 passed and 30 skipped (84.92 seconds).
+  Configuration passes all 9,837 numeric cases and 244 persistence checks;
+  file reads and setting text pass all 616 codec comparisons. Logs are under
+  `validation/results/simplification-1-*`.
+  Simplification passes are now 1/3; performance passes remain 0/3 and original
+  test conversion is pending. The remaining parity and platform audits stay open.
 
 ## Dependencies
 

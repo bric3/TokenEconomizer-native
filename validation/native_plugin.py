@@ -421,8 +421,6 @@ def wrap(original, operation):
             if operation == "paths.repo_state_dir":
                 arguments["repo"] = dataclasses.asdict(arguments["repo"])
         if operation.startswith("live_config."):
-            if "value" in arguments and isinstance(arguments["value"], float) and not math.isfinite(arguments["value"]):
-                arguments["nonfinite"], arguments["value"] = str(arguments["value"]), None
             if operation == "live_config._old_names_first":
                 arguments["items"] = list(arguments["items"])
         obj = arguments.get("self")

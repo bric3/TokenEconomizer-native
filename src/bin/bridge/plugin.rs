@@ -2,7 +2,7 @@ use std::path::Path;
 
 use serde_json::{Map, Value, json};
 use tokeneconomizer::plugin::{
-    config::{self, LiveConfig, SettingValue},
+    config::{self, LiveConfig},
     paths::{self, RepoId},
 };
 #[path = "live_adapter.rs"]
@@ -46,16 +46,6 @@ fn object(value: &Value) -> Result<Map<String, Value>, String> {
         .as_object()
         .cloned()
         .ok_or_else(|| "expected object".into())
-}
-fn setting(args: &Value) -> Result<SettingValue, String> {
-    if let Some(value) = args["nonfinite"].as_str() {
-        value
-            .parse::<f64>()
-            .map(SettingValue::Float)
-            .map_err(|e| e.to_string())
-    } else {
-        Ok(SettingValue::Json(args["value"].clone()))
-    }
 }
 
 fn paths_dispatch(op: &str, args: &Value) -> Result<Value, String> {
@@ -240,11 +230,15 @@ fn config_dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
                 serde_json::from_value(args["self"].clone()).map_err(|e| e.to_string())?;
             let value = match op {
                 "live_config.set" => {
-                    json!(cfg.set(text(args, "key"), setting(args)?, text(args, "source")))
+                    json!(cfg.set(
+                        text(args, "key"),
+                        args["value"].clone(),
+                        text(args, "source")
+                    ))
                 }
                 "live_config._set_threshold" => json!(cfg.set_threshold(
                     text(args, "name"),
-                    setting(args)?,
+                    args["value"].clone(),
                     text(args, "source")
                 )),
                 "live_config.as_dict" => cfg.as_dict(),

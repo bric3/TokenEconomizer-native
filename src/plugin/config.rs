@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 use crate::value::{
-    decimal_integer, json_pretty, normalize_decimal_digits, number, python_repr, scalar_text,
-    truthy,
+    decimal_integer, json_pretty, normalize_decimal_digits, number, python_repr, python_type,
+    scalar_text, truthy,
 };
 
 pub const MICROSKILLS: &[&str] = &["off", "envfacts", "envfacts+distiller", "distiller"];
@@ -169,18 +169,6 @@ fn tuple(values: &[&str]) -> String {
             .join(", ")
     )
 }
-fn type_name(value: &Value) -> &'static str {
-    match value {
-        Value::Null => "NoneType",
-        Value::Array(_) => "list",
-        Value::Object(_) => "dict",
-        Value::Bool(_) => "bool",
-        Value::String(_) => "str",
-        Value::Number(n) if n.is_f64() => "float",
-        _ => "int",
-    }
-}
-
 fn numeric_text(value: &str) -> Option<String> {
     let chars: Vec<_> = normalize_decimal_digits(value.trim()).chars().collect();
     for (index, character) in chars.iter().enumerate() {
@@ -196,95 +184,46 @@ fn numeric_text(value: &str) -> Option<String> {
     Some(chars.into_iter().filter(|c| *c != '_').collect())
 }
 
-/// Floating input includes non-finite numbers which JSON cannot represent.
-pub enum SettingValue {
-    Json(Value),
-    Float(f64),
-}
-impl From<Value> for SettingValue {
-    fn from(value: Value) -> Self {
-        Self::Json(value)
-    }
-}
-impl From<f64> for SettingValue {
-    fn from(value: f64) -> Self {
-        Self::Float(value)
-    }
-}
-impl SettingValue {
-    fn json(&self) -> Option<&Value> {
-        match self {
-            Self::Json(v) => Some(v),
-            _ => None,
-        }
-    }
-    fn is_bool(&self) -> bool {
-        self.json().is_some_and(Value::is_boolean)
-    }
-    fn text(&self) -> String {
-        match self {
-            Self::Json(value) => scalar_text(value),
-            Self::Float(n) if n.is_nan() => "nan".into(),
-            Self::Float(n) if n.is_infinite() => {
-                if n.is_sign_negative() { "-inf" } else { "inf" }.into()
-            }
-            Self::Float(n) => format!("{n:?}"),
-        }
-    }
-    fn repr(&self) -> String {
-        match self {
-            Self::Json(v) => python_repr(v),
-            _ => self.text(),
-        }
-    }
-    fn float(&self) -> Result<f64, String> {
-        match self {
-            Self::Float(n) => Ok(*n),
-            Self::Json(Value::String(s)) => numeric_text(s)
-                .and_then(|s| s.parse::<f64>().ok())
-                .ok_or_else(|| {
-                    format!(
-                        "could not convert string to float: {}",
-                        python_repr(&json!(s))
-                    )
-                }),
-            Self::Json(v) => number(v).ok_or_else(|| {
+fn setting_float(value: &Value) -> Result<f64, String> {
+    match value {
+        Value::String(s) => numeric_text(s)
+            .and_then(|s| s.parse::<f64>().ok())
+            .ok_or_else(|| {
                 format!(
-                    "float() argument must be a string or a real number, not '{}'",
-                    type_name(v)
+                    "could not convert string to float: {}",
+                    python_repr(&json!(s))
                 )
             }),
-        }
+        v => number(v).ok_or_else(|| {
+            format!(
+                "float() argument must be a string or a real number, not '{}'",
+                python_type(v)
+            )
+        }),
     }
-    fn is_float(&self) -> bool {
-        matches!(self, Self::Float(_))
-            || self
-                .json()
-                .is_some_and(|v| v.as_number().is_some_and(|n| n.is_f64()))
+}
+
+fn setting_integer(value: &Value) -> Result<i64, String> {
+    // shortcut: configuration integers use i64, widen them in the numeric parity audit.
+    if let Some(n) = value.as_i64() {
+        return Ok(n);
     }
-    fn integer(&self) -> Result<i64, String> {
-        // shortcut: configuration integers use i64, widen them in the numeric parity audit.
-        if let Some(n) = self.json().and_then(Value::as_i64) {
-            return Ok(n);
-        }
-        if let Some(Value::String(s)) = self.json() {
-            decimal_integer(s)
-                .and_then(|s| s.parse::<i64>().ok())
-                .ok_or_else(|| {
-                    format!(
-                        "invalid literal for int() with base 10: {}",
-                        python_repr(&json!(s))
-                    )
-                })
-        } else if let Some(value @ (Value::Null | Value::Array(_) | Value::Object(_))) = self.json()
-        {
-            Err(format!(
-                "int() argument must be a string, a bytes-like object or a real number, not '{}'",
-                type_name(value)
-            ))
-        } else {
-            self.float().map(|n| n as i64)
-        }
+    if let Value::String(s) = value {
+        decimal_integer(s)
+            .and_then(|s| s.parse::<i64>().ok())
+            .ok_or_else(|| {
+                format!(
+                    "invalid literal for int() with base 10: {}",
+                    python_repr(&json!(s))
+                )
+            })
+    } else if matches!(value, Value::Null | Value::Array(_) | Value::Object(_)) {
+        Err(format!(
+            "int() argument must be a string, a bytes-like object or a real number, not '{}'",
+            python_type(value)
+        ))
+    } else {
+        setting_float(value).map(|n| n as i64)
     }
 }
 
@@ -316,8 +255,7 @@ impl LiveConfig {
         Value::Object(self.values.clone())
     }
 
-    pub fn set(&mut self, key: &str, value: impl Into<SettingValue>, source: &str) -> bool {
-        let mut value = value.into();
+    pub fn set(&mut self, key: &str, mut value: Value, source: &str) -> bool {
         if let Some(name) = threshold_name(key) {
             return self.set_threshold(name, value, source);
         }
@@ -333,7 +271,7 @@ impl LiveConfig {
             return false;
         }
         if key == "loopguard_thresholds" {
-            let Some(values) = value.json().and_then(Value::as_object) else {
+            let Some(values) = value.as_object() else {
                 self.warnings
                     .push(format!("{source}: loopguard_thresholds must be an object"));
                 return false;
@@ -352,28 +290,27 @@ impl LiveConfig {
             _ => None,
         };
         if let Some(on) = on
-            && value.json().is_some_and(|v| {
-                v.is_string() || v.is_boolean() || v.as_number().is_some_and(|n| !n.is_f64())
-            })
+            && (value.is_string()
+                || value.is_boolean()
+                || value.as_number().is_some_and(|n| !n.is_f64()))
         {
-            let word = value.text().trim().to_lowercase();
+            let word = scalar_text(&value).trim().to_lowercase();
             if ["on", "true", "yes", "1", "enable", "enabled"].contains(&word.as_str()) {
-                value = SettingValue::Json(json!(on));
+                value = json!(on);
             } else if ["off", "false", "no", "0", "disable", "disabled"].contains(&word.as_str()) {
-                value = SettingValue::Json(json!("off"));
+                value = json!("off");
             } else if key == "loopguard" && word == "guard" {
-                value = SettingValue::Json(json!("stop"));
+                value = json!("stop");
             }
         }
         let current = self.values.get(&key).unwrap_or(&Value::Null);
         let coerce = || -> Result<Value, String> {
             if current.is_array() {
-                let items: Vec<String> =
-                    if let Some(values) = value.json().and_then(Value::as_array) {
-                        values.iter().map(scalar_text).collect()
-                    } else {
-                        value.text().split(',').map(String::from).collect()
-                    };
+                let items: Vec<String> = if let Some(values) = value.as_array() {
+                    values.iter().map(scalar_text).collect()
+                } else {
+                    scalar_text(&value).split(',').map(String::from).collect()
+                };
                 return Ok(json!(
                     items
                         .iter()
@@ -383,33 +320,34 @@ impl LiveConfig {
                 ));
             }
             if current.as_number().is_some_and(|n| n.is_f64()) {
-                if value.is_bool() {
+                if value.is_boolean() {
                     return Err("not a number".into());
                 }
-                let n = value.float()?;
+                let n = setting_float(&value)?;
                 if !(0.0..=1.0).contains(&n) {
                     return Err("must be between 0 and 1".into());
                 }
                 return Ok(json!(n));
             }
             if current.is_boolean() {
-                return Ok(json!(if value.is_bool() {
-                    value.json().unwrap().as_bool().unwrap()
+                return Ok(json!(if value.is_boolean() {
+                    value.as_bool().unwrap()
                 } else {
                     ["1", "true", "yes", "on"]
-                        .contains(&value.text().trim().to_lowercase().as_str())
+                        .contains(&scalar_text(&value).trim().to_lowercase().as_str())
                 }));
             }
             if current.is_number() {
-                if value.is_bool() {
+                if value.is_boolean() {
                     return Err("not a number".into());
                 }
-                if value.is_float()
-                    && (!value.float()?.is_finite() || value.float()?.fract() != 0.0)
+                if value.as_number().is_some_and(|n| n.is_f64())
+                    && (!setting_float(&value)?.is_finite()
+                        || setting_float(&value)?.fract() != 0.0)
                 {
                     return Err("must be a whole number".into());
                 }
-                let n = value.integer()?;
+                let n = setting_integer(&value)?;
                 let min = if key == "toolprune_quiet_minutes" {
                     0
                 } else {
@@ -420,14 +358,14 @@ impl LiveConfig {
                 }
                 return Ok(json!(n));
             }
-            Ok(json!(value.text().trim()))
+            Ok(json!(scalar_text(&value).trim()))
         };
         let converted = match coerce() {
             Ok(value) => value,
             Err(error) => {
                 self.warnings.push(format!(
                     "{source}: {key}={} rejected ({error})",
-                    value.repr()
+                    python_repr(&value)
                 ));
                 return false;
             }
@@ -463,13 +401,7 @@ impl LiveConfig {
         true
     }
 
-    pub fn set_threshold(
-        &mut self,
-        name: &str,
-        value: impl Into<SettingValue>,
-        source: &str,
-    ) -> bool {
-        let value = value.into();
+    pub fn set_threshold(&mut self, name: &str, value: Value, source: &str) -> bool {
         let Some(spec) = LOOPGUARD_KEYS.iter().find(|s| s.name == name) else {
             self.warnings.push(format!(
                 "{source}: unknown loopguard threshold {} (one of {})",
@@ -483,10 +415,10 @@ impl LiveConfig {
             return false;
         };
         let coerce = || -> Result<f64, String> {
-            if value.is_bool() {
+            if value.is_boolean() {
                 return Err("not a number".into());
             }
-            let n = value.float()?;
+            let n = setting_float(&value)?;
             if !n.is_finite() {
                 return Err("must be finite".into());
             }
@@ -500,7 +432,7 @@ impl LiveConfig {
             Err(error) => {
                 self.warnings.push(format!(
                     "{source}: loopguard.{name}={} rejected ({error})",
-                    value.repr()
+                    python_repr(&value)
                 ));
                 return false;
             }
