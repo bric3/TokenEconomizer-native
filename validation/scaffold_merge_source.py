@@ -7,13 +7,17 @@ import subprocess
 import sys
 
 ROOT=Path(__file__).resolve().parents[1]
-sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
-from te_bench.baselines.base import ScaffoldContext
 native="--native" in sys.argv
-if native:
-    from te_bench.baselines import base
-    from native_experiment_providers import install
-    install(scaffold_module=base)
+if "--sdk" in sys.argv:
+    from standalone_scaffolds import base
+    ScaffoldContext=base.ScaffoldContext
+else:
+    sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+    from te_bench.baselines.base import ScaffoldContext
+    if native:
+        from te_bench.baselines import base
+        from native_experiment_providers import install
+        install(scaffold_module=base)
 
 for line in sys.stdin:
     request=json.loads(line);directory=Path(request["directory"]);captured=directory/("native-merge.sh" if native else "source-merge.py");completed=[]

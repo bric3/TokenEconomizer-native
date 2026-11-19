@@ -31,6 +31,8 @@ The SDK also includes the shared object/I/O binding and provider routing. Rust
 supplies credential names and endpoint defaults and validates model pricing.
 Optimizer bindings cover all three agents, endpoint preflights, context and logging,
 Copilot discovery, and sealed Copilot and Codex invocation builders.
+Scaffold bindings include the shared profile/context classes, RTK, Serena, repo-map
+and their registry. Rust supplies their metadata, selects scaffolds and drives setup.
 Bindings for the built-in SWE-bench and WebBench harnesses remain pending.
 External agents, the official grader SDK, aider and Node remain caller-provided
 dependencies where the selected experiment uses them.

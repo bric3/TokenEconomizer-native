@@ -11,7 +11,7 @@ class RtkScaffoldProbe {
   static String q(Object value){return ParserProbe.q(value);}
   public static void main(String[] args)throws Exception {
     WebContractProbe.artifacts=Files.createTempDirectory(Path.of("validation/results"),"rtk-scaffold-").toAbsolutePath();boolean passed=false;
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"scaffold_rtk_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"scaffold_rtk_host.py")) {
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"scaffold_rtk_host.py",args.length==1&&args[0].equals("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"scaffold_rtk_host.py")) {
       for(var operation:List.of("cache","bin_path","preflight","_hook_binary","_claude_hook","_copilot_hook_config","stage_host_binary","_codex_instructions","_install_copilot_hook","_probe_hook_rewrites","setup")) {
         var base="\"operation\":"+q(operation);
         WebContractProbe.compare(nativeCode,source,base);

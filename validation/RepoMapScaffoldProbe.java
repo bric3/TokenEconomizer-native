@@ -12,7 +12,7 @@ class RepoMapScaffoldProbe {
   static String q(Object value){return ParserProbe.q(value);}
   public static void main(String[] args)throws Exception {
     WebContractProbe.artifacts=Files.createTempDirectory(Path.of("validation/results"),"repomap-scaffold-").toAbsolutePath();boolean passed=false;
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"scaffold_repomap_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"scaffold_repomap_host.py")) {
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"scaffold_repomap_host.py",args.length==1&&args[0].equals("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"scaffold_repomap_host.py")) {
       for(var operation:List.of("tokens","idents","preflight","fetch","generate","setup")) {
         var base="\"operation\":"+q(operation);
         WebContractProbe.compare(nativeCode,source,base);

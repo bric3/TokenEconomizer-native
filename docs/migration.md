@@ -762,6 +762,7 @@ complete while any runtime component delegates production behaviour to Python.
   The shared object/I/O binding and provider routing namespace are packaged too.
   Optimizer calls, preflights, logging, Copilot discovery and sealed Copilot/Codex
   invocation builders also have packaged bindings.
+  Shared scaffold classes, RTK, Serena, repo-map and their registry are packaged too.
   Built-in harness bindings still need to replace their validation bindings.
   Process and SDK calls retain Python I/O bindings.
 - Benchmark driver runner and dataset selection, workload and task filtering,
@@ -2931,6 +2932,27 @@ complete while any runtime component delegates production behaviour to Python.
   Formal simplification and performance passes remain at 0/3 each; final test
   conversion is pending.
 
+- The SDK now ships shared scaffold classes, RTK, Serena, repo-map and their registry.
+  Its 33 bindings preserve caller-owned profiles, contexts, callbacks, subclass
+  dispatch, static/class methods and retained generators. Rust supplies pinned
+  metadata and the companion repo-map generator path; arm selection reuses the
+  native arm registry. Setup, archive filtering and cleanup use the existing Rust
+  policies through the shared object/I/O binding.
+  Five standalone probe groups pass 2,725 source comparisons: 496 shared-class,
+  185 merge-staging, 426 Serena, 780 RTK, 704 repo-map and 134 registry cases.
+  The same probes pass through the original API bindings. Coverage includes actual
+  merge processes, archives, files, callbacks and offline generator processes;
+  no tools are downloaded. The bundle passes 161 checks with 12 SDK files and 31
+  payload hashes. Its relocated SDK check selects real scaffold classes and writes
+  instruction and MCP files while rejecting reference imports.
+  The unchanged upstream suite passes with 1,561 passed and 30 skipped (73.47
+  seconds), including the installed-opencode loopback fixture. All 24 Rust checks,
+  debug/release builds, Clippy and the 256-file reference check pass. IDE inspections
+  remain unavailable because this checkout is not open in the IDE. Windows, other
+  Python versions, live tools and paid agents remain unverified. Built-in harness
+  class bindings and the remaining parity audits stay open. Formal simplification
+  and performance passes remain at 0/3 each; final test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -3067,6 +3089,11 @@ jbang validation/OptimizerLogProbe.java --sdk
 jbang validation/PreflightProbe.java --sdk
 jbang validation/CopilotHostProbe.java --sdk
 jbang validation/InvocationProbe.java --sdk
+jbang validation/ScaffoldBaseProbe.java --sdk
+jbang validation/SerenaScaffoldProbe.java --sdk
+jbang validation/RtkScaffoldProbe.java --sdk
+jbang validation/RepoMapScaffoldProbe.java --sdk
+jbang validation/ScaffoldRegistryProbe.java --sdk
 jbang validation/TaskProbe.java
 jbang validation/WebSegmentProbe.java
 jbang validation/WebAgentProbe.java

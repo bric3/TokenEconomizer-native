@@ -10,14 +10,19 @@ import sys
 import tarfile
 
 ROOT=Path(__file__).resolve().parents[1]
-sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
-from te_bench.baselines import base,repomap
-if "--native" in sys.argv:
-    from native_experiment_providers import install
-    install(scaffold_module=base);install(scaffold_module=repomap)
-    previous=repomap.extract_idents,repomap.RepoMapScaffold.setup
-    install(scaffold_module=repomap)
-    assert previous == (repomap.extract_idents,repomap.RepoMapScaffold.setup)
+if "--sdk" in sys.argv:
+    from standalone_scaffolds import runtime
+    base,repomap=runtime.base,runtime.repomap
+else:
+    sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+    from te_bench.baselines import base,repomap
+    if "--native" in sys.argv:
+        from native_experiment_providers import install
+        install(scaffold_module=base);install(scaffold_module=repomap)
+        previous=repomap.extract_idents,repomap.RepoMapScaffold.setup
+        install(scaffold_module=repomap)
+        assert previous == (repomap.extract_idents,repomap.RepoMapScaffold.setup)
+
 assert "te_harness.swebench" not in sys.modules and "te_harness.webbench" not in sys.modules
 
 for line in sys.stdin:

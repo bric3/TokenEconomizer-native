@@ -7,14 +7,19 @@ import shlex
 import sys
 
 ROOT=Path(__file__).resolve().parents[1]
-sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
-from te_bench.baselines import rtk
-if "--native" in sys.argv:
-    from native_experiment_providers import install
-    install(scaffold_module=rtk)
-    previous=rtk.cache_dir,rtk.RtkScaffold.setup,rtk.RtkScaffold._claude_hook.__func__
-    install(scaffold_module=rtk)
-    assert previous == (rtk.cache_dir,rtk.RtkScaffold.setup,rtk.RtkScaffold._claude_hook.__func__)
+if "--sdk" in sys.argv:
+    from standalone_scaffolds import runtime
+    rtk=runtime.rtk
+else:
+    sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+    from te_bench.baselines import rtk
+    if "--native" in sys.argv:
+        from native_experiment_providers import install
+        install(scaffold_module=rtk)
+        previous=rtk.cache_dir,rtk.RtkScaffold.setup,rtk.RtkScaffold._claude_hook.__func__
+        install(scaffold_module=rtk)
+        assert previous == (rtk.cache_dir,rtk.RtkScaffold.setup,rtk.RtkScaffold._claude_hook.__func__)
+
 assert "te_harness.swebench" not in sys.modules and "te_harness.webbench" not in sys.modules
 
 for line in sys.stdin:

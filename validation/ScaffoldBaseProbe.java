@@ -11,7 +11,7 @@ class ScaffoldBaseProbe{
   static String q(Object value){return ParserProbe.q(value);}
   public static void main(String[] args)throws Exception{
     WebContractProbe.artifacts=Files.createTempDirectory(Path.of("validation/results"),"scaffold-base-").toAbsolutePath();boolean passed=false;
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"scaffold_base_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"scaffold_base_host.py")){
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"scaffold_base_host.py",args.length==1&&args[0].equals("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"scaffold_base_host.py")){
       for(var operation:List.of("profile_new","profile_mcp","context_new","read","log","instructions","mcp","mounts","preflight","setup")){
         var base="\"operation\":"+q(operation);
         WebContractProbe.compare(nativeCode,source,base);
@@ -46,6 +46,6 @@ class ScaffoldBaseProbe{
       passed=true;
     }finally{if(passed)try(var paths=Files.walk(WebContractProbe.artifacts)){for(var path:paths.sorted(Comparator.reverseOrder()).toList())Files.delete(path);}}
     System.out.println("Shared scaffold classes match the source in "+WebContractProbe.cases+" comparisons; constructor state, raw callbacks, files, MCP configuration and failure order passed");
-    ScaffoldMergeHelperProbe.main(new String[]{"--context"});
+    ScaffoldMergeHelperProbe.main(args.length==1&&args[0].equals("--sdk")?new String[]{"--context","--sdk"}:new String[]{"--context"});
   }
 }

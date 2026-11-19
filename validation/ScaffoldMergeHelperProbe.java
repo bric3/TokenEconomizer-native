@@ -43,7 +43,7 @@ class ScaffoldMergeHelperProbe {
   }
   public static void main(String[] args)throws Exception {
     var root=Files.createTempDirectory(Path.of("validation/results"),"scaffold-merge-helper-").toAbsolutePath();boolean passed=false;
-    try(var nativeContext=List.of(args).contains("--context")?new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"scaffold_merge_source.py"):null;
+    try(var nativeContext=List.of(args).contains("--context")?new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"scaffold_merge_source.py",List.of(args).contains("--sdk")?new String[]{"--sdk"}:new String[0]):null;
         var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"scaffold_merge_source.py")) {
       context=nativeContext;
       for(var before:Arrays.asList(null,"","bad json","INVALID_UTF8","{}","{\"keep\":1,\"nested\":{\"old\":1,\"replace\":0}}","[]","[1]","null","true","42","\"text\"","{\"value\":NaN,\"nested\":{\"number\":Infinity}}","{\"\\ud800\":\"\\udc00\",\"nested\":{\"escaped\":\"é😀\"}}"))

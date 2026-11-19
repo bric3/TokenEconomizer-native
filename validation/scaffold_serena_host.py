@@ -5,15 +5,20 @@ from pathlib import Path
 import sys
 
 ROOT=Path(__file__).resolve().parents[1]
-sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
-from te_bench.baselines import base,serena
-if "--native" in sys.argv:
-    from native_experiment_providers import install
-    install(scaffold_module=base)
-    install(scaffold_module=serena)
-    previous=serena.SerenaScaffold.setup,serena.SerenaScaffold.mcp_server,serena.SerenaScaffold.nudge
-    install(scaffold_module=serena)
-    assert previous == (serena.SerenaScaffold.setup,serena.SerenaScaffold.mcp_server,serena.SerenaScaffold.nudge)
+if "--sdk" in sys.argv:
+    from standalone_scaffolds import runtime
+    base,serena=runtime.base,runtime.serena
+else:
+    sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+    from te_bench.baselines import base,serena
+    if "--native" in sys.argv:
+        from native_experiment_providers import install
+        install(scaffold_module=base)
+        install(scaffold_module=serena)
+        previous=serena.SerenaScaffold.setup,serena.SerenaScaffold.mcp_server,serena.SerenaScaffold.nudge
+        install(scaffold_module=serena)
+        assert previous == (serena.SerenaScaffold.setup,serena.SerenaScaffold.mcp_server,serena.SerenaScaffold.nudge)
+
 assert "te_harness.swebench" not in sys.modules and "te_harness.webbench" not in sys.modules
 
 for line in sys.stdin:

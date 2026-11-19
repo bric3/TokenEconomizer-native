@@ -154,8 +154,9 @@ transitions execute in Rust. Codex installation discovery, bundled skill discove
 and configuration validation also execute in Rust through the SDK. Accounting
 bindings cover all three agents, including Claude's incomplete-stream recovery.
 Provider routing, catalogue reads and pricing checks also use the packaged SDK.
-optimizer calls, preflights, logging and Copilot discovery are packaged, with their
+Optimizer calls, preflights, logging and Copilot discovery are packaged, with their
 policy in Rust. Sealed Copilot and Codex invocation builders use the same binding.
+Shared scaffold classes, RTK, Serena, repo-map and their registry also ship in the SDK.
 Built-in SWE-bench and WebBench harness bindings remain pending.
 
 SWE-bench controller selection, constructor parameters, continuation dispatch and

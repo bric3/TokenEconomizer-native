@@ -5,14 +5,19 @@ from pathlib import Path
 import sys
 
 ROOT=Path(__file__).resolve().parents[1]
-sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
-from te_bench import baselines
-if "--native" in sys.argv:
-    from native_experiment_providers import install
-    install(scaffold_module=baselines)
-    previous=baselines.get,baselines.for_arm
-    install(scaffold_module=baselines)
-    assert previous == (baselines.get,baselines.for_arm)
+if "--sdk" in sys.argv:
+    from standalone_scaffolds import runtime
+    baselines=runtime.registry
+else:
+    sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+    from te_bench import baselines
+    if "--native" in sys.argv:
+        from native_experiment_providers import install
+        install(scaffold_module=baselines)
+        previous=baselines.get,baselines.for_arm
+        install(scaffold_module=baselines)
+        assert previous == (baselines.get,baselines.for_arm)
+
 assert "te_harness.swebench" not in sys.modules and "te_harness.webbench" not in sys.modules
 
 for line in sys.stdin:

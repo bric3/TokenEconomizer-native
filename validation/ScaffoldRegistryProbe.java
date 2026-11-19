@@ -11,7 +11,7 @@ class ScaffoldRegistryProbe {
   static String q(Object value){return ParserProbe.q(value);}
   public static void main(String[] args)throws Exception {
     WebContractProbe.artifacts=Files.createTempDirectory(Path.of("validation/results"),"scaffold-registry-").toAbsolutePath();boolean passed=false;
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"scaffold_registry_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"scaffold_registry_host.py")) {
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"scaffold_registry_host.py",args.length==1&&args[0].equals("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"scaffold_registry_host.py")) {
       for(var operation:List.of("get","for_arm")) {
         var base="\"operation\":"+q(operation);
         for(var option:List.of("\"name\":\"fixture\"","\"name\":\"missing\"","\"name\":null","\"name\":false","\"name\":0","\"name\":1","\"name\":[]","\"name\":[1]","\"name\":{}","\"name\":{\"key\":1}","\"opaque_name\":true","\"opaque_name\":true,\"truthy\":false","\"noncallable\":true","\"replace_registry\":true","\"arm\":null","\"arm\":\"missing\"","\"arm\":\"none\"","\"arm\":[1]","\"opaque_arm\":true","\"opaque_arm\":true,\"truthy\":false","\"stub_get\":true","\"keys\":[]","\"name\":\"missing\",\"keys\":[\"é\",\"😀\",\"Alpha\"]"))WebContractProbe.compare(nativeCode,source,base+","+option);
