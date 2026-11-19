@@ -3,6 +3,7 @@
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
@@ -32,6 +33,9 @@ class AccountingSumProbe {
   public static void main(String[] args) throws Exception {
     for (var values : List.of(
         List.<String>of(), List.of("0"), List.of("1"), List.of("true", "false"),
+        List.of("18446744073709551615", "18446744073709551615"),
+        List.of("-9223372036854775808", "-9223372036854775808"),
+        Collections.nCopies(6, "18446744073709551615"),
         List.of("-1"), List.of("-7"), List.of("-9223372036854775808"), List.of("1", "-2"),
         List.of("0.0"), List.of("-0.0"), List.of("0.0", "1e100", "1.0", "-1e100"),
         List.of("9007199254740993", "-9007199254740992", "0.0", "3"),

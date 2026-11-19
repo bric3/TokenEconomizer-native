@@ -3,6 +3,7 @@ RUN apk add --no-cache build-base
 WORKDIR /work
 ARG TARGETARCH
 COPY Cargo.toml Cargo.lock LICENSE ./
+COPY vendor/serde_json/ vendor/serde_json/
 COPY src/ src/
 COPY validation/console_probe.rs validation/console_probe.rs
 RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,id=te-helper-target-${TARGETARCH},target=/work/target cargo test --locked --release --lib && cargo build --locked --release --bin te-net-guard

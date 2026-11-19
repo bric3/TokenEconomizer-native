@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
-/** Copies legal texts from every locked registry crate, including build and platform dependencies. */
+/** Copies legal texts from every locked dependency, including build and platform dependencies. */
 class ThirdPartyNotices {
   static String field(String text,String key) {
     var match=Pattern.compile("(?m)^"+Pattern.quote(key)+" = \"([^\"]*)\"$").matcher(text);
@@ -43,7 +43,7 @@ class ThirdPartyNotices {
     List<Path> registries;
     try(var directories=Files.list(cache)){registries=directories.filter(Files::isDirectory).sorted().toList();}
     var hash=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(lock)));
-    var text=new StringBuilder("Third-party notices for TokenEconomizer native\n\nCargo.lock SHA-256: "+hash+"\n\nThese texts cover bundled Unicode data, CPython-derived parsing, cleanup and\nsummation code, and every registry crate in the lockfile, including build and\nplatform dependencies. Some crates may not be linked into a particular binary.\nCrate texts are copied from the corresponding published crate.\n");
+    var text=new StringBuilder("Third-party notices for TokenEconomizer native\n\nCargo.lock SHA-256: "+hash+"\n\nThese texts cover bundled Unicode data, CPython-derived parsing, cleanup and\nsummation code, and every dependency in the lockfile, including build and\nplatform dependencies. Some crates may not be linked into a particular binary.\nCrate texts are copied from the corresponding published or vendored crate.\n");
     text.append("\n===============================================================================\nUnicode 16 and 17 data corrections\nSource: https://www.unicode.org/Public/17.0.0/ucd/\n\n").append(Files.readString(root.resolve("src/microskills/distiller/data/LICENSE-UNICODE-V3")));
     text.append("\n===============================================================================\nCPython 3.15.2 datetime parsing, temporary-directory cleanup and summation\nSources:\nhttps://github.com/python/cpython/blob/v3.15.2/Modules/_datetimemodule.c\nhttps://github.com/python/cpython/blob/v3.15.2/Lib/tempfile.py\nhttps://github.com/python/cpython/blob/v3.15.2/Python/bltinmodule.c\n\nISO parsing and local-time mapping are adapted to Rust in src/trace/time.rs.\nThe exposed helper returns epoch seconds or no value for an invalid timestamp.\nTemporaryDirectory permission repair is implemented in src/plugin/temporary.rs\nwith descriptor-relative Unix traversal and native filesystem operations.\nMixed integer/float summation in src/value.rs follows builtin_sum_impl.\nThe iterator is shared by ledger overhead and paired-report totals.\n\n").append(Files.readString(root.resolve("src/trace/LICENSE-CPYTHON")));
     var packages=Pattern.compile("(?ms)^\\[\\[package\\]\\]\\n(.*?)(?=^\\[\\[package\\]\\]|\\z)").matcher(Files.readString(lock));
@@ -51,18 +51,25 @@ class ThirdPartyNotices {
     while(packages.find()) {
       var section=packages.group(1);
       var origin=field(section,"source");
-      if(origin.isEmpty())continue;
-      if(!origin.startsWith("registry+"))throw new IllegalStateException("Unsupported dependency source: "+origin);
-      var id=field(section,"name")+"-"+field(section,"version");
-      var candidates=registries.stream().map(registry->registry.resolve(id)).filter(Files::isDirectory).toList();
-      if(candidates.size()!=1)throw new IllegalStateException("Expected one cached source for "+id+"; run cargo fetch --locked");
-      var source=candidates.getFirst();var manifest=Files.readString(source.resolve("Cargo.toml"));
+      var name=field(section,"name");
+      if(origin.isEmpty()&&name.equals("tokeneconomizer"))continue;
+      var id=name+"-"+field(section,"version");
+      Path source;
+      if(origin.isEmpty())source=root.resolve("vendor").resolve(name);
+      else {
+        if(!origin.startsWith("registry+"))throw new IllegalStateException("Unsupported dependency source: "+origin);
+        var candidates=registries.stream().map(registry->registry.resolve(id)).filter(Files::isDirectory).toList();
+        if(candidates.size()!=1)throw new IllegalStateException("Expected one cached source for "+id+"; run cargo fetch --locked");
+        source=candidates.getFirst();
+      }
+      var manifest=Files.readString(source.resolve("Cargo.toml"));
+      if(!field(manifest,"name").equals(name)||!field(manifest,"version").equals(field(section,"version")))throw new IllegalStateException("Source differs from locked dependency: "+id);
       var files=new ArrayList<Path>();
       try(var paths=Files.list(source)){files.addAll(paths.filter(Files::isRegularFile).filter(ThirdPartyNotices::legal).toList());}
       var data=source.resolve("data");
       if(Files.isDirectory(data))try(var paths=Files.list(data)){files.addAll(paths.filter(Files::isRegularFile).filter(ThirdPartyNotices::legal).toList());}
-      for(var name:List.of("license","licenses","licence","licences","LICENSES")) {
-        var directory=source.resolve(name);
+      for(var legalDirectory:List.of("license","licenses","licence","licences","LICENSES")) {
+        var directory=source.resolve(legalDirectory);
         if(Files.isDirectory(directory))try(var paths=Files.walk(directory)){files.addAll(paths.filter(Files::isRegularFile).toList());}
       }
       var named=field(manifest,"license-file");
@@ -75,16 +82,17 @@ class ThirdPartyNotices {
       if(ordered.isEmpty()&&Files.isRegularFile(source.resolve("AUTHORS"))&&Files.readString(source.resolve("AUTHORS")).contains("LICENSE:"))ordered=List.of(source.resolve("AUTHORS"));
       if(ordered.isEmpty())throw new IllegalStateException("No legal text found for "+id);
       text.append("\n===============================================================================\n").append(id).append("\nDeclared licence: ").append(field(manifest,"license")).append('\n');
+      if(origin.isEmpty())text.append('\n').append(Files.readString(source.resolve("UPSTREAM.md"))).append('\n');
       for(var file:ordered)text.append("\n--- ").append(source.relativize(file).toString().replace('\\','/')).append(" ---\n").append(Files.readString(file)).append('\n');
       nativeHeaders(source,text);
       count++;
     }
-    if(count==0)throw new IllegalStateException("No registry packages found in Cargo.lock");
+    if(count==0)throw new IllegalStateException("No dependencies found in Cargo.lock");
     var output=root.resolve("src/package/THIRD-PARTY-NOTICES.txt");
     var rendered=text.toString().replace("\r\n","\n");
     if(args.length==1) {
       if(!Files.readString(output).equals(rendered))throw new IllegalStateException("Third-party notices are stale; run jbang scripts/ThirdPartyNotices.java");
     } else Files.writeString(output,rendered);
-    System.out.println("Verified legal texts for "+count+" locked registry crates"+(args.length==0?"; wrote "+root.relativize(output):""));
+    System.out.println("Verified legal texts for "+count+" locked dependency crates"+(args.length==0?"; wrote "+root.relativize(output):""));
   }
 }

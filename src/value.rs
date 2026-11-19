@@ -45,10 +45,10 @@ pub(crate) fn python_type(value: &Value) -> &'static str {
         Value::Array(_) => "list",
         Value::Object(_) => "dict",
         Value::Number(n) => {
-            if n.is_i64() || n.is_u64() {
-                "int"
-            } else {
+            if n.is_f64() {
                 "float"
+            } else {
+                "int"
             }
         }
     }
@@ -180,6 +180,70 @@ fn encode_json(value: &Value, ascii: bool) -> String {
     String::from_utf8(bytes).unwrap()
 }
 
+pub(crate) fn python_float(value: f64) -> String {
+    if value.is_nan() {
+        return "nan".into();
+    }
+    if value.is_infinite() {
+        return if value.is_sign_negative() {
+            "-inf"
+        } else {
+            "inf"
+        }
+        .into();
+    }
+    if value == 0.0 {
+        return if value.is_sign_negative() {
+            "-0.0"
+        } else {
+            "0.0"
+        }
+        .into();
+    }
+    let raw = serde_json::Number::from_f64(value).unwrap().to_string();
+    let (sign, raw) = raw
+        .strip_prefix('-')
+        .map_or(("", raw.as_str()), |v| ("-", v));
+    let (mantissa, exponent) = raw
+        .split_once(['e', 'E'])
+        .map_or((raw, 0), |(m, e)| (m, e.parse::<i32>().unwrap()));
+    let point = mantissa.find('.').unwrap_or(mantissa.len()) as i32;
+    let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
+    let zeros = digits.len() - digits.trim_start_matches('0').len();
+    let exponent = exponent + point - 1 - zeros as i32;
+    let digits = digits.trim_start_matches('0').trim_end_matches('0');
+    if !(-4..16).contains(&exponent) {
+        let tail = if digits.len() > 1 {
+            format!(".{}", &digits[1..])
+        } else {
+            String::new()
+        };
+        format!(
+            "{sign}{}{tail}e{}{:02}",
+            &digits[..1],
+            if exponent < 0 { "-" } else { "+" },
+            exponent.abs()
+        )
+    } else {
+        let point = exponent + 1;
+        if point <= 0 {
+            format!("{sign}0.{}{}", "0".repeat((-point) as usize), digits)
+        } else if point as usize >= digits.len() {
+            format!(
+                "{sign}{}{}.0",
+                digits,
+                "0".repeat(point as usize - digits.len())
+            )
+        } else {
+            format!(
+                "{sign}{}.{}",
+                &digits[..point as usize],
+                &digits[point as usize..]
+            )
+        }
+    }
+}
+
 pub fn scalar_text(value: &Value) -> String {
     match value {
         Value::String(text) => text.clone(),
@@ -187,7 +251,8 @@ pub fn scalar_text(value: &Value) -> String {
         Value::Bool(true) => "True".into(),
         Value::Bool(false) => "False".into(),
         Value::Array(_) | Value::Object(_) => python_repr(value),
-        _ => value.to_string(),
+        Value::Number(value) if value.is_f64() => python_float(value.as_f64().unwrap()),
+        Value::Number(_) => value.to_string(),
     }
 }
 
@@ -303,10 +368,7 @@ impl Numeric {
     }
     pub(crate) fn json(self) -> Value {
         match self {
-            Self::Integer(value) => serde_json::Number::from_i128(value)
-                .map(Value::Number)
-                // shortcut: integers outside JSON's i64/u64 range use f64, widen the numeric codec.
-                .unwrap_or_else(|| Value::from(value as f64)),
+            Self::Integer(value) => Value::Number(serde_json::Number::from_i128(value).unwrap()),
             Self::Float(value) => Value::from(value),
         }
     }
@@ -365,7 +427,8 @@ pub fn truthy(value: &Value) -> bool {
     match value {
         Value::Null => false,
         Value::Bool(b) => *b,
-        Value::Number(n) => n.as_f64().is_some_and(|n| n != 0.0),
+        Value::Number(n) if n.is_f64() => n.as_f64().is_some_and(|n| n != 0.0),
+        Value::Number(n) => n.as_u64() != Some(0),
         Value::String(s) => !s.is_empty(),
         Value::Array(a) => !a.is_empty(),
         Value::Object(o) => !o.is_empty(),

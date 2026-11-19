@@ -37,6 +37,12 @@ class ExperimentBundleProbe {
   }
   static void engine(Path bundle)throws Exception {
     try(var client=new ContextProbe.Client(bundle.resolve("bin/te-bridge"),"experiment.swebench")) {
+      var numeric=bundle.getParent().resolve("numeric-config.json");
+      Files.writeString(numeric,"{\"wide\":18446744073709551616,\"constant\":NaN,\"$serde_json::private::Number\":\"1e2\"}");
+      var decoded=client.call("live_config._read","\"path\":"+q(numeric));
+      require(decoded.contains("\"wide\":18446744073709551616")&&decoded.contains("\"constant\":NaN")&&decoded.contains("\"$serde_json::private::Number\":\"1e2\""),"relocated JSON codec changed numbers or literal marker keys: "+decoded);
+      var sum=client.call("ledger.overhead","\"row\":{\"optimizer_tokens\":18446744073709551615,\"untool_classify_tokens\":18446744073709551615}");
+      require(sum.equals("{\"result\":36893488147419103230}"),"relocated JSON codec rounded an integer total: "+sum);
       var digit=new String(Character.toChars(0x11de0));var upper=new String(Character.toChars(0x16ea0));var lower=new String(Character.toChars(0x16ebb));
       for(var entry:Map.of("(?ai)\\bpytest\\b",List.of("pytest", "PYTEST"),"(?ai)(.+)\\1",List.of("aéAé", "😀😀"),"\\N{SNOWMAN}",List.of("☃"),"(?ai)(\\N{LATIN SMALL LETTER E WITH ACUTE})\\1",List.of("éé"),"\\A\\w+\\Z",List.of(digit,upper),"\\A\\d+\\Z",List.of(digit),"(?i)\\U00016EA0",List.of(lower),"(?P<"+upper+">a)",List.of("a")).entrySet())for(var text:entry.getValue()) {
         var match=client.call("distiller.regex_search","\"pattern\":"+q(entry.getKey())+",\"text\":"+q(text));

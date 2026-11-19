@@ -678,8 +678,9 @@ complete while any runtime component delegates production behaviour to Python.
   Include Unicode-version differences outside the evaluator stdout pattern,
   whose explicit Tolong Siki range matches Python 3.15 and the
   [Unicode 17 numeric data](https://www.unicode.org/Public/17.0.0/ucd/extracted/DerivedNumericType.txt).
-- Audit JSON numeric edge cases and parser nesting limits, including non-finite
-  values accepted by Python.
+- The shared JSON codec now preserves wide integer digits and Python's
+  non-finite constants. Audit arithmetic in bounded callers, configurable
+  integer digit limits, parser nesting and numeric exception details.
   Audit remaining JSON object and exception-message codecs for adjacent surrogate
   code points; the shared exact-string and logging-format bindings preserve them.
   Hermes redirect validation now accepts Python's non-finite constants while
@@ -4094,11 +4095,49 @@ complete while any runtime component delegates production behaviour to Python.
   `accounting-sum-reference.log`, `accounting-sum-notices.log`,
   `accounting-sum-container-build.log`, `accounting-sum-container-probe.log` and
   `accounting-sum-bundle.log`.
-  JSON results outside i64/u64 still project to f64, and session counters retain
-  their i64 limit. Those limits and the remaining numeric codecs stay in the
-  production-parity audit. Native Windows execution remains unverified. Formal
-  simplification and performance passes remain at 0/3 each; original-test
-  conversion is pending.
+  At this milestone, JSON results outside i64/u64 still projected to f64, and
+  session counters retained their i64 limit. Those limits and the numeric codecs
+  stayed in the production-parity audit. Native Windows execution remains
+  unverified. Formal simplification and performance passes remain at 0/3 each;
+  original-test conversion is pending.
+
+- The shared JSON codec preserves integers beyond i64/u64, including complete
+  i128 summation results, and accepts and emits `NaN`, `Infinity` and
+  `-Infinity`. JSON objects retain literal keys named after serde's internal
+  Number and RawValue markers. Numeric type checks, truth testing and Python
+  scalar text handle the expanded values. Python float formatting is shared
+  by the exact-string codec and scalar conversion.
+  The implementation vendors checksum-pinned serde_json 1.0.151 with a local
+  `python_numbers` feature. Ordinary numbers retain compact numeric storage;
+  wide integer digits use boxed text. Standard features pass the unchanged
+  upstream tests with and without `arbitrary_precision`. The six new Rust
+  regression tests cover type-preserving round trips, canonical floats,
+  non-finite values, raw and ignored fields, literal marker keys and malformed
+  tokens. The file-based oracle passes all 616 source comparisons. Overhead sums
+  pass 3,178 cases and accounting passes 1,733 complete summaries, including
+  exact integer totals beyond 64 bits. Configuration passes 9,837 numeric cases
+  and 244 persistence checks. All 40 Rust tests, formatting, root and vendored
+  Clippy checks and debug/release builds pass. The unchanged original suite
+  passes with 1,561 passed and 30 skipped (81.11 seconds). Both Linux helpers
+  pass 33 library tests and all 28 scratch-container checks. All 256 archived
+  upstream files still match the pinned tree. Relocated experiment bundles
+  pass 272 checks, including wide integers, non-finite values, literal marker
+  keys and exact overhead sums.
+  The published archive checksum, all 89 published files and the eight-file
+  patch list are verified by `scripts/VerifySerdeJson.java`. Both upstream
+  licence texts are preserved, and all 104 dependency notices are generated
+  from the locked registry or vendored sources. Linux helper builds include
+  the vendored source explicitly.
+  The persistent release-bridge benchmark measures complete file reads and
+  result encoding over nine alternating samples after warmup. Compared with
+  `073815e`, median times for 8, 128 and 8,192 numbers changed from
+  53.0/62.3/520.5 us to 57.2/67.3/552.9 us. This numeric workload is 6-8% slower;
+  it does not establish whole-application performance. The initial string-only
+  implementation was rejected after a roughly fivefold large-input regression.
+  Logs are under `validation/results/number-codec-*`.
+  Integer digit limits, surrogate and nesting support, bounded arithmetic in
+  consumers and native Windows execution remain open. Formal simplification
+  and performance passes remain at 0/3 each; original-test conversion is pending.
 
 ## Dependencies
 
@@ -4138,8 +4177,11 @@ spaces and hyphens. It derives Tangut names for the two ranges omitted by the
 crate. Name data is compiled into executables; runtime lookup needs no files or
 Python process. The notice generator includes the crate's Unicode data licence.
 The existing `serde_json` dependency enables `raw_value` so Hermes can validate
-tool JSON before copying its existing field text after a redirect. Python's
-non-finite extensions remain in the JSON parity audit.
+tool JSON before copying its existing field text after a redirect. The vendored
+1.0.151 source adds `python_numbers` for wide integers, non-finite constants and
+literal internal-marker keys. Its provenance and patch list are recorded in
+`vendor/serde_json/UPSTREAM.md`. Verify the original published archive and the
+changed files with `jbang scripts/VerifySerdeJson.java [PUBLISHED_CRATE]`.
 `md5` 0.8.1 preserves existing short failure fingerprints.
 `sha2` 0.10.9 preserves the Codex pruning controller's SHA-256 contract fingerprint,
 which decides whether saved evidence can be reused. Its API is verified against the
@@ -4327,6 +4369,8 @@ jbang validation/HermesRedirectProbe.java
 jbang validation/SidecallFailureProbe.java
 jbang validation/CleanupProbe.java
 jbang validation/ConfigNumberProbe.java
+jbang validation/NumberCodecProbe.java
+jbang scripts/VerifySerdeJson.java
 jbang validation/LedgerSumProbe.java
 jbang validation/AccountingSumProbe.java
 jbang validation/RunnerProbe.java

@@ -3,6 +3,7 @@
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /** Checks source summation order for mixed integer/float mechanism overheads. */
@@ -38,6 +39,10 @@ class LedgerSumProbe {
         List.of("2147483648", "1e20", "3.14", "-1e20", "0", "0"),
         List.of("0.0", "1e100", "1.0", "-1e100", "0", "0"))) row(values);
     for (var values : List.of(List.<String>of(), List.of("0"), List.of("1"), List.of("true", "false"),
+        List.of("18446744073709551615", "18446744073709551615"),
+        List.of("-9223372036854775808", "-9223372036854775808"),
+        Collections.nCopies(6, "18446744073709551615"),
+        List.of("18446744073709551615", "18446744073709551615", "-9223372036854775808"),
         List.of("9007199254740993"), List.of("18446744073709551615"), List.of("-9223372036854775808"),
         List.of("18446744073709551615", "-9223372036854775808", "-9223372036854775808"),
         List.of("9007199254740993", "1", "-9007199254740992"))) row(values);
