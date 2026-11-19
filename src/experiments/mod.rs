@@ -1,4 +1,5 @@
 pub mod adapters;
+pub mod aggregate;
 pub mod arms;
 mod assets;
 pub mod bundle;

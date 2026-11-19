@@ -1,0 +1,26 @@
+
+Flatten a results tree into per-task and per-cell CSV tables. Walks a results
+ROOT of the shape ``<arm>/<repo>_s<seed>/**/row.json`` (the layout the runner
+writes and the curated exports keep) and emits, next to it: * all_rows.csv --
+one row per task-run (every field the comparisons read) * summary_by_cell.csv
+-- one row per (arm, repo, seed) with resolve rate + summed cost Cost is the
+HONEST amortized basis (cache-aware effective execution + mechanism overhead),
+computed via the vendored pricing table and the ledger, so a method that
+mainly prunes cheap cached re-reads cannot look better than its real spend:
+cost_effective_tokens = pricing.effective_tokens(row) + ledger.overhead(row)
+Usage: python scripts/aggregate.py <results_root> [--arms baseline trimech
+...] [--out DIR] `--arms` defaults to the immediate sub-directories of the
+results root that contain any `row.json`. It narrows the REWRITE, not just the
+reading, so naming a subset of the tree while writing to the canonical
+`<root>/index` is REFUSED -- it would leave the index the comparisons read
+describing fewer arms than the tree holds. Pass `--out` to put a subset index
+somewhere of its own. The results tree itself is git-ignored (regenerated per
+run); this script and its output are placeholders you point at your own runs.
+
+positional arguments:
+  root               results tree root (<arm>/<repo>_s<seed>/**/row.json)
+
+options:
+  -h, --help         show this help message and exit
+  --arms [ARMS ...]  arm dirs (default: auto)
+  --out OUT          output dir (default: <root>/index)

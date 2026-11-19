@@ -146,6 +146,16 @@ The standalone command runs without importing the original checkout:
 target/release/te-bench --arm baseline --tasks-file /path/to/tasks.json --results-root /path/to/results
 ```
 
+Aggregate results into `all_rows.csv` and `summary_by_cell.csv` with:
+
+```sh
+target/release/te-bench aggregate /path/to/results
+```
+
+Aggregation runs entirely in Rust. It keeps the newest run of each task and
+requires `--out` when `--arms` selects a subset of the tree. Use `--out` to write
+a subset index elsewhere.
+
 Use `--runner module:factory` for an external task runner. Python 3.10 or newer supplies
 standard-library I/O; `TE_BENCH_PYTHON` selects its interpreter. The runtime bundle
 carries the SDK and command, including the generic streamed-rollout controller

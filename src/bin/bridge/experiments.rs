@@ -6,7 +6,7 @@ use std::{
 };
 use tokeneconomizer::experiments::{
     adapters::{self, Adapter, Error},
-    arms,
+    aggregate, arms,
     driver::parse_env,
     scaffolds,
     swebench::providers,
@@ -42,6 +42,52 @@ fn response(result: Result<Value, Error>) -> Value {
     }
 }
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
+    if let Some(method) = op.strip_prefix("experiment.aggregate.") {
+        let text = |key: &str| args[key].as_str().ok_or_else(|| format!("expected {key}"));
+        let mut output = Vec::new();
+        let value = match method {
+            "constants" => {
+                json!({"fields":aggregate::FIELDS,"usd_per_effective_token":aggregate::USD_PER_EFFECTIVE_TOKEN,"agents_without_vendor_usd":aggregate::AGENTS_WITHOUT_VENDOR_USD})
+            }
+            "usage_incomplete" => json!(aggregate::usage_incomplete(&args["d"])),
+            "not_graded" => json!(aggregate::not_graded(&args["d"])),
+            "vendor_usd" => aggregate::vendor_usd(&args["d"]),
+            "vendor_cost_missing" => json!(aggregate::vendor_cost_missing(&args["d"])),
+            "normalize_repo" => json!(aggregate::normalize_repo(text("rs")?, text("inst")?)),
+            "cell_of" => json!(
+                aggregate::cell_of(
+                    Path::new(text("path")?),
+                    Path::new(text("root")?),
+                    text("arm")?
+                )
+                .map_err(|e| e.to_string())?
+            ),
+            "_run_order" => json!(aggregate::run_order(Path::new(text("rj")?))),
+            "discover_arms" => json!(
+                aggregate::discover_arms(Path::new(text("root")?)).map_err(|e| e.to_string())?
+            ),
+            "collect" => {
+                let rows = aggregate::collect(
+                    Path::new(text("root")?),
+                    &strings(args, "arms")?,
+                    &mut output,
+                )?;
+                json!({"rows":rows,"stdout":String::from_utf8(output).unwrap()})
+            }
+            "summarize" => json!(
+                aggregate::summarize(args["rows"].as_array().ok_or("expected rows")?)?
+                    .into_iter()
+                    .map(|(key, value)| json!({"key":key,"value":value}))
+                    .collect::<Vec<_>>()
+            ),
+            "main" => json!(aggregate::command(
+                text("program")?,
+                &strings(args, "argv")?
+            )?),
+            _ => return Ok(None),
+        };
+        return Ok(Some(value));
+    }
     if op == "experiment.providers.constants" {
         return Ok(Some(providers::constants()));
     }

@@ -51,7 +51,7 @@ complete while any runtime component delegates production behaviour to Python.
   includes sampled/background judge scheduling, backoff, costs, nudges and outcomes.
   Judge prompts, verdict decoding, redirect limits and runner-cost fallback are also
   native. Envelope loading, saving and locked turn recording are native too.
-  Runner processes still need conversion.
+  Runner process orchestration is native, with SDK callbacks supplying process I/O.
 - The JSON state store, atomic fact writes, JSONL logs and lock timeouts now execute
   in Rust, including bounded Windows retry decisions and temporary-file cleanup.
 - Command observation is native: vocabulary-based intent and form classification,
@@ -344,7 +344,8 @@ complete while any runtime component delegates production behaviour to Python.
 - The test adapter replaces these functions and lifecycle methods in the reference
   process. It records calls reaching Rust in `validation/results/native-calls.json`.
   Direct module CLI subprocess launches are redirected to the native executable.
-  Other reference code, including packaging launchers, still runs in Python.
+  The source tests retain their Python fixtures and data classes. Operational
+  scripts listed under remaining production work still need native entry points.
 - Remaining production conversion, six improvement passes and final test conversion
   pending. No performance claim is made from these compatibility runs.
 - The SWE-bench, Web-Bench, CredData and ReposVul dataset adapters now execute in
@@ -663,8 +664,7 @@ complete while any runtime component delegates production behaviour to Python.
 ## Remaining production work
 
 - Audit trace-reader edge cases, including the ISO timestamp formats accepted by
-  Python's `datetime.fromisoformat`. Trace consumers still run through the reference
-  plugin during migration.
+  Python's `datetime.fromisoformat`. Native plugin services consume these readers.
 - Audit regular-expression compatibility with Python in the production parity
   pass, including word boundaries, whitespace classes and syntax. Detector and
   extractor patterns now support Python's global and scoped ASCII flags through
@@ -743,9 +743,16 @@ complete while any runtime component delegates production behaviour to Python.
   Include constructor subclass attributes with side effects and helper results
   outside their ordinary schemas. Captured configuration callables and arguments
   already retain their references when the prompt callback replaces them.
-- Port the task runners and supporting tools, preserving their original test
-  contracts.
-  Their usage accounting and shared SWE-bench task lifecycle are native.
+- Finish supporting experiment tools, preserving their original test contracts.
+  A traced run of all 1,561 passing source tests found actual Python execution in
+  `sweep_plan.py`, `export_swebench_tasks.py`, `export_workloads.py` and
+  `te_bench/workloads.py`. Port these and audit the reporting, capture and smoke
+  scripts for production entry points that lack source-test coverage.
+  Aggregation has a native entry point, `te-bench aggregate`, and its source tests
+  now call Rust through the validation binding. Weighted costs and per-cell totals
+  retain f64 accounting. Include unusually large totals, non-finite JSON, non-UTF-8
+  paths, filesystem error wording and CLI argument edge cases in the parity audit.
+  The task runners' usage accounting and shared SWE-bench task lifecycle are native.
   SWE-bench guard deployment and registration use native helpers. Native
   scaffold merge helpers are deployed through harness callbacks. Both harnesses
   select native guard executables. The runtime bundle ships executables and
@@ -3214,6 +3221,34 @@ complete while any runtime component delegates production behaviour to Python.
   because this checkout is not open in the IDE. Windows and other Python versions
   remain unverified.
 
+- The results aggregator now runs entirely in Rust as `te-bench aggregate`.
+  It discovers result trees, normalises cells, keeps each task's newest run and
+  writes the task and cell CSVs using the native pricing and overhead ledger.
+  Legacy integer task costs and integer overhead sums retain their exact digits
+  within JSON's i64/u64 range; larger integer sums return a diagnostic.
+  It preserves vendor-cost, incomplete-usage and ungraded-task flags, including
+  WebBench attempt denominators. The subset guard runs before directory creation
+  or CSV writes, preserving an existing canonical index. CSV records retain
+  CRLF, quoting, integer/float spellings and Python-style boolean text.
+  All 35 original aggregation, vendor-cost and grading-integrity tests pass
+  through the native binding. Their function trace executes only the source
+  aggregator's module initialiser. The dedicated probe passes 155 source comparisons,
+  including exact CSV bytes, console messages, invalid JSON, help exits and
+  subset-index preservation. The native command runs with an empty PATH and an
+  unavailable Python executable. The relocated runtime bundle passes 214 checks,
+  including aggregation of the actual standalone benchmark's output.
+  The full original suite passes with 1,561 passed and 30 skipped (69.46 seconds),
+  including the installed opencode integration against its local model fixture.
+  All 27 Rust checks, debug/release builds, Clippy, formatting and the 256-file
+  reference check pass.
+  The production coverage audit uses Python's built-in function tracer and native
+  call counts. It exposed unconverted workload, sweep and export functions, now
+  listed explicitly above. Original tests remain unmodified. Formal simplification
+  and performance passes remain at 0/3 each; final test conversion is pending.
+  Extreme counters, non-finite JSON, unusual paths and remaining CLI/I/O diagnostic
+  differences still need parity checks. Windows remains unverified. The existing
+  Linux guard helpers were reused; this change adds no helper behaviour or dependencies.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -3454,6 +3489,7 @@ jbang validation/DriverTasksProbe.java
 jbang validation/ArmRegistryProbe.java
 jbang validation/EnvironmentProbe.java
 jbang validation/DriverMainProbe.java
+jbang validation/AggregateProbe.java
 jbang validation/StandaloneBenchProbe.java
 jbang validation/StandaloneTransportProbe.java
 jbang validation/HermesGatewayProbe.java

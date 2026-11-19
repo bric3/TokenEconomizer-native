@@ -126,6 +126,9 @@ def native_package_module(loader, module):
     elif str(loader.path) == str(ROOT / "reference/upstream/experiments/scripts/run_experiment.py"):
         from native_experiment_providers import install
         install(driver_module=module)
+    elif str(loader.path) == str(ROOT / "reference/upstream/experiments/scripts/aggregate.py"):
+        from native_aggregate import install
+        install(module)
     elif module.__name__ == "te_bench.arms":
         from native_experiment_arms import install
         install(module)
