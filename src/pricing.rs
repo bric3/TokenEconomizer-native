@@ -4,7 +4,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::value::{integer, number, truthy};
+use crate::value::{integer, number, python_repr, truthy};
 
 #[derive(Debug)]
 pub enum PricingError {
@@ -132,8 +132,9 @@ pub fn weights_for(record: &Value) -> Result<Weights, PricingError> {
         });
     }
     Err(PricingError::UnpricedModel(format!(
-        "pricing: no weight entry for billed model {model:?} (agent={:?}). Add it to pricing.MODEL_WEIGHTS (from the vendor's published price list).",
-        record["agent"]
+        "pricing: no weight entry for billed model {} (agent={}). Add it to pricing.MODEL_WEIGHTS (from the vendor's published price list).",
+        python_repr(&Value::from(model)),
+        python_repr(&record["agent"])
     )))
 }
 

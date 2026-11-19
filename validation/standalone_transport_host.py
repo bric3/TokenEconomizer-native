@@ -24,6 +24,16 @@ with Bridge(sys.argv[1]) as bridge:
                 assert json.loads(value["line"])["op"] == "op-"+str(index),"response crossed requests"
                 return value["sequence"]
             with ThreadPoolExecutor(max_workers=4) as executor: output["sequences"]=sorted(executor.map(request,range(32)))
+        elif mode == "isolation":
+            output["result"]=bridge.request("once",{})
+            output["outer_pid"]=output["result"]["pid"]
+            with bridge.isolated() as isolated:
+                value=isolated.request("isolated",{})
+                output["isolated_pid"]=value["pid"]
+                assert value["sequence"] == 1 and value["pid"] != output["outer_pid"]
+            value=bridge.request("again",{})
+            assert value["sequence"] == 2 and value["pid"] == output["outer_pid"]
+            output["outer_sequence"]=value["sequence"]
         elif mode in ("gap","callback"):
             with bridge.frames():
                 output["result"]=bridge.request("once",{})

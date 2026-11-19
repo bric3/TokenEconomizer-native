@@ -32,7 +32,7 @@ class ExperimentBundleProbe {
       var hash=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(bundle.resolve(matches.group(1)))));
       require(hash.equals(matches.group(2)),"manifest hash differs: "+matches.group(1));count++;
     }
-    require(count==27,"manifest omitted files: "+count);
+    require(count==28,"manifest omitted files: "+count);
   }
   static void engine(Path bundle)throws Exception {
     try(var client=new ContextProbe.Client(bundle.resolve("bin/te-bridge"),"experiment.swebench")) {
@@ -92,6 +92,7 @@ class ExperimentBundleProbe {
           from te_runtime.nudge_guard import bind
           from te_runtime.codex_install import bind as install_bindings
           from te_runtime.usage import bind as usage_bindings
+          from te_runtime.providers import routing
           from pathlib import Path
           with Bridge(sys.argv[2]) as bridge:
               sdk=bind(bridge.request)
@@ -117,10 +118,16 @@ class ExperimentBundleProbe {
               recovery.observe(dict(type='assistant',message=dict(id='m1',usage=dict(input_tokens=5,output_tokens=1))))
               recovered=recovery.synthesize('owned fixture')
               assert recovered['usage_incomplete'] and recovered['usage']['output_tokens'] == 0 and len(usage_logs) == 1
+              providers=routing(bridge,lambda message:None)
+              endpoint=providers.codex.resolve_codex_routing(dict(OPENAI_API_KEY='fixture',OPENAI_BASE_URL=' https://bundle.invalid/v1/// '))
+              assert endpoint == dict(base_url='https://bundle.invalid/v1',api_key='fixture')
+              environment=dict(ANTHROPIC_AUTH_TOKEN='ignored fixture',keep='fixture')
+              assert providers.claude.agent_credential_env(environment,api_key='fixture') is environment
+              assert environment == dict(keep='fixture',ANTHROPIC_API_KEY='fixture')
           print('packaged SDK bindings passed')
           """,moved.resolve("sdk").toString(),moved.resolve("bin/te-bridge").toString()));
       require(controller.code()==0&&controller.out().equals("packaged SDK bindings passed\n"),"relocated SDK binding failed: "+controller);
-      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==28,"benchmark command changed the runtime payload");}
+      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==29,"benchmark command changed the runtime payload");}
       var bootstrap=moved.resolve("sdk/bench.py");var bootstrapBytes=Files.readAllBytes(bootstrap);Files.delete(bootstrap);
       var absent=NativeCliProbe.process(root,Map.of("PATH","","TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString()),List.of(moved.resolve("bin/te-bench").toString(),"--help"));
       require(absent.code()!=0&&absent.err().contains("SDK binding is missing"),"missing bundled SDK selected development files: "+absent);Files.write(bootstrap,bootstrapBytes);

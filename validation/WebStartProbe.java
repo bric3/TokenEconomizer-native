@@ -13,6 +13,13 @@ class WebStartProbe {
   static String q(Object value){return ParserProbe.q(value);}
   static String compare(AdapterProbe.Client nativeCode,AdapterProbe.Client source,String fields) throws Exception {
     var request="{"+fields+"}";var expected=source.call(request);var actual=nativeCode.call(request);
+    var reference=Path.of("reference/upstream/experiments/te_harness/webbench_undici_preload.mjs").toAbsolutePath();
+    var asset=Path.of("src/experiments/assets/webbench_undici_preload.mjs").toAbsolutePath();
+    var referenceUri=reference.toUri().toASCIIString();var assetUri=asset.toUri().toASCIIString();
+    if(expected.contains(referenceUri)) {
+      if(Files.mismatch(reference,asset)!=-1||!actual.contains(assetUri))throw new AssertionError("Native evaluator did not select the pinned runtime preload");
+      expected=expected.replace(referenceUri,assetUri);
+    }
     if(!actual.equals(expected))throw new AssertionError("Case "+cases+": "+request+"\nNative: "+actual+"\nSource: "+expected);
     cases++;return actual;
   }

@@ -152,7 +152,8 @@ carries the SDK and command, including the generic streamed-rollout controller
 and Codex policy, state, resume-guard and envelope-tracker bindings. Their state
 transitions execute in Rust. Codex installation discovery, bundled skill discovery
 and configuration validation also execute in Rust through the SDK. Accounting
-bindings cover all three agents, including Claude's incomplete-stream recovery. Built-in
+bindings cover all three agents, including Claude's incomplete-stream recovery.
+Provider routing, catalogue reads and pricing checks also use the packaged SDK. Built-in
 SWE-bench and WebBench harness bindings remain pending.
 
 SWE-bench controller selection, constructor parameters, continuation dispatch and

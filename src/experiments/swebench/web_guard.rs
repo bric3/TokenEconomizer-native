@@ -263,6 +263,10 @@ fn verify(rt: &mut dyn Runtime) -> Result<Value> {
         function(rt, "subprocess.run")?;
         copy(rt, "run", "function")?;
         launcher(rt)?;
+        // Create the task home for Copilot, whose settings live in a separate directory.
+        function(rt, "os.makedirs")?;
+        literal(rt, "true", json!(true))?;
+        invoke(rt, &["home"], &[("exist_ok", "true")])?;
         let helper = std::env::current_exe()?
             .with_file_name(format!("te-net-guard{}", std::env::consts::EXE_SUFFIX));
         let helper = helper

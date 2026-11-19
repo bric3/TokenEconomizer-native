@@ -8,11 +8,27 @@ import types
 import urllib.error
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
-from te_harness import swebench, copilot, codex
-if "--native" in sys.argv:
-    from native_experiment_providers import install
-    install()
+if "--sdk" in sys.argv:
+    import atexit
+    original_import=builtins.__import__
+    def guarded(name,*args,**kwargs):
+        if name.split(".")[0] in ("tokeneconomizer","te_bench","te_harness","native_plugin","sdk_transport"):
+            raise AssertionError("Provider SDK imported reference/test code: "+name)
+        return original_import(name,*args,**kwargs)
+    builtins.__import__=guarded
+    sys.path.insert(0,str(ROOT / "src/experiments/sdk"))
+    from te_runtime.providers import routing
+    from te_runtime.transport import Bridge
+    bridge=Bridge(ROOT / "target/debug/te-bridge")
+    atexit.register(bridge.close)
+    sdk=routing(bridge,lambda message:None)
+    swebench,copilot,codex=sdk.claude,sdk.copilot,sdk.codex
+else:
+    sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+    from te_harness import swebench, copilot, codex
+    if "--native" in sys.argv:
+        from native_experiment_providers import install
+        install()
 
 catalogue_cache,previous_result = None,None
 for line in sys.stdin:
@@ -78,7 +94,7 @@ for line in sys.stdin:
     try:
         for item in saved:
             item.os = types.SimpleNamespace(environ=environment)
-            if hasattr(item,"pricing"): item.pricing = types.SimpleNamespace(weights_for=pricing)
+            if hasattr(item,"pricing") and not request.get("real_pricing"): item.pricing = types.SimpleNamespace(weights_for=pricing)
         swebench._log = logger
         if not request.get("real_http"):
             codex.urllib = types.SimpleNamespace(request=types.SimpleNamespace(Request=make_request,urlopen=urlopen),error=urllib.error)

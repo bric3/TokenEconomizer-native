@@ -8,6 +8,7 @@ use tokeneconomizer::experiments::{
     adapters::{self, Adapter, Error},
     arms,
     driver::parse_env,
+    swebench::providers,
 };
 use tokeneconomizer::{ledger, microskills::distiller};
 
@@ -38,6 +39,9 @@ fn response(result: Result<Value, Error>) -> Value {
     }
 }
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
+    if op == "experiment.providers.constants" {
+        return Ok(Some(providers::constants()));
+    }
     if op == "experiment.driver.constants" {
         return Ok(Some(
             json!({"overhead_keys":ledger::OVERHEAD_KEYS,"propose_every":distiller::PROPOSE_EVERY,"description":"Run one TokenEconomizer arm over a task stream.\n\nUse --runner module:factory for a task harness. The default stub creates synthetic transcripts, grades and optimizer answers for wiring checks."}),

@@ -1,6 +1,7 @@
 """Actual HTTP, process and filesystem bindings for an offline Web-Bench task."""
 import json
 import os
+import shlex
 from pathlib import Path
 import sys
 import tomllib
@@ -31,7 +32,8 @@ operator_config.mkdir()
 os.environ["COPILOT_HOME"] = str(operator_config)
 agent = os.environ.get("TE_FIXTURE_AGENT","claude")
 task = {"instance_id":"init","repo":"@web-bench/project","problem_statement":"implement"}
-wb._log = lambda value:None
+logs=[]
+wb._log=logs.append
 session = wb._EvalSession("project",repository,str(run/"evaluator"),retry=2,tasks=[task],node=binary,reply_timeout=5)
 base = {"claude":wb.WebBenchRunner,"copilot":wb.CopilotWebBenchRunner,"codex":wb.CodexWebBenchRunner}[agent]
 class Scaffold:
@@ -85,7 +87,7 @@ try:
     row,out = runner.run_task(task,arm="baseline",injected=None,exclude_tools=[],run_dir_path=str(run),codex_config_capabilities=["skills"])
     assert out == str(run) and row["resolved"] is True and row["resolved_p1"] is True and row["resolved_p2"] is True
     assert row["webbench_attempts"] == 1 and row["webbench_answered_files"] == [["src/a.js"]]
-    assert row["net_guard_installed"] is True and row["net_guard_blocks"] == 0
+    assert row["net_guard_installed"] is True and row["net_guard_blocks"] == 0,(row,logs)
     assert row.get("fixture_scaffold_installed") is True and row["scaffold"] == "fixture",row
     assert Path(run,"ws-attempt1/SCAFFOLD.md").read_text(encoding="utf-8") == "installed"
     assert row["input_tokens"] == 10 and row["cache_read_input_tokens"] == 20 and row["cache_creation_input_tokens"] == 30 and row["output_tokens"] == 4
@@ -133,7 +135,17 @@ if "--native" in sys.argv:
     if agent == "codex": assert native_plugin.CALLS["experiment.swebench.provider.codex.invocation_env"] == 1
     for name in ("network_install","network_verify","network_blocks"):
         assert native_plugin.CALLS["experiment.swebench.provider.webbench."+name] > 0,"pipeline bypassed native "+name
-    assert native_plugin.CALLS["experiment.net_guard.process"] == 1
+    home=Path(runner.agent_home(str(run)))
+    launcher=home/"net_guard.py"
+    program=launcher.read_text(encoding="utf-8")
+    assert launcher.is_file() and os.access(launcher,os.X_OK) and program.startswith("#!/bin/sh\nexec "),program
+    command=shlex.split(program.splitlines()[1])
+    assert command[0] == "exec" and Path(command[1]).resolve() == (ROOT/"target/debug/te-net-guard").resolve(),command
+    telemetry=home/"fixture_guard_probe.jsonl"
+    probe=wb.subprocess.run([str(launcher)],input=json.dumps(dict(tool_name="Bash",tool_input=dict(command="echo https://github.com/probe"))),
+        text=True,capture_output=True,env=dict(os.environ,**{wb.net_guard.LOG_ENV:str(telemetry)}),timeout=5)
+    assert probe.returncode == 2 and len(telemetry.read_text(encoding="utf-8").splitlines()) == 1,probe
+    telemetry.unlink()
     for name in ("profile_new","profile_mcp","context_new","mcp_config","merge_json"):
         assert native_plugin.CALLS["experiment.swebench.provider.scaffold."+name] > 0,"pipeline bypassed native shared scaffold "+name
     for name in ("rtk_setup","rtk_hook_binary","rtk_codex" if agent == "codex" else "rtk_probe"):

@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.concurrent.TimeUnit;
 
 /** Checks response boundaries, owned process cleanup, signal deferral and no replay. */
@@ -40,7 +41,7 @@ class StandaloneTransportProbe {
     if(args.length>0){server(Path.of(args[1]),args[2]);return;}
     var root=Files.createTempDirectory(Path.of("validation/results"),"standalone-transport-").toAbsolutePath();boolean passed=false;
     try {
-      for(var mode:List.of("normal","threads","json","array","missing","error","eof","int","term","gap","callback")) {
+      for(var mode:List.of("normal","threads","json","array","missing","error","eof","int","term","gap","callback","isolation")) {
         var directory=Files.createDirectory(root.resolve(mode));var executable=directory.resolve("server");
         Files.writeString(executable,"#!/bin/sh\nexec "+sh(Path.of(System.getProperty("java.home"),"bin/java"))+" -cp "+sh(System.getProperty("java.class.path"))+" StandaloneTransportProbe --server "+sh(directory)+" "+sh(mode)+"\n");
         require(executable.toFile().setExecutable(true),"server fixture is not executable");
@@ -56,7 +57,7 @@ class StandaloneTransportProbe {
           if(!process.waitFor(15,TimeUnit.SECONDS)){process.destroyForcibly().waitFor();throw new AssertionError("transport client timed out: "+mode);}
           var output=Files.readString(log);require(process.exitValue()==0,Files.readString(errors));
           require(output.contains("\"restored\":true"),"signal handler was not restored: "+output);
-          require(Files.readString(directory.resolve("requests")).equals(mode.equals("threads")?"32":"1"),"request was lost or replayed: "+mode);
+          require(Files.readString(directory.resolve("requests")).equals(mode.equals("threads")?"32":mode.equals("isolation")?"2":"1"),"request was lost or replayed: "+mode);
           var identity=Files.readString(directory.resolve("pid")).split(" ");
           require(Long.parseLong(identity[1])==process.pid(),"fixture process ownership changed");
           require(ProcessHandle.of(Long.parseLong(identity[0])).map(handle->!handle.isAlive()).orElse(true),"owned engine was left alive: "+mode);
@@ -66,6 +67,11 @@ class StandaloneTransportProbe {
           if(List.of("int","term","gap","callback").contains(mode))require(output.contains("\"result\":"),"signal interrupted a committed frame: "+output);
           if(mode.equals("gap")||mode.equals("callback"))require(!output.contains("\"continued\":true"),"callback was not interruptible: "+output);
           if(mode.equals("threads"))require(output.contains("\"sequences\":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32]"),"parallel response order changed: "+output);
+          if(mode.equals("isolation")) {
+            var pids=Pattern.compile("\"(?:outer_pid|isolated_pid)\":(\\d+)").matcher(output);int count=0;
+            while(pids.find()){require(ProcessHandle.of(Long.parseLong(pids.group(1))).map(handle->!handle.isAlive()).orElse(true),"isolated channel left an owned process alive");count++;}
+            require(count==2&&output.contains("\"outer_sequence\":2"),"isolated connection changed the outer channel: "+output);
+          }
         }finally{
           if(process.isAlive())process.destroyForcibly().waitFor();
           if(Files.exists(directory.resolve("pid"))) {

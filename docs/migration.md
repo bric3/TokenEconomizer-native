@@ -759,6 +759,7 @@ complete while any runtime component delegates production behaviour to Python.
   native. Codex captures and the WebBench preload use native runtime asset paths.
   Codex installation and configuration probe SDK bindings are packaged too.
   Agent accounting and interrupted-stream recovery also have packaged SDK bindings.
+  The shared object/I/O binding and provider routing namespace are packaged too.
   Built-in harness bindings still need to replace their validation bindings.
   Process and SDK calls retain Python I/O bindings.
 - Benchmark driver runner and dataset selection, workload and task filtering,
@@ -2867,6 +2868,41 @@ complete while any runtime component delegates production behaviour to Python.
   Formal simplification and performance passes remain at 0/3 each; final test
   conversion is pending.
 
+- The shared provider, runner, scaffold and driver object/I/O binding now ships
+  in the SDK. The original test adapter registers methods and supplies counted
+  test channels; its duplicate callback dispatcher has been removed. The SDK
+  retains opaque objects, context-manager methods, active exceptions, captured
+  callbacks and lazy generators while Rust drives the operations. Cleanup uses
+  isolated owned engine connections.
+  The source-independent provider namespace binds 15 credential, routing,
+  catalogue and pricing operations. Rust supplies credential names and endpoint
+  defaults. Both provider probes pass 279 source comparisons, including real
+  loopback HTTP, cache identity, mapping mutations and actual pricing checks.
+  Those checks exposed Rust debug formatting in unknown-model diagnostics;
+  pricing now formats the model and agent with Python-compatible representations.
+  The SDK transport passes 97 checks, including isolated process lifetime and
+  continued use of the outer channel.
+  Six complete offline WebBench task pipelines exposed a missing task home on
+  the Copilot path: its settings live elsewhere, and writing the native guard
+  launcher failed before the scaffold created that home. Native guard verification
+  now creates the home first. All six pipelines and 236 guard checks pass,
+  including fresh homes, actual refusals and telemetry. The evaluator-start probe
+  checks pinned preload bytes and the native asset URI. The task probe verifies
+  the installed native guard instead of expecting an in-process bridge call.
+  Targeted optimizer, logging, preflight, runner, scaffold, evaluator, workspace
+  and driver probes pass too, including eight real signal-cleanup cases.
+  The runtime bundle contains nine SDK files and 28 payload hashes. Its 149
+  checks include relocated provider routing and credential-map mutation with
+  reference imports forbidden. The standalone benchmark passes 89 checks.
+  The unchanged upstream suite passes with 1,561 passed and 30 skipped
+  (68.18 seconds), including installed-opencode tests against the loopback model
+  fixture. All 24 Rust checks, debug/release builds, Clippy and the 256-file
+  reference check pass. IDE inspections remain unavailable because this checkout
+  is not open in the IDE. Windows, other Python versions and live agents remain
+  unverified. Built-in harness SDK bindings and remaining parity audits stay open.
+  Formal simplification and performance passes remain at 0/3 each; final test
+  conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2994,6 +3030,8 @@ jbang validation/NudgeProbe.java --sdk
 jbang validation/FacadeProbe.java
 jbang validation/UsageProbe.java
 jbang validation/UsageProbe.java --sdk
+jbang validation/ProviderProbe.java
+jbang validation/ProviderProbe.java --sdk
 jbang validation/TaskProbe.java
 jbang validation/WebSegmentProbe.java
 jbang validation/WebAgentProbe.java

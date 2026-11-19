@@ -96,6 +96,10 @@ class Bridge:
         pending,self._signals=self._signals,[]
         for handler,number,frame in pending: handler(number,frame)
 
+    @contextlib.contextmanager
+    def isolated(self):
+        with Bridge(self.executable) as bridge: yield bridge
+
     def close(self):
         with self._lock:
             process,self._process=self._process,None

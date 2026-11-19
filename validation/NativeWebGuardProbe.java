@@ -29,11 +29,16 @@ class NativeWebGuardProbe {
         for(int rc:List.of(0,1,2,3,20))call(nativeCode,"\"agent\":"+q(agent)+",\"operation\":\"verify\",\"rc\":"+rc,"\"value\":"+(rc==2));
       }
       call(nativeCode,"\"agent\":\"codex\",\"opaque_armed_get\":true","\"value\":{\"ref\":\"armed\"}");
-      for(var phase:List.of("open","enter","write","exit","chmod","run","returncode","remove","log"))for(var kind:List.of("OSError","RuntimeError","KeyboardInterrupt","SystemExit")) {
+      for(var phase:List.of("mkdir","open","enter","write","exit","chmod","run","returncode","remove","log"))for(var kind:List.of("OSError","RuntimeError","KeyboardInterrupt","SystemExit")) {
         boolean raised=List.of("KeyboardInterrupt","SystemExit").contains(kind)||phase.equals("returncode")||phase.equals("log")||phase.equals("remove")&&!kind.equals("OSError");
         var expected=raised?"\"raised\":"+q(kind):"\"value\":"+phase.equals("remove");
         var result=call(nativeCode,"\"operation\":\"verify\",\"fail\":"+q(phase)+",\"error\":"+q(kind)+(phase.equals("log")?",\"rc\":0":""),expected);
         if(!raised&&!phase.equals("remove")&&!result.contains("UNGUARDED"))throw new AssertionError("failed probe was not logged");
+      }
+      for(var agent:List.of("claude","copilot","codex")) {
+        var run=Files.createDirectory(root.resolve("fresh-"+agent));var home=run.resolve("absent home");
+        call(nativeCode,"\"agent\":"+q(agent)+",\"home\":"+q(home)+",\"run_dir\":"+q(run)+",\"copilot_home\":"+q(run.resolve("copilot"))+",\"real_files\":true,\"real_process\":true","\"value\":true");
+        if(!Files.isExecutable(home.resolve("net_guard.py"))||Files.exists(home.resolve("net_guard_blocks.jsonl")))throw new AssertionError("fresh guard home was not prepared correctly: "+home);
       }
       for(var agent:List.of("claude","copilot","codex"))for(var suffix:List.of("plain","quote '$(not-run)","é😀")) {
         var run=Files.createDirectory(root.resolve(agent+"-"+suffix));var home=Files.createDirectory(run.resolve("home"));var copilot=Files.createDirectory(run.resolve("copilot"));

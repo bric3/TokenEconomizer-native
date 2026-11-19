@@ -35,7 +35,8 @@ class ProviderProbe {
     } finally {server.stop(0);}
   }
   public static void main(String[] args) throws Exception {
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"provider_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"provider_host.py")) {
+    boolean standalone=args.length==1&&args[0].equals("--sdk");
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"provider_host.py",standalone?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"provider_host.py")) {
       for(var agent:List.of("claude","codex"))for(var key:List.of("null","false","0","\"\"","\"fixture\"","[]","{}","[1]"))for(boolean explicit:List.of(false,true))
         compare(nativeCode,source,method(agent,agent.equals("claude")?"resolve_anthropic_key":"resolve_codex_routing")+",\"explicit\":"+explicit+",\"env\":{"+q(agent.equals("claude")?"ANTHROPIC_API_KEY":"OPENAI_API_KEY")+":"+key+"}");
       for(var base:List.of("", " https://region/v1/// ","\u001c https://api/v1/\u001f","/","é😀"))for(var agent:List.of("claude","codex"))
@@ -78,7 +79,9 @@ class ProviderProbe {
       for(var model:List.of("\"missing\"","\"\\ud800\""))
         compare(nativeCode,source,method("codex","verify_model")+",\"arguments\":{\"model\":"+model+",\"routing\":{\"base_url\":\"http://fixture\",\"api_key\":\"fixture\"}},\"body\":"+q("{\"data\":[{\"id\":\"\\ud800\"},{\"id\":\"é😀\"}]}"));
       http(nativeCode,source);
+      for(var agent:List.of("copilot","codex"))for(var model:List.of("gpt-5.6-sol","claude-sonnet-5","unknown-fixture-model","unknown'fixture","unknown\"fixture","é😀 unknown\nfixture"))
+        compare(nativeCode,source,method(agent,"validate_priceable")+",\"real_pricing\":true,\"arguments\":{\"model\":"+q(model)+",\"agent\":"+q(agent)+"}");
     }
-    System.out.println("Provider policy matches the source in "+cases+" comparisons, including real local HTTP, cache identity, mapping mutations, credentials and catalogue failures");
+    System.out.println((standalone?"Standalone SDK (reference imports forbidden): ":"")+"Provider policy matches the source in "+cases+" comparisons, including real local HTTP, cache identity, mapping mutations, credentials and catalogue failures");
   }
 }
