@@ -1,5 +1,5 @@
 use std::{env, error::Error, process::Command};
-use tokeneconomizer::experiments::{aggregate, compare, datasets, sdk, sweep, workloads};
+use tokeneconomizer::experiments::{aggregate, compare, datasets, launch, sdk, sweep, workloads};
 
 fn run() -> Result<i32, Box<dyn Error>> {
     if let Some(command) = env::args_os().nth(1).filter(|arg| {
@@ -10,6 +10,7 @@ fn run() -> Result<i32, Box<dyn Error>> {
             || arg == "export-webbench"
             || arg == "webbench-from-yaml"
             || arg == "compare-arms"
+            || arg == "fleet-budget"
     }) {
         let args = env::args_os()
             .skip(2)
@@ -60,6 +61,18 @@ fn run() -> Result<i32, Box<dyn Error>> {
                 )
                 .map_err(|e| e.message)?,
             )
+        } else if command == "fleet-budget" {
+            let mut settings = serde_json::Map::new();
+            for (key, value) in env::vars_os() {
+                let key = key
+                    .into_string()
+                    .map_err(|_| "launch environment must be UTF-8")?;
+                let value = value
+                    .into_string()
+                    .map_err(|_| "launch environment must be UTF-8")?;
+                settings.insert(key, serde_json::Value::String(value));
+            }
+            Some(launch::fleet::command(&args, settings, env::current_dir()?))
         } else if command == "compare-arms" {
             match compare::command("te-bench compare-arms", &args, &env::current_dir()?) {
                 Ok(output) => Some(output),

@@ -229,6 +229,18 @@ The command runs without Python. It charges each task's mechanism overhead,
 reports unpaired and incomplete tasks, and includes prefix telemetry, saved
 environment facts and stream injection timing. `--json` writes the paired metrics.
 
+Inspect or set the CPU ceiling shared by the current user's rootless Docker containers:
+
+```sh
+target/release/te-bench fleet-budget
+target/release/te-bench fleet-budget 16
+```
+
+The numeric argument updates the parent cgroup's `cpu.max`, covering current and
+future containers. Missing or unwritable cgroups produce a warning. `0` and `none`
+leave the budget unchanged. The command runs without Python or shell utilities;
+Docker supplies optional live usage data.
+
 Use `--runner module:factory` for an external task runner. Python 3.10 or newer supplies
 standard-library I/O; `TE_BENCH_PYTHON` selects its interpreter. The runtime bundle
 carries the SDK and command, including the generic streamed-rollout controller

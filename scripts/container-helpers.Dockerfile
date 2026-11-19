@@ -5,7 +5,7 @@ ARG TARGETARCH
 COPY Cargo.toml Cargo.lock LICENSE ./
 COPY src/ src/
 COPY validation/console_probe.rs validation/console_probe.rs
-RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,id=te-helper-target-${TARGETARCH},target=/work/target cargo test --locked --release --lib microskills::distiller::regex::backrefs && cargo build --locked --release --bin te-net-guard
+RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,id=te-helper-target-${TARGETARCH},target=/work/target cargo test --locked --release --lib && cargo build --locked --release --bin te-net-guard
 RUN --mount=type=cache,id=te-helper-target-${TARGETARCH},target=/work/target install -D -m 0755 target/release/te-net-guard /out/te-net-guard
 RUN rustc -vV > /out/toolchain.txt
 

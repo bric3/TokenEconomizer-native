@@ -8,6 +8,7 @@ pub mod compare;
 pub mod datasets;
 pub mod driver;
 pub mod facade;
+pub mod launch;
 pub mod net_guard;
 pub mod nudge_guard;
 mod paths;

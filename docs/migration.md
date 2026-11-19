@@ -3469,6 +3469,56 @@ complete while any runtime component delegates production behaviour to Python.
   Whole-file stream decoding can prioritise a later UTF-8 error over an earlier
   malformed JSON line. Exact-rational arithmetic still needs performance coverage.
 
+- Shared launch configuration, preflights and fleet CPU controls now execute in
+  Rust. `te-bench fleet-budget [cores]` discovers the parent of a rootless Docker
+  scope, falls back to the canonical user-manager cgroup, and checks or writes
+  `cpu.max`. It reports throttling and optional Docker usage without Python or
+  shell utilities. The original seven fleet tests drive this native command
+  against fake cgroup trees; no real host CPU budget was changed.
+  The shared library ports all `_env.sh` functions: environment-file selection
+  and loading, exported-variable precedence, model spelling and tree tags,
+  credential routing, endpoint removal/validation, Copilot authentication warm-up,
+  quota refusal, model fallback, effort caching, billed-probe dry-run skipping
+  and detached process startup. Test compatibility code transports Bash scalar
+  values and export flags; it applies only the changes returned by Rust. The
+  archived source files remain unchanged. Ordinary returned statuses and fatal
+  launcher exits stay distinct. Child processes inherit exported variables;
+  shell-local values remain available to helper policy without being exported.
+  Detached commands start a new Unix session, ignore SIGHUP with `sigaction`,
+  and write the session leader's PID before exec. The post-fork callback uses
+  [async-signal-safe OS operations](https://man7.org/linux/man-pages/man7/signal-safety.7.html)
+  and stack storage for PID formatting. Log or PID-file failures refuse startup
+  rather than announce a background run without a usable PID file. The private
+  legacy-script binding supplies Bash; the native library accepts a command
+  argument vector directly and needs no `setsid` or `nohup` utility.
+  Dedicated checks use fake Copilot/Docker programs, fake cgroups and real kernel
+  session/group identities. The source oracle's missing macOS `setsid` utility
+  is supplied by a Java fixture calling `setsid` and `execvp` through the
+  [JDK 25 foreign linker](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/foreign/Linker.html).
+  No live model probe or benchmark lane was launched. Native kernel tests also
+  start their own test executable directly, covering PID-file availability,
+  session/group identity, ignored SIGHUP and the detached/unbuffered exports.
+  The dedicated launch probe passes 164 helper and detachment checks plus three
+  standalone fleet checks. The focused unchanged tests pass with 72 passed and
+  two skipped. The full unchanged suite passes with 1,561 passed and 30 skipped
+  (293.89 seconds), including the installed-opencode loopback fixture. Its call
+  record, `validation/results/launch-full-calls.json`, records 33 binding loads
+  and 41 rewritten shell processes; helper calls made in separate child
+  transports are not included in that parent counter. All 29 Rust tests,
+  Clippy, formatting and the release build pass. Both Linux architectures pass
+  all 28 library tests during the helper build and 26 scratch-container checks.
+  The relocated runtime bundle passes 252 checks with 20 SDK files, 39 manifest
+  hashes and 40 physical files. All 256 archived upstream files match the pinned
+  Git tree. Logs are in `validation/results/launch-full.log`,
+  `launch-rust-tests.log`, `launch-container-build.log`,
+  `launch-container-probe.log` and `launch-bundle.log`.
+  Original Python tests remain unconverted. The main sweep, Codex A/B and smoke
+  launch entry points still execute archived scripts and are the next production
+  work, followed by the supporting-tool audit, three simplification passes,
+  three performance passes and final test conversion. Windows detachment,
+  locale-dependent shell text, non-UTF-8 variables, general Bash arithmetic
+  expressions and interleaved probe stdout/stderr remain outside this corpus.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -3716,6 +3766,7 @@ jbang validation/DatasetExportProbe.java
 jbang validation/WebExportProbe.java
 jbang validation/YamlMirrorProbe.java
 jbang validation/CompareProbe.java
+jbang validation/LaunchProbe.java
 jbang validation/StandaloneBenchProbe.java
 jbang validation/StandaloneTransportProbe.java
 jbang validation/HermesGatewayProbe.java

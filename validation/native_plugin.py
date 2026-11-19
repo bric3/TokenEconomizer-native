@@ -55,6 +55,14 @@ EXPERIMENT_HARNESS_REPLACEMENTS = {}
 
 def native_cli_process(*args, **kwargs):
     argv = args[0] if args else kwargs.get("args")
+    if isinstance(argv, (list, tuple)) and argv and Path(str(argv[0])).name == "bash":
+        from native_launch import rewrite
+        changed = rewrite(argv, kwargs)
+        if list(changed) != list(argv):
+            argv = changed
+            if args: args = (argv, *args[1:])
+            else: kwargs["args"] = argv
+            with LOCK: CALLS["experiment.launch.shell_process"] += 1
     if (isinstance(argv,(list,tuple)) and len(argv) >= 2 and argv[0] == sys.executable
             and (str(argv[1]) == str(ROOT/"reference/upstream/experiments/te_harness/guards/net_guard.py")
                  or list(argv[1:3]) == ["-m","te_harness.guards.net_guard"])):

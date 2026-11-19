@@ -1,6 +1,6 @@
 //JAVA 25
 //SOURCES NativeCliProbe.java CliProbe.java ContextProbe.java ParserProbe.java ContainerProbe.java AdapterProbe.java ExtractProposerPrompts.java
-//SOURCES DatasetExportProbe.java WebExportProbe.java YamlMirrorProbe.java CompareProbe.java
+//SOURCES DatasetExportProbe.java WebExportProbe.java YamlMirrorProbe.java CompareProbe.java LaunchProbe.java
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -122,6 +122,11 @@ class ExperimentBundleProbe {
       WebExportProbe.standalone(checkout,root.resolve("web-export"),moved.resolve("bin/te-bench"));checks+=5;
       YamlMirrorProbe.standalone(checkout,root.resolve("yaml-mirror"),moved.resolve("bin/te-bench"));checks+=7;
       CompareProbe.standalone(checkout,root.resolve("compare"),moved.resolve("bin/te-bench"));checks+=3;
+      LaunchProbe.standalone(checkout,root.resolve("fleet"),moved.resolve("bin/te-bench"));checks+=3;
+      try(var engine=new ContextProbe.Client(moved.resolve("bin/te-bridge"))) {
+        var model=engine.call("experiment.launch.function","\"context\":{\"env\":{},\"exported\":[],\"cwd\":"+q(root)+"},\"name\":\"te_model_for_agent\",\"args\":[\"copilot\",\"claude-opus-4-8\"]");
+        require(model.contains("\"stdout\":\"claude-opus-4.8\\n\"")&&model.contains("\"code\":0")&&model.contains("\"changed\":{}"),"relocated launch helpers required shell policy: "+model);
+      }
       var builtin=NativeCliProbe.process(root,Map.of("PATH","","HOME",root.toString(),"TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString(),"TOKENECONOMIZER_ENV_FILE",root.resolve("absent.env").toString(),"ANTHROPIC_API_KEY",""),List.of(moved.resolve("bin/te-bench").toString(),"--arm","baseline","--runner","te_runtime.swebench:make_runner","--agent","claude","--tasks-file",tasks.toString(),"--results-root",root.resolve("builtin-results").toString()));
       require(builtin.code()!=0&&builtin.err().contains("ANTHROPIC_API_KEY is unset"),"built-in runner did not reach credential validation: "+builtin);
       var webBuiltin=NativeCliProbe.process(root,Map.of("PATH","","HOME",root.toString(),"TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString(),"TOKENECONOMIZER_ENV_FILE",root.resolve("absent.env").toString(),"ANTHROPIC_API_KEY",""),List.of(moved.resolve("bin/te-bench").toString(),"--arm","baseline","--runner","te_runtime.webbench:make_runner","--agent","claude","--tasks-file",tasks.toString(),"--results-root",root.resolve("web-builtin-results").toString()));

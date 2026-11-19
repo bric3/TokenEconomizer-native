@@ -8,7 +8,7 @@ use tokeneconomizer::experiments::{
     adapters::{self, Adapter, Error},
     aggregate, arms, compare,
     driver::parse_env,
-    scaffolds,
+    launch, scaffolds,
     swebench::Failure,
     swebench::providers,
     swebench::setup,
@@ -44,6 +44,19 @@ fn response(result: Result<Value, Error>) -> Value {
     }
 }
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
+    if op == "experiment.launch.constants" {
+        return Ok(Some(json!({"functions":launch::FUNCTIONS})));
+    }
+    if op == "experiment.launch.function" {
+        let context: launch::Context =
+            serde_json::from_value(args["context"].clone()).map_err(|e| e.to_string())?;
+        return context
+            .function(
+                args["name"].as_str().ok_or("missing launch function")?,
+                &strings(args, "args")?,
+            )
+            .map(|v| Some(json!(v)));
+    }
     if let Some(method) = op.strip_prefix("experiment.compare.") {
         let cwd = Path::new(args["process_cwd"].as_str().unwrap_or("."));
         let result = match method {
