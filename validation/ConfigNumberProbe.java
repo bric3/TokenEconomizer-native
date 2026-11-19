@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.MatchResult;
+import java.util.regex.Pattern;
 
 /** Compares configuration coercion with Python's decimal digits, separators and whitespace. */
 class ConfigNumberProbe {
@@ -31,6 +33,13 @@ class ConfigNumberProbe {
     return expected;
   }
   static void persistence(AdapterProbe.Client nativeCode, AdapterProbe.Client source, Path root) throws Exception {
+    var registry = compare(nativeCode, source, "[{\"action\":\"environment\"}]");
+    var names = Pattern.compile("TE_[A-Z_]+").matcher(registry).results().map(MatchResult::group).toList();
+    if (names.size() != 54) throw new AssertionError("Environment registry changed: " + registry);
+    for (var name : names) for (var value : List.of("null", "\"\"", "\"on\"", "\"2\"", "\"é😀\"", "{}"))
+      compare(nativeCode, source, "[{\"action\":\"load\",\"root\":"+ParserProbe.q(root)+",\"env\":{\""+name+"\":"+value+"}}]");
+    compare(nativeCode, source, "[{\"action\":\"load\",\"root\":"+ParserProbe.q(root)
+        +",\"env\":{\"TE_INJECT\":\"off\",\"TE_MICROSKILLS\":\"on\",\"TE_UNTOOL\":\"off\",\"TE_TOOLPRUNE\":\"auto\",\"TE_SPIRAL\":\"off\",\"TE_LOOPGUARD\":\"nudge\"}}]");
     var file = root.resolve("config.json");
     var repo = Files.createDirectory(root.resolve("repo"));
     var seed = "{\"paid_model\":\"keep\"}\n";

@@ -216,12 +216,12 @@ fn config_dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
         }
         "live_config.environment" => json!(
             config::environment()
-                .into_iter()
-                .map(|(key, _)| key)
+                .iter()
+                .map(|&(key, _)| key)
                 .chain([
-                    "TE_SPIRAL_THRESHOLDS".into(),
-                    "TE_LOOPGUARD_THRESHOLDS".into(),
-                    "TE_DISABLE".into()
+                    "TE_SPIRAL_THRESHOLDS",
+                    "TE_LOOPGUARD_THRESHOLDS",
+                    "TE_DISABLE"
                 ])
                 .collect::<Vec<_>>()
         ),

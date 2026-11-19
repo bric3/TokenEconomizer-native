@@ -31,6 +31,10 @@ zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2
 [patch.crates-io]
 serde_json = { path = "vendor/serde_json" }
 
+[[example]]
+name = "config-load-bench"
+path = "validation/config_load_bench.rs"
+
 [[bin]]
 name = "te-bridge"
 path = "src/bin/bridge.rs"

@@ -30,10 +30,10 @@ complete while any runtime component delegates production behaviour to Python.
 
 ## Status
 
-- Current phase: all three simplification passes and performance passes 1 and 2
-  are complete. The unchanged original suite passes. One further measured
-  performance pass precedes original-test conversion. The parity and platform
-  audits below stay open through final verification.
+- Current phase: all three simplification passes and all three performance
+  passes are complete. The unchanged original suite passes. Original-test
+  conversion is next. The parity and platform audits below stay open through
+  final verification.
 - Git initialised on `main`.
 - Upstream archived at the revision recorded in `reference/revision.txt`.
 - Python test environment: `.venv`, pytest 9.2.0.
@@ -829,8 +829,8 @@ complete while any runtime component delegates production behaviour to Python.
   coordination and the offline stub runner are native. The standalone benchmark
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
-- Simplification passes: 3 of 3. Performance passes: 2 of 3.
-- Final test conversion: pending until the preceding gates pass.
+- Simplification passes: 3 of 3. Performance passes: 3 of 3.
+- Final test conversion: ready to start.
 
 ## Verified milestones
 
@@ -4277,6 +4277,60 @@ complete while any runtime component delegates production behaviour to Python.
   performance pass. The numeric-read regression and the remaining parity and
   platform audits stay open.
 
+- Performance pass 3 replaces `config::environment`'s generated vector and
+  owned names with an immutable slice of string pairs. `load_config` borrows
+  that registry on every call. Environment values still come from each call's
+  map, and old names still precede current names. The bridge exposes the same
+  ordered variable names. No dependency was added.
+
+  `ConfigLoadBenchmark.java` compares signed revision `0b0bcaa` with the candidate
+  in nine alternating batches. Its optional direct executables run identical
+  `validation/config_load_bench.rs` code against each revision's actual library,
+  excluding process launch and response serialization from the timed loop.
+  Each direct process warms 100 loads, consumes each result with `black_box`
+  and returns a complete configuration for equality checks against both the
+  other executable and the bridge. The baseline checkout receives only this
+  benchmark and its Cargo example declaration. The repeat run follows.
+
+  | Configuration       | Bytes  | Before (us) | After (us) |
+  | ------------------- | -----: | ----------: | ---------: |
+  | Empty               |      2 |        24.5 |       22.7 |
+  | One field           |     19 |        26.2 |       24.5 |
+  | Typical             |    168 |        27.9 |       26.1 |
+  | All default fields  |    982 |        43.2 |       41.5 |
+  | 2000 unknown fields | 32,891 |     1,200.3 |    1,230.5 |
+
+  Empty, one-field and typical direct loads improve by 6-8% across both runs.
+  The identical-binary direct control varies by up to 3.1%. The large unknown
+  field case changes by -0.4% and +2.5% in the two runs; parsing and warning
+  construction dominate that case. All-default-field changes are minor.
+  Bridge improvements are smaller and mixed, and fresh-process times show no
+  consistent gain. These are component measurements on reused local files.
+  The baseline bridge, direct executable, revision and toolchain are preserved
+  under `validation/results/performance-baselines/trace-records/`; control,
+  paired and repeat logs use the `performance-3-direct-*` prefix.
+
+  A preceding numeric-serializer experiment showed no gain beyond control
+  variation and was removed. Its expanded numeric benchmark and single-precision
+  round-trip checks remain in signed commit `509f460`; no serializer change is
+  included in this pass.
+  The expanded configuration probe also found that its standalone Python binding
+  left the native environment allowlist empty. It now initialises the allowlist
+  from the native registry, as the full pytest adapter already did. Earlier
+  standalone environment checks did not establish environment application.
+  The corrected probe passes 9,837 coercion cases and 570 file, precedence and
+  environment checks, including all 54 exposed variable names and their order.
+  All 45 Rust tests, formatting, Clippy and debug/release builds pass. The full
+  unchanged original suite passes with 1,558 passed and 33 skipped (72.40 seconds);
+  the three optional opencode runtime tests pass separately (14.50 seconds).
+  Both Linux builds pass 33 library tests, the helpers pass 28 scratch-container
+  checks and the relocated runtime bundle passes 272 checks. The 256-file
+  reference integrity and 104-crate licence checks pass.
+  Performance passes are complete at 3/3, as are simplification passes.
+  Original tests remain unchanged. Their conversion is the next phase. The
+  earlier numeric-read regression and the remaining parity and platform audits
+  stay open.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -4509,6 +4563,8 @@ jbang validation/CleanupProbe.java
 jbang validation/ConfigNumberProbe.java
 jbang validation/NumberCodecProbe.java
 jbang validation/ConfigLoadBenchmark.java /path/to/baseline/te-bridge target/release/te-bridge
+cargo build --locked --release --example config-load-bench
+jbang validation/ConfigLoadBenchmark.java /path/to/baseline/te-bridge target/release/te-bridge /path/to/baseline/config-load-bench target/release/examples/config-load-bench
 jbang validation/JsonlReaderProbe.java
 jbang validation/TraceReadBenchmark.java /path/to/baseline/te-bridge target/release/te-bridge
 jbang scripts/VerifySerdeJson.java

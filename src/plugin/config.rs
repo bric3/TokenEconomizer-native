@@ -480,69 +480,61 @@ impl LiveConfig {
     }
 }
 
-pub fn environment() -> Vec<(String, String)> {
-    let mut vars: Vec<_> = [
+pub fn environment() -> &'static [(&'static str, &'static str)] {
+    // Old names precede current names so current names win during loading.
+    &[
         ("TE_MODE", "mode"),
         ("TE_SHADOW", "shadow"),
         ("TE_PAID_MODEL", "paid_model"),
         ("TE_VOCABULARY", "vocabulary"),
+        ("TE_CLAUDE_PAID_MODEL", "claude_paid_model"),
+        ("TE_CODEX_PAID_MODEL", "codex_paid_model"),
+        ("TE_COPILOT_PAID_MODEL", "copilot_paid_model"),
+        ("TE_PI_PAID_MODEL", "pi_paid_model"),
+        ("TE_OPENCODE_PAID_MODEL", "opencode_paid_model"),
+        ("TE_CURSOR_PAID_MODEL", "cursor_paid_model"),
+        ("TE_GROK_PAID_MODEL", "grok_paid_model"),
+        ("TE_HERMES_PAID_MODEL", "hermes_paid_model"),
+        ("TE_DROID_PAID_MODEL", "droid_paid_model"),
+        ("TE_CLAUDE_PAID_EFFORT", "claude_paid_effort"),
+        ("TE_CODEX_PAID_EFFORT", "codex_paid_effort"),
+        ("TE_LOCAL_MODEL", "local_model"),
+        ("TE_LOCAL_ROLES", "local_roles"),
+        ("TE_LOCAL_JUDGE_CONFIDENCE", "local_judge_confidence"),
+        ("TE_INJECT", "microskills"),
+        ("TE_INJECT_MAX_FACTS", "microskills_max_facts"),
+        ("TE_INJECT_MAX_TOKENS", "microskills_max_tokens"),
+        ("TE_PROPOSE_EVERY", "microskills_propose_every"),
+        ("TE_UNTOOL", "toolprune"),
+        ("TE_UNTOOL_EVIDENCE", "toolprune_evidence"),
+        ("TE_SPIRAL", "loopguard"),
+        ("TE_SPIRAL_AGGR", "loopguard_aggr"),
+        ("TE_SPIRAL_NUDGES", "loopguard_nudges"),
+        ("TE_MICROSKILLS", "microskills"),
+        ("TE_MICROSKILLS_MAX_FACTS", "microskills_max_facts"),
+        ("TE_MICROSKILLS_MAX_TOKENS", "microskills_max_tokens"),
+        ("TE_MICROSKILLS_PROPOSE_EVERY", "microskills_propose_every"),
+        ("TE_TOOLPRUNE", "toolprune"),
+        ("TE_TOOLPRUNE_EVIDENCE", "toolprune_evidence"),
+        ("TE_TOOLPRUNE_QUIET_MINUTES", "toolprune_quiet_minutes"),
+        ("TE_TOOLPRUNE_MIN_SESSIONS", "toolprune_min_sessions"),
+        ("TE_TOOLPRUNE_SESSIONS", "toolprune_sessions"),
+        ("TE_TOOLPRUNE_PROTECT", "toolprune_protect"),
+        ("TE_LOOPGUARD", "loopguard"),
+        ("TE_LOOPGUARD_AGGR", "loopguard_aggr"),
+        ("TE_LOOPGUARD_NUDGES", "loopguard_nudges"),
+        ("TE_REPOMAP", "repomap"),
+        ("TE_REPOMAP_TOKENS", "repomap_tokens"),
+        ("TE_REPOMAP_PYTHON", "repomap_python"),
+        ("TE_REPOMAP_TIMEOUT", "repomap_timeout"),
+        ("TE_PI_EXTENSIONS", "pi_extensions"),
+        ("TE_PI_CLI", "pi_cli"),
+        ("TE_HERMES_CLI", "hermes_cli"),
+        ("TE_HISTORY_IMPORT", "history_import"),
+        ("TE_HISTORY_MAX_SESSIONS", "history_max_sessions"),
+        ("TE_HISTORY_DAYS", "history_days"),
+        ("TE_HISTORY_DIRS", "history_dirs"),
     ]
-    .into_iter()
-    .map(|(a, b)| (a.into(), b.into()))
-    .collect();
-    for agent in [
-        "claude", "codex", "copilot", "pi", "opencode", "cursor", "grok", "hermes", "droid",
-    ] {
-        vars.push((
-            format!("TE_{}_PAID_MODEL", agent.to_uppercase()),
-            format!("{agent}_paid_model"),
-        ));
-    }
-    vars.extend(
-        [
-            ("TE_CLAUDE_PAID_EFFORT", "claude_paid_effort"),
-            ("TE_CODEX_PAID_EFFORT", "codex_paid_effort"),
-            ("TE_LOCAL_MODEL", "local_model"),
-            ("TE_LOCAL_ROLES", "local_roles"),
-            ("TE_LOCAL_JUDGE_CONFIDENCE", "local_judge_confidence"),
-            ("TE_INJECT", "microskills"),
-            ("TE_INJECT_MAX_FACTS", "microskills_max_facts"),
-            ("TE_INJECT_MAX_TOKENS", "microskills_max_tokens"),
-            ("TE_PROPOSE_EVERY", "microskills_propose_every"),
-            ("TE_UNTOOL", "toolprune"),
-            ("TE_UNTOOL_EVIDENCE", "toolprune_evidence"),
-            ("TE_SPIRAL", "loopguard"),
-            ("TE_SPIRAL_AGGR", "loopguard_aggr"),
-            ("TE_SPIRAL_NUDGES", "loopguard_nudges"),
-            ("TE_MICROSKILLS", "microskills"),
-            ("TE_MICROSKILLS_MAX_FACTS", "microskills_max_facts"),
-            ("TE_MICROSKILLS_MAX_TOKENS", "microskills_max_tokens"),
-            ("TE_MICROSKILLS_PROPOSE_EVERY", "microskills_propose_every"),
-            ("TE_TOOLPRUNE", "toolprune"),
-            ("TE_TOOLPRUNE_EVIDENCE", "toolprune_evidence"),
-            ("TE_TOOLPRUNE_QUIET_MINUTES", "toolprune_quiet_minutes"),
-            ("TE_TOOLPRUNE_MIN_SESSIONS", "toolprune_min_sessions"),
-            ("TE_TOOLPRUNE_SESSIONS", "toolprune_sessions"),
-            ("TE_TOOLPRUNE_PROTECT", "toolprune_protect"),
-            ("TE_LOOPGUARD", "loopguard"),
-            ("TE_LOOPGUARD_AGGR", "loopguard_aggr"),
-            ("TE_LOOPGUARD_NUDGES", "loopguard_nudges"),
-            ("TE_REPOMAP", "repomap"),
-            ("TE_REPOMAP_TOKENS", "repomap_tokens"),
-            ("TE_REPOMAP_PYTHON", "repomap_python"),
-            ("TE_REPOMAP_TIMEOUT", "repomap_timeout"),
-            ("TE_PI_EXTENSIONS", "pi_extensions"),
-            ("TE_PI_CLI", "pi_cli"),
-            ("TE_HERMES_CLI", "hermes_cli"),
-            ("TE_HISTORY_IMPORT", "history_import"),
-            ("TE_HISTORY_MAX_SESSIONS", "history_max_sessions"),
-            ("TE_HISTORY_DAYS", "history_days"),
-            ("TE_HISTORY_DIRS", "history_dirs"),
-        ]
-        .into_iter()
-        .map(|(a, b)| (a.into(), b.into())),
-    );
-    vars
 }
 
 pub fn read(path: &Path) -> Map<String, Value> {
@@ -570,9 +562,9 @@ pub fn load_config(root: &Path, repo: Option<&Path>, env: &Map<String, Value>) -
             }
         }
     }
-    for (var, key) in environment() {
-        if let Some(value) = env.get(&var).filter(|v| !v.is_null() && **v != json!("")) {
-            cfg.set(&key, value.clone(), &var);
+    for &(var, key) in environment() {
+        if let Some(value) = env.get(var).filter(|v| !v.is_null() && **v != json!("")) {
+            cfg.set(key, value.clone(), var);
         }
     }
     for var in ["TE_SPIRAL_THRESHOLDS", "TE_LOOPGUARD_THRESHOLDS"] {

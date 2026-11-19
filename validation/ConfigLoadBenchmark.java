@@ -1,6 +1,7 @@
 //JAVA 25
 //SOURCES ContextProbe.java
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -11,6 +12,14 @@ import java.util.Locale;
 /** Measures configuration loads through persistent bridges and fresh-process first requests. */
 class ConfigLoadBenchmark {
   record Case(String name, String document) {}
+  record Direct(String output, long nanos) {}
+  static Direct direct(Path executable, Path root, int repeats) throws Exception {
+    var process = new ProcessBuilder(executable.toAbsolutePath().toString(), root.toString(), Integer.toString(repeats))
+        .redirectError(ProcessBuilder.Redirect.INHERIT).start();
+    var lines = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).lines().toList();
+    if (process.waitFor() != 0 || lines.size() != 2) throw new AssertionError("Direct benchmark failed: " + lines);
+    return new Direct(lines.getFirst(), Long.parseLong(lines.getLast()));
+  }
   static long sample(ContextProbe.Client client, String request, String expected, int repeats) throws Exception {
     long start = System.nanoTime();
     for (int i = 0; i < repeats; i++) {
@@ -27,7 +36,7 @@ class ConfigLoadBenchmark {
     }
   }
   public static void main(String[] args) throws Exception {
-    if (args.length != 2) throw new IllegalArgumentException("usage: ConfigLoadBenchmark.java BASELINE_BRIDGE CANDIDATE_BRIDGE");
+    if (args.length != 2 && args.length != 4) throw new IllegalArgumentException("usage: ConfigLoadBenchmark.java BASELINE_BRIDGE CANDIDATE_BRIDGE [BASELINE_DIRECT CANDIDATE_DIRECT]");
     var root = Files.createTempDirectory(Path.of("validation/results"), "config-load-benchmark-").toAbsolutePath();
     try (var before = new ContextProbe.Client(Path.of(args[0]).toAbsolutePath()); var after = new ContextProbe.Client(Path.of(args[1]).toAbsolutePath())) {
       var response = before.call("live_config.new", "\"fields\":{}");
@@ -79,6 +88,24 @@ class ConfigLoadBenchmark {
         Arrays.sort(coldBaseline); Arrays.sort(coldCandidate);
         System.out.printf(Locale.ROOT, "%s fresh process: baseline %.1f us, candidate %.1f us, ratio %.3f%n",
             scenario.name(), coldBaseline[10] / 1000.0, coldCandidate[10] / 1000.0, (double) coldCandidate[10] / coldBaseline[10]);
+        if (args.length == 4) {
+          for (int run = 0; run < baseline.length; run++) {
+            Direct first, second;
+            if (run % 2 == 0) {
+              first = direct(Path.of(args[2]), directory, repeats * 4);
+              second = direct(Path.of(args[3]), directory, repeats * 4);
+            } else {
+              second = direct(Path.of(args[3]), directory, repeats * 4);
+              first = direct(Path.of(args[2]), directory, repeats * 4);
+            }
+            ContextProbe.expect(first.output(), second.output());
+            ContextProbe.expect("{\"result\":" + first.output() + "}", expected);
+            baseline[run] = first.nanos(); candidate[run] = second.nanos();
+          }
+          Arrays.sort(baseline); Arrays.sort(candidate);
+          System.out.printf(Locale.ROOT, "%s direct load_config: baseline %.1f us, candidate %.1f us, ratio %.3f%n",
+              scenario.name(), baseline[4] / 1000.0, candidate[4] / 1000.0, (double) candidate[4] / baseline[4]);
+        }
       }
     } finally {
       try (var paths = Files.walk(root)) { for (var path : paths.sorted(Comparator.reverseOrder()).toList()) Files.delete(path); }
