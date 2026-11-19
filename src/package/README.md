@@ -21,4 +21,5 @@ The bundle carries its runtime and can move independently of the build checkout.
 It reads and writes the existing TokenEconomizer state formats.
 
 `LICENSE` preserves the upstream Apache-2.0 licence. `THIRD-PARTY-NOTICES.txt`
-contains the legal texts from the locked Rust dependencies.
+contains the legal texts for locked Rust dependencies, Unicode data and the
+CPython-derived timestamp code.

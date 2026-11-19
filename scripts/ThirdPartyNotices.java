@@ -43,8 +43,9 @@ class ThirdPartyNotices {
     List<Path> registries;
     try(var directories=Files.list(cache)){registries=directories.filter(Files::isDirectory).sorted().toList();}
     var hash=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(lock)));
-    var text=new StringBuilder("Third-party notices for TokenEconomizer native\n\nCargo.lock SHA-256: "+hash+"\n\nThese texts cover bundled Unicode data and every registry crate in the lockfile,\nincluding build and platform dependencies. Some crates may not be linked into a\nparticular binary. Crate texts are copied from the corresponding published crate.\n");
+    var text=new StringBuilder("Third-party notices for TokenEconomizer native\n\nCargo.lock SHA-256: "+hash+"\n\nThese texts cover bundled Unicode data, CPython-derived timestamp code and every\nregistry crate in the lockfile, including build and platform dependencies. Some\ncrates may not be linked into a particular binary. Crate texts are copied from\nthe corresponding published crate.\n");
     text.append("\n===============================================================================\nUnicode 16 and 17 data corrections\nSource: https://www.unicode.org/Public/17.0.0/ucd/\n\n").append(Files.readString(root.resolve("src/microskills/distiller/data/LICENSE-UNICODE-V3")));
+    text.append("\n===============================================================================\nCPython 3.15.2 datetime parsing and local-time conversion\nSource: https://github.com/python/cpython/blob/v3.15.2/Modules/_datetimemodule.c\n\nISO parsing and local-time mapping are adapted to Rust in src/trace/time.rs.\nThe exposed helper returns epoch seconds or no value for an invalid timestamp.\n\n").append(Files.readString(root.resolve("src/trace/LICENSE-CPYTHON")));
     var packages=Pattern.compile("(?ms)^\\[\\[package\\]\\]\\n(.*?)(?=^\\[\\[package\\]\\]|\\z)").matcher(Files.readString(lock));
     int count=0;
     while(packages.find()) {

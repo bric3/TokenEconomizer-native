@@ -663,8 +663,10 @@ complete while any runtime component delegates production behaviour to Python.
 
 ## Remaining production work
 
-- Audit trace-reader edge cases, including the ISO timestamp formats accepted by
-  Python's `datetime.fromisoformat`. Native plugin services consume these readers.
+- Trace-reader ISO timestamp parsing and its local-time mapping now follow
+  CPython 3.15.2. The shared helper covers Claude/Droid heads and Droid discovery.
+  Other platform time-zone environments and surrogate-containing timestamp
+  strings remain part of the platform and JSON-codec audits below.
 - Audit regular-expression compatibility with Python in the production parity
   pass, including word boundaries, whitespace classes and syntax. Detector and
   extractor patterns now support Python's global and scoped ASCII flags through
@@ -3790,6 +3792,50 @@ complete while any runtime component delegates production behaviour to Python.
   production-parity audits stay open. Formal simplification and performance
   passes remain at 0/3 each; original-test conversion is pending.
 
+- The shared Claude/Droid timestamp helper now follows CPython 3.15.2's
+  [ISO parser and local-time mapping](https://github.com/python/cpython/blob/v3.15.2/Modules/_datetimemodule.c)
+  in Rust. The initial format-list implementation differed in 5,355 of 7,240
+  source comparisons: it missed week dates, abbreviated clocks, Unicode
+  separators and fractional timezone offsets, accepted malformed field widths,
+  and differed at precision and date boundaries. Claude/Droid heads and Droid
+  session discovery now retain the same `started` values as the original helper.
+  Parsing preserves the wrapper's final-`Z` replacement, basic and extended week
+  dates, its numeric-separator disambiguation, comma fractions, microsecond
+  truncation, offset range checks, 24:00 normalisation and terminal-NUL rules.
+  Aware timestamps use exact integer-microsecond division through the existing
+  rational-number dependency. Naive timestamps use the original `fold=0`
+  wall-time equation, including gaps, overlaps and year-boundary failures.
+  Invalid timestamps continue to return no value. Production parsing uses Rust
+  and native time-zone data; it does not start a Python interpreter.
+  The expanded probe passes 32,360 source comparisons across UTC,
+  America/New_York, Europe/Paris, Australia/Lord_Howe and Pacific/Apia. It covers
+  deterministic mutations, long fractions, aware/naive dates, DST transitions,
+  the Apia skipped day, actual trace heads and Droid discovery rows. Numeric
+  outputs are compared exactly after the same JSON float formatting. Each zone
+  uses fresh source and native processes. Two Rust regression tests also check
+  accepted forms, rounding and malformed clock/offset rejection.
+  The official CPython licence is preserved in `src/trace/LICENSE-CPYTHON` and
+  copied into generated bundle notices with the source attribution and a summary
+  of the Rust adaptation. Notice verification covers the new text and all 104
+  locked registry crates. Cargo dependencies and the lockfile are unchanged.
+  All 31 Rust tests, formatting, Clippy and debug/release builds pass. Each Linux
+  helper build passes 30 library tests. Both helpers retain all 26 scratch-container
+  checks. The relocated experiment bundle retains all 261 checks, 20 SDK files,
+  39 manifest hashes and 40 physical files, including the updated notices.
+  The full unchanged original suite passes
+  with 1,561 passed and 30 skipped (92.13 seconds), including installed opencode
+  against its loopback fixture. All 256 archived files still match the pinned tree.
+  Logs are under `validation/results/`: `timestamp-before.log`,
+  `timestamp-probe.log`, `timestamp-full.log`, `timestamp-full-calls.json`,
+  `timestamp-rust-tests.log`, `timestamp-clippy.log`, `timestamp-debug.log`,
+  `timestamp-release.log`, `timestamp-notices.log`, `timestamp-notices-check.log`,
+  `timestamp-reference.log`, `timestamp-container-build.log`,
+  `timestamp-container-probe.log` and `timestamp-bundle.log`.
+  Timestamp comparisons use Python 3.15.2 on macOS. Other platform/time-zone
+  databases and surrogate-containing input remain in the platform and JSON
+  audits. Formal simplification and performance passes remain at 0/3 each;
+  original-test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -4044,6 +4090,7 @@ jbang validation/DeadCodeProbe.java
 jbang validation/FiguresProbe.java
 jbang validation/TeaserProbe.java --animations
 jbang validation/TeaserFailureProbe.java --encoder
+jbang validation/TimestampProbe.java
 jbang validation/StandaloneBenchProbe.java
 jbang validation/StandaloneTransportProbe.java
 jbang validation/HermesGatewayProbe.java
