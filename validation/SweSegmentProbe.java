@@ -11,7 +11,7 @@ class SweSegmentProbe {
   static String q(Object value){return ParserProbe.q(value);}
   public static void main(String[] args)throws Exception {
     WebContractProbe.artifacts=Files.createTempDirectory(Path.of("validation/results"),"swe-segment-").toAbsolutePath();boolean passed=false;
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"swe_segment_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"swe_segment_host.py")) {
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"swe_segment_host.py",args.length==1&&args[0].equals("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"swe_segment_host.py")) {
       for(var agent:List.of("claude","copilot","codex")) {
         var base="\"agent\":"+q(agent);
         var normal=WebContractProbe.compare(nativeCode,source,base);

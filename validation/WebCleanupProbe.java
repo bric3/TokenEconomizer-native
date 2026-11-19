@@ -15,7 +15,9 @@ class WebCleanupProbe {
   }
   public static void main(String[] args) throws Exception {
     boolean swe=args.length>0&&args[0].equals("swebench");
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"web_cleanup_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"web_cleanup_host.py")) {
+    boolean sdk=List.of(args).contains("--sdk");
+    if(sdk&&!swe)throw new IllegalArgumentException("standalone cleanup currently covers swebench");
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"web_cleanup_host.py",sdk?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"web_cleanup_host.py")) {
       for(var mode:List.of("cleanup","install","handler")) {
         var base="\"mode\":"+q(mode)+",\"domain\":"+q(swe?"swebench":"webbench");
         compare(nativeCode,source,base);

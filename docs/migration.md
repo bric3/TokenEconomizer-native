@@ -768,7 +768,9 @@ complete while any runtime component delegates production behaviour to Python.
   Task-lifecycle and constructor object/I/O bindings are packaged and used by the
   original API adapters. Guard properties, attempt forwarding, merge-program
   construction, hook-entry writing and per-agent registration also execute in
-  Rust through the SDK. Complete built-in class assembly remains open.
+  Rust through the SDK. SWE-bench segments, retained scaffold callbacks, optimizer
+  wrappers, factories and cleanup also have packaged bindings. Complete built-in
+  class assembly remains open.
   Process and SDK calls retain Python I/O bindings.
 - Benchmark driver runner and dataset selection, workload and task filtering,
   group matching and overhead-field copying are native. The arm registry and
@@ -3013,6 +3015,30 @@ complete while any runtime component delegates production behaviour to Python.
   and the remaining parity audits stay open. Formal simplification and performance
   passes remain at 0/3 each; final test conversion is pending.
 
+- Sixteen SWE-bench runner method and factory bindings now ship in the
+  SDK. They cover agent segments, segment merging, optimizer and preflight calls,
+  retained scaffold callbacks, session logs, runner construction, container
+  sweeping and signal registration. Original API adapters use the same bindings.
+  Cleanup retains a separate engine connection. Callback documentation now lives
+  with its SDK signature instead of being extracted from the original function's
+  bytecode. Native harness metadata also supplies Copilot's container log path.
+  A reference-free namespace passes 1,067 segment, 457 runner/factory, 272 cleanup
+  and 820 scaffold-context source comparisons. Its 24 owned process checks cover
+  three agents, guard stops, deadlines, configuration refusals, resumes and usage
+  recovery without a model or Docker daemon. The original API also passes 914
+  runner/factory, 1,067 segment and 820 scaffold-context comparisons.
+  The relocated bundle passes 177 checks with 16 SDK files and 35 payload hashes,
+  including retained binary-read callbacks, session logs and runner factory calls.
+  Standalone guard integration retains 554 source comparisons and five native
+  checks, and task integration retains 288 comparisons. The unchanged upstream
+  suite passes with 1,561 passed and 30 skipped (72.07 seconds), including the
+  installed-opencode loopback fixture. All 24 Rust checks, debug/release builds,
+  Clippy and the 256-file reference check pass.
+  Full built-in class assembly and WebBench's remaining namespace bindings are
+  still open, along with the parity audits. Formal simplification and performance
+  passes remain at 0/3 each; final test conversion is pending. IDE inspections,
+  Windows, other Python versions and live agents remain unverified.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -3161,6 +3187,11 @@ jbang validation/CodexConfigProbe.java --sdk
 jbang validation/RunnerSetupProbe.java --sdk
 jbang validation/WebSetupProbe.java --sdk
 jbang validation/GuardInstallProbe.java --sdk
+jbang validation/RunnerCallsProbe.java --sdk
+jbang validation/WebCleanupProbe.java swebench --sdk
+jbang validation/SweSegmentProbe.java --sdk
+jbang validation/SweSegmentProcessProbe.java --sdk
+jbang validation/SweScaffoldContextProbe.java --sdk
 jbang validation/TaskProbe.java
 jbang validation/WebSegmentProbe.java
 jbang validation/WebAgentProbe.java

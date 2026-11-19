@@ -384,8 +384,9 @@ def bind(bridge,*,shared=None,adapters=None,container_helpers=None):
                             elif kind == "container_copy":
                                 def callback(host_path,container_path): pass
                             elif kind == "container_read":
-                                def callback(script,timeout=600): pass
-                                callback.__doc__ = next(item.co_consts[0] for item in original.__code__.co_consts if getattr(item,"co_name",None) == "read_bytes")
+                                def callback(script,timeout=600):
+                                    """Raw stdout of a container script. Binary, because the repo-map baseline
+            streams a tar out this way and decoding it as text would corrupt it."""
                             elif kind == "logger":
                                 def callback(msg): pass
                             elif kind == "merge_helper":

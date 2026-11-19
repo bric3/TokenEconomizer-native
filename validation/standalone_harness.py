@@ -25,12 +25,14 @@ from te_runtime.usage import bind as usage_bindings
 from te_runtime.swebench_task import bind as task_bindings, bind_network
 from te_runtime.runner_setup import bind as setup_bindings
 from te_runtime.providers import bind as provider_bindings
+from te_runtime.swebench_runner import bind as runner_bindings
 import harness_interfaces as interfaces
 
 bridge=Bridge(ROOT/"target/debug/te-bridge")
 atexit.register(bridge.close)
 optimizer=optimizer_bindings(bridge)
 sw=optimizer.claude
+sw.__name__="te_harness.swebench"
 codex,copilot=optimizer.codex,optimizer.copilot
 for name,value in vars(interfaces).items():
     if not name.startswith("__") and name not in ("CodexInterface","CopilotInterface"):
@@ -41,7 +43,7 @@ for module,interface in ((codex,interfaces.CodexInterface),(copilot,interfaces.C
 metadata=checked(bridge.request("experiment.harness.constants",{}))
 for name,module in (("claude",sw),("copilot",copilot),("codex",codex)):
     for key,value in metadata[name].items():
-        setattr(module,key,tuple(value) if key == "DEFAULT_SYSTEM_SKILLS" else frozenset(value))
+        setattr(module,key,tuple(value) if key == "DEFAULT_SYSTEM_SKILLS" else frozenset(value) if isinstance(value,list) else value)
 sw.codex,sw.copilot=codex,copilot
 sw.net_guard=SimpleNamespace(**bridge.request("experiment.net_guard.constants",{}),
     hosts_block=lambda:bridge.request("experiment.net_guard.hosts_block",{}))
@@ -50,18 +52,18 @@ sw.scaffolds_pkg=scaffold_bindings(bridge).registry
 sw.NudgeGuard=guard_bindings(bridge.request).NudgeGuard
 sw.codex_spiral=spiral_bindings(bridge.request)
 sw._LIVE_CONTAINERS=set()
+sw.signal=signal
+sw.RUNNERS={"claude":sw.ClaudeSwebenchRunner,"copilot":sw.CopilotSwebenchRunner,"codex":sw.CodexSwebenchRunner}
 codex.signal=signal
 install_bindings(bridge,codex)
 accounting=usage_bindings(bridge.request,lambda message:sw._log(message))
-sw._merge_usage=accounting.claude._merge_usage
-copilot.merge_usage=accounting.copilot.merge_usage
-codex.merge_usage=accounting.codex.merge_usage
+vars(sw).update(vars(accounting.claude))
+vars(copilot).update(vars(accounting.copilot))
+vars(codex).update(vars(accounting.codex))
 provider=provider_bindings(bridge)
-for cls,agent in ((sw.ClaudeSwebenchRunner,"claude"),(sw.CopilotSwebenchRunner,"copilot"),(sw.CodexSwebenchRunner,"codex")):
-    def _merge_segments(self,a,b): raise AssertionError("unbound fixture merge")
-    cls._merge_segments=provider(sw,_merge_segments,"webbench","agent_merge_"+agent)
 task_bindings(bridge,sw,container_helpers=lambda:str(ROOT/"target/container-helpers"))
 setup_bindings(bridge,sw)
+runner_bindings(bridge,sw,container_helpers=str(ROOT/"target/container-helpers"))
 wb=SimpleNamespace(network_tool_block=interfaces.network_tool_block)
 bind_network(bridge,wb)
 for name in ("os","shutil","subprocess","scaffolds_pkg","pricing","codex","copilot","resolve_anthropic_key","claude_bin","cli_version","_log","EFFORT_LEVELS","PROTECTED_TOOLS","_ANTHROPIC_DIRECT"):

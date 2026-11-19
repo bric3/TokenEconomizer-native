@@ -10,10 +10,20 @@ import sys
 import tarfile
 
 ROOT=Path(__file__).resolve().parents[1]
-sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
-from te_harness import swebench as swe
-from te_bench.baselines import base,repomap
-if "--native" in sys.argv:
+if "--sdk" in sys.argv:
+    from standalone_harness import sw as swe, bridge
+    from te_runtime.scaffolds import bind as scaffold_bindings
+    from te_runtime.swebench_runner import bind
+    scaffolds=scaffold_bindings(bridge)
+    base,repomap=scaffolds.registry,scaffolds.repomap
+    previous=swe.ClaudeSwebenchRunner._scaffold_context
+    bind(bridge,swe)
+    assert previous is swe.ClaudeSwebenchRunner._scaffold_context
+else:
+    sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+    from te_harness import swebench as swe
+    from te_bench.baselines import base,repomap
+if "--native" in sys.argv and "--sdk" not in sys.argv:
     from native_experiment_providers import install
     install()
     previous=swe.ClaudeSwebenchRunner._scaffold_context
@@ -117,7 +127,7 @@ for line in sys.stdin:
             value=FixtureRepoMap().setup(context)
             assert value["map_ok"] is True and not owned.joinpath("_repomap_src").exists(),value
             assert "keep.py: Widget" in owned.joinpath("container/testbed/.github/instructions.md").read_text(encoding="utf-8")
-            if "--native" in sys.argv:
+            if "--native" in sys.argv and "--sdk" not in sys.argv:
                 import native_plugin
                 for name in ("context","exec","copy","read"): assert native_plugin.CALLS["experiment.swebench.provider.swebench.scaffold_"+name] > 0
                 for name in ("repomap_setup","repomap_fetch","repomap_idents","repomap_tokens","context_new","context_read","instructions"): assert native_plugin.CALLS["experiment.swebench.provider.scaffold."+name] > 0

@@ -8,9 +8,12 @@ import time
 import types
 
 ROOT=Path(__file__).resolve().parents[1]
-sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
-from te_harness import swebench as swe
-if "--native" in sys.argv:
+if "--sdk" in sys.argv:
+    from standalone_harness import sw as swe
+else:
+    sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+    from te_harness import swebench as swe
+if "--native" in sys.argv and "--sdk" not in sys.argv:
     from native_experiment_usage import install as usage_install
     usage_install()
     from native_experiment_providers import install
@@ -19,6 +22,7 @@ root=Path(sys.argv[1]);agent,mode=os.environ["TE_FIXTURE_AGENT"],os.environ["TE_
 base={"claude":swe.ClaudeSwebenchRunner,"copilot":swe.CopilotSwebenchRunner,"codex":swe.CodexSwebenchRunner}[agent]
 class Runner(base):
     NET_GUARD_LOG="/tmp/fixture-guard.log"
+    scaffold_profile=types.SimpleNamespace(home="/tmp/agent-home",mcp_args=lambda cfg:[])
     def _env_activation_args(self,name): return ["-e","BASH_ENV=/testbed/project-env"]
 class Guard:
     segment=7
@@ -63,7 +67,7 @@ finally:
         process.wait(timeout=5)
         for stream in (process.stdin,process.stdout,process.stderr):
             if stream is not None and not stream.closed:stream.close()
-if "--native" in sys.argv:
+if "--native" in sys.argv and "--sdk" not in sys.argv:
     import native_plugin
     assert native_plugin.CALLS["experiment.swebench.provider.swebench.segment_"+agent] == 1
     if agent != "claude":

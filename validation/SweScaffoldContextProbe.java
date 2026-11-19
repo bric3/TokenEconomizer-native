@@ -12,7 +12,7 @@ class SweScaffoldContextProbe {
   static String q(Object value){return ParserProbe.q(value);}
   public static void main(String[] args)throws Exception {
     WebContractProbe.artifacts=Files.createTempDirectory(Path.of("validation/results"),"swe-scaffold-context-").toAbsolutePath();boolean passed=false;
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"swe_scaffold_context_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"swe_scaffold_context_host.py")) {
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"swe_scaffold_context_host.py",List.of(args).contains("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"swe_scaffold_context_host.py")) {
       for(var operation:List.of("context","exec","exec_default","copy","read","read_default","host","log")) {
         var base="\"operation\":"+q(operation);
         WebContractProbe.compare(nativeCode,source,base);

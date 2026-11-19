@@ -10,7 +10,8 @@ pub fn constants() -> Value {
     codex["PROTECTED_TOOLS"] = json!(["shell", "apply_patch"]);
     json!({
         "claude":{"EFFORT_LEVELS":["low","medium","high","xhigh","max"],"PROTECTED_TOOLS":["Bash","Edit","Write","Read"]},
-        "copilot":{"EFFORT_LEVELS":["none","low","medium","high","xhigh","max"]},
+        "copilot":{"EFFORT_LEVELS":["none","low","medium","high","xhigh","max"],
+            "CONTAINER_LOG_DIR":"/home/agent/.copilot-runlog"},
         "codex":codex,
         "web":{"WEBBENCH_SCAFFOLDS":["rtk"],"WEBBENCH_UNDICI_ABORT_DEFAULT_S":300,
             "WEBBENCH_TASK_TIMEOUT_HEADROOM_S":40,"WEBBENCH_TASK_TIMEOUT_DEFAULT":240}

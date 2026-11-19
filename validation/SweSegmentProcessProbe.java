@@ -21,6 +21,7 @@ class SweSegmentProcessProbe {
         var directory=Files.createDirectories(root.resolve((nativeCode?"native-":"source-")+agent+"-"+mode));
         Files.createDirectories(directory.resolve("workspace/src"));Files.writeString(directory.resolve("workspace/src/a.js"),"initial");
         var command=new ArrayList<>(List.of(Path.of(".venv/bin/python").toAbsolutePath().toString(),"validation/swe_segment_process_host.py",directory.toString()));if(nativeCode)command.add("--native");
+        if(nativeCode&&List.of(args).contains("--sdk"))command.add("--sdk");
         var builder=new ProcessBuilder(command).redirectOutput(directory.resolve("stdout").toFile()).redirectError(directory.resolve("stderr").toFile());
         builder.environment().put("PATH",root+System.getProperty("path.separator")+builder.environment().get("PATH"));
         builder.environment().put("TE_FIXTURE_ROOT",directory.toString());builder.environment().put("TE_FIXTURE_AGENT",agent);builder.environment().put("TE_FIXTURE_MODE",mode);

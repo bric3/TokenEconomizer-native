@@ -8,6 +8,7 @@ from sdk_transport import ValidationBridge
 
 sys.path.insert(0,str(ROOT / "src/experiments/sdk"))
 from te_runtime.providers import bind
+from te_runtime.swebench_runner import bind as runner_bindings
 
 
 def install(runner_module=None,scaffold_module=None,driver_module=None):
@@ -226,19 +227,8 @@ def install(runner_module=None,scaffold_module=None,driver_module=None):
     if runner_module is not None:
         runner_calls(runner_module,"webbench",("WebBenchRunner","CopilotWebBenchRunner","CodexWebBenchRunner"))
         return replacements
-    original=swebench.ClaudeSwebenchRunner._scaffold_context
-    if getattr(original,"_te_provider_operation",None) != ("swebench","scaffold_context"):
-        replacements[original]=function(swebench,original,"swebench","scaffold_context")
-        swebench.ClaudeSwebenchRunner._scaffold_context=replacements[original]
-    for cls,agent in ((swebench.ClaudeSwebenchRunner,"claude"),(swebench.CopilotSwebenchRunner,"copilot"),(swebench.CodexSwebenchRunner,"codex")):
-        original=cls._segment
-        if getattr(original,"_te_provider_operation",None) == ("swebench","segment_"+agent): continue
-        replacements[original]=function(swebench,original,"swebench","segment_"+agent)
-        cls._segment=replacements[original]
-    original=swebench.ClaudeSwebenchRunner._session_log_text
-    if getattr(original,"_te_provider_operation",None) != ("swebench","session_log"):
-        replacements[original]=function(swebench,original,"swebench","session_log")
-        swebench.ClaudeSwebenchRunner._session_log_text=replacements[original]
+    replacements.update(runner_bindings(ValidationBridge(),swebench,
+        container_helpers=str(ROOT/"target/container-helpers")))
     for module,agent,names in ((swebench,"claude",("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call","optimizer_log_path","_cell_of","set_optimizer_context","optimizer_call_kind","_log_optimizer_call","_log")),
                               (copilot,"copilot",("auth_env","byok_active","provider_base","anthropic_optimizer_endpoint","provider_env","provider_secret_names","normalize_model","effort_applies","validate_priceable","optimizer_call","copilot_bin","copilot_cache","copilot_config","cli_version","require_install","run_env")),
                               (codex,"codex",("resolve_codex_routing","validate_priceable","fetch_catalog","verify_model","preflight_optimizer","optimizer_call","_responses_text"))):
@@ -259,9 +249,7 @@ def install(runner_module=None,scaffold_module=None,driver_module=None):
         for name in ("resolve_anthropic_key","agent_credential_env","preflight_optimizer_endpoint","anthropic_optimizer_call","set_optimizer_context","_cell_of","_log"):
             original = getattr(webbench,name,None)
             if original in replacements: setattr(webbench,name,replacements[original])
-    for owner,domain,classes in ((swebench,"swebench",("ClaudeSwebenchRunner","CopilotSwebenchRunner","CodexSwebenchRunner")),
-                                 (webbench,"webbench",("WebBenchRunner","CopilotWebBenchRunner","CodexWebBenchRunner"))):
-        runner_calls(owner,domain,classes)
+    runner_calls(webbench,"webbench",("WebBenchRunner","CopilotWebBenchRunner","CodexWebBenchRunner"))
     from te_bench import baselines
     from te_bench.baselines import base,serena,rtk,repomap
     scaffold_calls(baselines)

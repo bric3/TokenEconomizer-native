@@ -32,7 +32,7 @@ class ExperimentBundleProbe {
       var hash=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(bundle.resolve(matches.group(1)))));
       require(hash.equals(matches.group(2)),"manifest hash differs: "+matches.group(1));count++;
     }
-    require(count==34,"manifest omitted files: "+count);
+    require(count==35,"manifest omitted files: "+count);
   }
   static void engine(Path bundle)throws Exception {
     try(var client=new ContextProbe.Client(bundle.resolve("bin/te-bridge"),"experiment.swebench")) {
@@ -98,6 +98,7 @@ class ExperimentBundleProbe {
           from te_runtime.runner_setup import bind as setup_bindings
           from te_runtime.swebench_task import bind_network
           from te_runtime.swebench_guard import bind as guard_bindings
+          from te_runtime.swebench_runner import bind as runner_bindings
           from types import SimpleNamespace
           import json, shlex, shutil, subprocess
           from pathlib import Path
@@ -169,6 +170,12 @@ class ExperimentBundleProbe {
               assert not list(work.glob('_scaffold_*'))
               shutil.rmtree(work)
               class Interface:
+                  def optimizer_call(self,prompt,model='agent'): raise AssertionError('unbound optimizer')
+                  def _preflight_optimizer_endpoint(self): raise AssertionError('unbound preflight')
+                  def _segment(self,name,prompt,transcript_fh,exclude_tools,max_turns,guard,mcp_config=None): raise AssertionError('unbound segment')
+                  def _merge_segments(self,a,b): raise AssertionError('unbound segment merge')
+                  def _session_log_text(self,name): raise AssertionError('unbound session log')
+                  def _scaffold_context(self,name,task,run_dir_path): raise AssertionError('unbound scaffold context')
                   def __init__(self,agent='claude',model=None,grading_path=None,scaffold=None):
                       raise AssertionError('unbound constructor interface executed')
                   @property
@@ -223,10 +230,31 @@ class ExperimentBundleProbe {
               native_entry=json.loads(native_path.read_text(encoding='utf-8'))['hooks']['PreToolUse'][0]
               assert shlex.split(native_entry['hooks'][0]['command']) == [helper]
               shutil.rmtree(path.parent)
+              def make_runner(agent=None,scaffold=None,**kwargs): raise AssertionError('unbound factory')
+              def _cleanup_containers(*_a): raise AssertionError('unbound cleanup')
+              def _install_signal_cleanup(): raise AssertionError('unbound signals')
+              host.make_runner,host._cleanup_containers,host._install_signal_cleanup=make_runner,_cleanup_containers,_install_signal_cleanup
+              host.__name__='owned.harness'
+              host.os,host.scaffolds_pkg,host._LIVE_CONTAINERS=os,scaffolds.registry,set()
+              host._run=lambda *args,**kwargs:None
+              host._log=lambda message:None
+              host.subprocess=SimpleNamespace(PIPE=-1,run=lambda *args,**kwargs:SimpleNamespace(returncode=0,stdout=bytes([0,255,128]),stderr=b''))
+              runner_bindings(bridge,host)
+              previous=Claude._segment
+              assert not runner_bindings(bridge,host) and Claude._segment is previous
+              runner._exec=lambda *args,**kwargs:SimpleNamespace(stdout='owned session log')
+              assert runner._session_log_text('container') == 'owned session log'
+              context=runner._scaffold_context('container',dict(instance_id='fixture'),'/run')
+              assert context.read_bytes('fixture') == bytes([0,255,128])
+              assert context._read_bytes.__doc__.startswith('Raw stdout of a container script.')
+              assert host._cleanup_containers() is None
+              host._install_signal_cleanup=lambda:None
+              host.RUNNERS=dict(claude=lambda **kwargs:kwargs)
+              assert host.make_runner(agent='CLAUDE',scaffold='rtk',model='fixture') == dict(agent='claude',scaffold='rtk',model='fixture')
           print('packaged SDK bindings passed')
           """,moved.resolve("sdk").toString(),moved.resolve("bin/te-bridge").toString()));
       require(controller.code()==0&&controller.out().equals("packaged SDK bindings passed\n"),"relocated SDK binding failed: "+controller);
-      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==35,"benchmark command changed the runtime payload");}
+      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==36,"benchmark command changed the runtime payload");}
       var bootstrap=moved.resolve("sdk/bench.py");var bootstrapBytes=Files.readAllBytes(bootstrap);Files.delete(bootstrap);
       var absent=NativeCliProbe.process(root,Map.of("PATH","","TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString()),List.of(moved.resolve("bin/te-bench").toString(),"--help"));
       require(absent.code()!=0&&absent.err().contains("SDK binding is missing"),"missing bundled SDK selected development files: "+absent);Files.write(bootstrap,bootstrapBytes);

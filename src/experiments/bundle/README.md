@@ -38,6 +38,8 @@ including opaque SDK references and subclass callbacks. Built-in SWE-bench and
 WebBench class assembly remains pending.
 Guard convenience APIs and hook-entry merging execute in Rust. The legacy
 merge-program API returns a Python I/O launcher for the bundled native installer.
+SWE-bench segment, scaffold-callback, optimizer, factory and cleanup bindings are
+also packaged. Cleanup uses a separate native engine connection.
 External agents, the official grader SDK, aider and Node remain caller-provided
 dependencies where the selected experiment uses them.
 

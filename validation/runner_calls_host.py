@@ -6,13 +6,15 @@ import sys
 import types
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
-from te_harness import swebench as sw
-if "--native" in sys.argv:
+if "--sdk" in sys.argv:
+    from standalone_harness import sw, wb as web
+else:
+    sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+    from te_harness import swebench as sw, webbench as web
+if "--native" in sys.argv and "--sdk" not in sys.argv:
     from native_experiment_providers import install
     install()
-from te_harness import webbench as web
-if "--native" in sys.argv:
+if "--native" in sys.argv and "--sdk" not in sys.argv:
     install(web)
     previous = web.CodexWebBenchRunner.optimizer_call
     install(web)

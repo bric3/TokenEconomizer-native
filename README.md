@@ -160,6 +160,8 @@ Shared scaffold classes, RTK, Serena, repo-map and their registry also ship in t
 Task-lifecycle and constructor bindings accept caller-provided harness namespaces.
 Guard convenience APIs also use Rust. The legacy merge-program API returns an I/O
 launcher for the native installer.
+SWE-bench segment, scaffold-callback, optimizer, factory and cleanup bindings are
+packaged too, including cleanup through a separate native engine connection.
 Built-in SWE-bench and WebBench class assembly remains pending.
 
 SWE-bench controller selection, constructor parameters, continuation dispatch and

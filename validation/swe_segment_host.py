@@ -7,9 +7,16 @@ import subprocess
 import sys
 
 ROOT=Path(__file__).resolve().parents[1]
-sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
-from te_harness import swebench as swe
-if "--native" in sys.argv:
+if "--sdk" in sys.argv:
+    from standalone_harness import sw as swe, bridge
+    from te_runtime.swebench_runner import bind
+    previous=swe.ClaudeSwebenchRunner._segment
+    bind(bridge,swe)
+    assert previous is swe.ClaudeSwebenchRunner._segment
+else:
+    sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+    from te_harness import swebench as swe
+if "--native" in sys.argv and "--sdk" not in sys.argv:
     from native_experiment_providers import install
     install()
     previous=swe.ClaudeSwebenchRunner._segment,swe.CopilotSwebenchRunner._segment,swe.CodexSwebenchRunner._segment,swe.ClaudeSwebenchRunner._session_log_text

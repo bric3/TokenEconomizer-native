@@ -14,6 +14,9 @@ def image_for(instance_id): raise AssertionError('unbound fixture API: .image_fo
 def _import_swebench(): raise AssertionError('unbound fixture API: ._import_swebench')
 def claude_bin(): raise AssertionError('unbound fixture API: .claude_bin')
 def cli_version(binary): raise AssertionError('unbound fixture API: .cli_version')
+def make_runner(agent=None,scaffold=None,**kwargs): raise AssertionError('unbound fixture factory')
+def _cleanup_containers(*_a): raise AssertionError('unbound fixture cleanup')
+def _install_signal_cleanup(): raise AssertionError('unbound fixture signals')
 
 class _Grader:
     def __init__(self, grading_path=None): raise AssertionError('unbound fixture API: _Grader.__init__')
@@ -22,6 +25,11 @@ class _Grader:
     def score(self, instance_id, model_patch, log_path): raise AssertionError('unbound fixture API: _Grader.score')
 
 class ClaudeSwebenchRunner:
+    def optimizer_call(self,prompt,model="agent"): raise AssertionError('unbound fixture optimizer')
+    def _preflight_optimizer_endpoint(self): raise AssertionError('unbound fixture preflight')
+    def _segment(self,name,prompt,transcript_fh,exclude_tools,max_turns,guard,mcp_config=None): raise AssertionError('unbound fixture segment')
+    def _session_log_text(self,name): raise AssertionError('unbound fixture session log')
+    def _scaffold_context(self,name,task,run_dir_path): raise AssertionError('unbound fixture scaffold context')
     NET_GUARD_PROBE="echo https://github.com/probe"
     @property
     def NET_GUARD_SCRIPT(self): raise AssertionError("unbound guard script")
@@ -61,6 +69,10 @@ class ClaudeSwebenchRunner:
     def _merge_segments(self,a,b): raise AssertionError("unbound fixture API: _merge_segments")
 
 class CopilotSwebenchRunner(ClaudeSwebenchRunner):
+    def optimizer_call(self,prompt,model="agent"): raise AssertionError('unbound fixture copilot optimizer')
+    def _preflight_optimizer_endpoint(self): raise AssertionError('unbound fixture copilot preflight')
+    def _segment(self,name,prompt,transcript_fh,exclude_tools,max_turns,guard,mcp_config=None): raise AssertionError('unbound fixture copilot segment')
+    def _merge_segments(self,a,b): raise AssertionError('unbound fixture copilot merge')
     def _register_net_guard(self,name,python): raise AssertionError("unbound copilot registration")
     def __init__(self, agent="copilot", model=None, grading_path=None, scaffold=None): raise AssertionError('unbound fixture API: CopilotSwebenchRunner.__init__')
     def _start(self, name, instance_id): raise AssertionError('unbound fixture API: CopilotSwebenchRunner._start')
@@ -68,6 +80,9 @@ class CopilotSwebenchRunner(ClaudeSwebenchRunner):
     def _row_from_segment(self, result): raise AssertionError('unbound fixture API: CopilotSwebenchRunner._row_from_segment')
 
 class CodexSwebenchRunner(ClaudeSwebenchRunner):
+    def optimizer_call(self,prompt,model="agent"): raise AssertionError('unbound fixture codex optimizer')
+    def _segment(self,name,prompt,transcript_fh,exclude_tools,max_turns,guard,mcp_config=None): raise AssertionError('unbound fixture codex segment')
+    def _merge_segments(self,a,b): raise AssertionError('unbound fixture codex merge')
     _guard_python=""
     def _register_net_guard(self,name,python): raise AssertionError("unbound codex registration")
     def __init__(self, agent="codex", model=None, grading_path=None, scaffold=None): raise AssertionError('unbound fixture API: CodexSwebenchRunner.__init__')
