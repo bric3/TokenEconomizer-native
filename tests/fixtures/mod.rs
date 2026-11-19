@@ -50,3 +50,54 @@ pub fn opencode_session_export(sid: &str) -> Value {
     ];
     json!({"info":{"id":sid,"projectID":"p","cost":0.0056},"messages":messages})
 }
+
+// Pi 1.2.0 run fixture from reference/upstream/tests/test_live_core.py.
+pub fn pi_json_run() -> String {
+    let events = [
+        json!({"type":"session","version":3,"id":"01a13c79","cwd":"/tmp/te-side-x"}),
+        json!({"type":"message_end","message":{"role":"system","content":"","sections":{"preamble":"You are an expert..."}}}),
+        json!({"type":"message_end","message":{"role":"user","content":[{"type":"text","text":"propose facts"}]}}),
+        json!({"type":"message_update","usage":{"input":745,"output":3}}),
+        json!({"type":"message_end","message":{"role":"assistant","provider":"openrouter","model":"anthropic/claude-haiku-4.5",
+            "content":[{"type":"thinking","thinking":"Two lines."},{"type":"text","text":"- use python -m pytest"}],
+            "usage":{"input":745,"output":298,"cacheRead":0,"cacheWrite":0,"totalTokens":1043,"cacheWrite1h":0,"reasoning":281,
+                "cost":{"input":0.000745,"output":0.00149,"total":0.002235}},"stopReason":"stop"}}),
+        json!({"type":"agent_settled","aborted":false}),
+    ];
+    events
+        .iter()
+        .map(Value::to_string)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+// Copilot event fixture from reference/upstream/tests/test_live_core.py.
+pub fn write_copilot_events(path: &Path, calls: &[Value], shutdown: bool) -> PathBuf {
+    let mut events = vec![
+        json!({"type":"session.start","data":{"sessionId":"cp1","copilotVersion":"1.0.83","selectedModel":"gpt-5.4","context":{"cwd":"/w/repo"}}}),
+        json!({"type":"user.message","data":{"content":"fix it","turnId":"0"}}),
+    ];
+    for (n, call) in calls.iter().enumerate() {
+        events.push(json!({"type":"tool.execution_start","data":{"toolCallId":format!("c{n}"),"toolName":call[0],"arguments":call[1],"turnId":"0"}}));
+        events.push(json!({"type":"tool.execution_complete","data":{"toolCallId":format!("c{n}"),"success":call[3],"turnId":"0",
+            "result":{"content":call[2],"detailedContent":call[2]}}}));
+    }
+    if shutdown {
+        events.push(json!({"type":"session.shutdown","data":{"modelMetrics":{"gpt-5.4":{"requests":{"count":4},"usage":{
+        "inputTokens":4000,"outputTokens":80,"cacheReadTokens":2400,"cacheWriteTokens":100,"reasoningTokens":0}}},"toolDefinitionsTokens":13149}}));
+    }
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        path,
+        format!(
+            "{}\n",
+            events
+                .iter()
+                .map(Value::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        ),
+    )
+    .unwrap();
+    path.into()
+}

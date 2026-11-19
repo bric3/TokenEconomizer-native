@@ -111,9 +111,16 @@ active and abandoned branches and opencode's nested, list and flat exports,
 including synthetic-text filtering and token/cost accounting. Pi's optional
 header fields stay unchanged when its test rewrites a tool command.
 
-Live-core now has 64 of 99 functions converted, covering 239 of its 274 cases.
-The remaining 35 functions cover process callbacks, side calls, probing and
-background judge workflows.
+The sixth batch adds 14 functions in `live_core_control.rs` and
+`live_core_copilot.rs`. They preserve judge scheduling, delayed verdicts, timeout
+recovery, the nudge backstop, probe command counts and Pi reply accounting.
+Copilot tests cover event logs, working directories, cache accounting, MCP
+prefixes, hook progress lines and provider model selection. Claude's persistence
+flag is checked through its help lookup. Process results and judge jobs remain
+local fixtures; the native parsers, guard and hook entry point process them.
+
+Live-core now has 78 of 99 functions converted, covering 253 of its 274 cases.
+The remaining 21 functions cover process callbacks, side calls and probing.
 
 Run the native suite and the conversion inventory from the checkout root:
 
@@ -131,7 +138,7 @@ behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
 Conversion remains in progress: 20 pytest modules are complete and live-core is
-partly converted, covering 495 of 1,591 original cases, including the conditional
-Windows case. The other 1,096 cases and standalone executable smoke tests
+partly converted, covering 509 of 1,591 original cases, including the conditional
+Windows case. The other 1,082 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.
