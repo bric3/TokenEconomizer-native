@@ -830,7 +830,7 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 31 of 67 pytest modules are complete, covering 748 of
+- Final test conversion: 32 of 67 pytest modules are complete, covering 759 of
   1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
@@ -4527,6 +4527,19 @@ complete while any runtime component delegates production behaviour to Python.
   unchanged. Logs use `validation/results/test-conversion-15-*`. Conversion
   covers 748 cases across 31 complete modules; remaining conversion and parity
   audits stay open.
+
+- The sixteenth test-conversion batch completes tool measurements: seven
+  functions cover 11 cases. It preserves the 400-tool settings file and short
+  argv, failed and empty measurements, and Codex's empty-render checks. Native
+  pipe output excludes nullable strings, so missing stdout uses the empty
+  boundary value. A small Rust child replaces the original Python scripts and
+  exercises actual pipe reads, init detection, deadlines and termination with
+  the original timing limits. Packaging's explicit executable list excludes
+  the child; a native plugin bundle was built and its CLI help ran successfully.
+  All 436 native tests on macOS, formatting and all-target Clippy pass. Logs use
+  `validation/results/test-conversion-16-*`. Conversion covers
+  759 cases across 32 complete modules; remaining conversion and parity audits
+  stay open.
 
 ## Dependencies
 

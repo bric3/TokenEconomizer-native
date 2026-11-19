@@ -213,6 +213,15 @@ fixture drives real native hooks through four learning sessions. A native CLI
 test selects a repository containing spaces and quotes from another directory
 and preserves its pending proposal.
 
+The sixteenth batch converts `test_toolcheck_measure.py`: seven functions cover
+11 original cases. It retains the 400-tool settings file, short argv, rejected
+empty and failed measurements, and Codex's empty-render checks. Native pipe
+output has a concrete `String`; the original missing-stdout case uses its empty
+boundary value. A small Rust child fixture flushes optional JSON lines and then
+waits five seconds, replacing the original Python child scripts. The real probe
+reads its pipes and terminates it at init or deadline; the original four-second
+limits remain. The validation child is excluded from packaged executables.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -228,8 +237,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 31 pytest modules are complete, covering 748 of
-1,591 original cases, including the conditional Windows case. The other 843
+Conversion remains in progress: 32 pytest modules are complete, covering 759 of
+1,591 original cases, including the conditional Windows case. The other 832
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.
