@@ -1,5 +1,7 @@
 //! Launch configuration and preflights shared by the sweep entry points.
+pub mod codex_ab;
 mod environment;
+mod execution;
 pub mod fleet;
 pub mod main_sweep;
 
@@ -8,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use std::{
     collections::BTreeSet,
+    io::{self, Write},
     path::{Path, PathBuf},
 };
 
@@ -58,6 +61,27 @@ pub struct Context {
     pub stopped: bool,
 }
 impl Context {
+    fn set(&mut self, key: &str, value: impl Into<String>) {
+        self.env.insert(key.into(), json!(value.into()));
+    }
+    fn default(&mut self, key: &str, value: &str) {
+        if self.get(key).is_empty() {
+            self.set(key, value);
+        }
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        // Flush before each child so long-running cells expose their progress immediately.
+        let mut out = io::stdout().lock();
+        out.write_all(self.stdout.as_bytes())?;
+        out.flush()?;
+        let mut err = io::stderr().lock();
+        err.write_all(self.stderr.as_bytes())?;
+        err.flush()?;
+        self.stdout.clear();
+        self.stderr.clear();
+        Ok(())
+    }
+
     pub fn new(env: Map<String, Value>, cwd: PathBuf) -> Self {
         let exported = env.keys().cloned().collect();
         Self {

@@ -256,6 +256,21 @@ default, skips finished cells and aggregates every arm in the results tree.
 `TOKENECONOMIZER_RESULTS` retain the upstream launcher settings. The planner,
 launcher and aggregator are native; task SDK I/O uses `TE_BENCH_PYTHON` or `PYTHON`.
 
+Run the Codex baseline and selected arm with:
+
+```sh
+TASKS_FILE=/path/to/tasks.json DRYRUN=1 target/release/te-bench codex-ab
+```
+
+`ARM` defaults to `codex-untool`. `BASELINE=0` selects that arm alone, and
+`BASELINE=only` selects the baseline alone. `ARMS` selects an explicit list and
+overrides both settings. `MODEL` defaults to `CODEX_MODEL` or `gpt-5.6-sol`.
+The command covers every group in the workload unless `REPOS` selects groups;
+`WORKLOAD=none` requires explicit groups. Real runs check OpenAI credentials,
+detach by default, set the shared fleet CPU budget and export a per-container
+CPU cap of 4 unless `TE_SWEBENCH_MAX_CPUS` overrides it. Resume, failure handling
+and aggregation use the same native cell loop as `main-sweep`.
+
 Use `--runner module:factory` for an external task runner. Python 3.10 or newer supplies
 standard-library I/O; `TE_BENCH_PYTHON` selects its interpreter. The runtime bundle
 carries the SDK and command, including the generic streamed-rollout controller

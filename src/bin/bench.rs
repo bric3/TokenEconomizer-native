@@ -12,6 +12,7 @@ fn run() -> Result<i32, Box<dyn Error>> {
             || arg == "compare-arms"
             || arg == "fleet-budget"
             || arg == "main-sweep"
+            || arg == "codex-ab"
     }) {
         let args = env::args_os()
             .skip(2)
@@ -62,7 +63,7 @@ fn run() -> Result<i32, Box<dyn Error>> {
                 )
                 .map_err(|e| e.message)?,
             )
-        } else if command == "fleet-budget" || command == "main-sweep" {
+        } else if command == "fleet-budget" || command == "main-sweep" || command == "codex-ab" {
             let mut settings = serde_json::Map::new();
             for (key, value) in env::vars_os() {
                 let key = key
@@ -75,6 +76,13 @@ fn run() -> Result<i32, Box<dyn Error>> {
             }
             if command == "main-sweep" {
                 return Ok(launch::main_sweep::command(
+                    &args,
+                    settings,
+                    env::current_dir()?,
+                )?);
+            }
+            if command == "codex-ab" {
+                return Ok(launch::codex_ab::command(
                     &args,
                     settings,
                     env::current_dir()?,

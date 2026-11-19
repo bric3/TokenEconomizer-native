@@ -14,6 +14,9 @@ def rewrite(argv, options):
     experiment = ROOT / "reference/upstream/experiments"
     if len(argv) >= 2 and str(argv[1]) == str(experiment / "scripts/launch/fleet_budget.sh"):
         return [str(ROOT / "target/debug/te-bench"), "fleet-budget", *argv[2:]]
+    if len(argv) >= 2 and str(argv[1]) == str(experiment / "scripts/launch/codex_ab.sh"):
+        options.setdefault("cwd", str(experiment))
+        return [str(ROOT / "target/debug/te-bench"), "codex-ab", *argv[2:]]
     environment = options.get("env") or os.environ
     if Path(options.get("cwd", os.getcwd())).resolve() != experiment and environment.get("REPO") != str(experiment):
         return argv

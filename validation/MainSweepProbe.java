@@ -142,6 +142,15 @@ class MainSweepProbe {
     var resumed = NativeCliProbe.process(work, env, List.of(bench.toString(), "main-sweep"));
     require(resumed.code() == 0 && resumed.out().contains("ran=0 skipped=1 failed=0") && rows(overrideResults) == 1, "Standalone native sweep did not resume: " + resumed); checks++;
   }
+  static void defaultEnvironment(Path project, Path work, Path bench, String command) throws Exception {
+    Files.createDirectories(work.resolve("workloads"));
+    Files.writeString(work.resolve("workloads/swebench.json"), "{\"groups\":{\"org/pkg\":[\"pkg__0\"]}}");
+    Files.writeString(work.resolve("tasks.json"), "[{\"instance_id\":\"pkg__0\",\"repo\":\"org/pkg\",\"problem_statement\":\"Offline fixture\"}]");
+    Files.writeString(work.resolve(".env"), "AGENT=codex\nMODEL=gpt-5.6-sol\nARMS=baseline-low\nTASKS_FILE=tasks.json\n");
+    var env = Map.of("PATH", "", "HOME", work.toString(), "TE_BENCH_PYTHON", project.resolve(".venv/bin/python").toString(), "DRYRUN", "0", "DETACH", "0", "SEEDS", "0", "TE_FLEET_CPUS", "0", "TE_CGROUP_ROOT", work.resolve("absent-cgroup").toString());
+    var output = NativeCliProbe.process(work, env, List.of(bench.toString(), command));
+    require(output.code() == 0 && output.out().contains("ran=1 skipped=0 failed=0") && rows(work.resolve("results")) == 1 && !output.out().contains("from_wrong_root"), "Child loaded settings outside the launcher's selected .env: " + output); checks++;
+  }
   public static void main(String[] args) throws Exception {
     checkout = Path.of("").toAbsolutePath(); root = Files.createTempDirectory(checkout.resolve("validation/results"), "main-sweep-");
     executable = checkout.resolve("target/debug/te-bench"); script = root.resolve("scripts/launch/main_sweep.sh"); boolean passed = false;

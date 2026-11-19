@@ -1,36 +1,10 @@
 //! Run one agent/model/domain tree through the native planner and experiment driver.
 use super::{Context, environment};
-use crate::experiments::{CommandOutput, aggregate, sweep};
-use serde_json::{Map, Value, json};
-use std::{
-    fs,
-    io::{self, Write},
-    path::{Path, PathBuf},
-    process::Command,
-    time::Instant,
-};
+use crate::experiments::{CommandOutput, sweep};
+use serde_json::{Map, Value};
+use std::{fs, io, path::PathBuf};
 
 impl Context {
-    fn set(&mut self, key: &str, value: impl Into<String>) {
-        self.env.insert(key.into(), json!(value.into()));
-    }
-    fn default(&mut self, key: &str, value: &str) {
-        if self.get(key).is_empty() {
-            self.set(key, value);
-        }
-    }
-    fn flush(&mut self) -> io::Result<()> {
-        // Flush before each child so long-running cells expose their progress immediately.
-        let mut out = io::stdout().lock();
-        out.write_all(self.stdout.as_bytes())?;
-        out.flush()?;
-        let mut err = io::stderr().lock();
-        err.write_all(self.stderr.as_bytes())?;
-        err.flush()?;
-        self.stdout.clear();
-        self.stderr.clear();
-        Ok(())
-    }
     fn planned(&mut self, args: &[String]) -> CommandOutput {
         match sweep::command("te-bench sweep-plan", args, &self.cwd, &self.cwd) {
             Ok(output) => output,
@@ -147,7 +121,7 @@ impl Context {
             self.stop(2);
             return Ok(());
         }
-        let cells: Vec<_> = planned.stdout.lines().collect();
+        let cells: Vec<_> = planned.stdout.lines().map(str::to_owned).collect();
         if cells.is_empty() {
             self.err(format!(
                 "!! the plan is empty: no runnable cell for arms='{}'",
@@ -217,176 +191,14 @@ impl Context {
         if self.stopped {
             return Ok(());
         }
-        let counts = sweep::group_sizes(
-            &domain,
-            (workload != "none").then(|| Path::new(&workload)),
-            &self.cwd,
-            &self.cwd,
-        );
-        let counts = match counts {
-            Ok(counts) => counts,
-            Err(error) => {
-                self.err(error.message);
-                Default::default()
-            }
-        };
-        let start = Instant::now();
-        let mut failed = Vec::new();
-        let mut ran = 0;
-        let mut skipped = 0;
-        for cell in cells {
-            let mut fields = cell.split('\t');
-            let arm = fields.next().unwrap();
-            let repo = fields.next().unwrap();
-            let seed = fields.next().unwrap();
-            let mut want = counts.get(repo).copied().unwrap_or(0) as i64;
-            let mut displayed_want = want.to_string();
-            // shortcut: literal limits cover supported launches; audit general Bash arithmetic separately.
-            if let Some(limit) = super::fleet::shell_integer(self.get("LIMIT"))
-                && self.get("LIMIT") != "0"
-                && want > limit
-            {
-                want = limit;
-                displayed_want = self.get("LIMIT").to_owned();
-            }
-            let repo_tag = repo.rsplit('/').next().unwrap().replace('-', "_");
-            let dir = self
-                .cwd
-                .join(&dest)
-                .join(arm)
-                .join(format!("{repo_tag}_s{seed}"));
-            let have = cell_rows(&dir);
-            #[cfg(target_os = "macos")]
-            let displayed = if dir.is_dir() {
-                format!("{have:8}")
-            } else {
-                have.to_string()
-            };
-            #[cfg(not(target_os = "macos"))]
-            let displayed = have.to_string();
-            if self.get("SKIP_DONE") == "1" && want > 0 && have >= want as usize {
-                self.out(format!(
-                    "[main_sweep] SKIP  {arm} {repo} s{seed} ({displayed}/{displayed_want} rows already stored)"
-                ));
-                skipped += 1;
-                continue;
-            }
-            self.out(format!(
-                "[main_sweep] RUN   {arm} {repo} s{seed}  (have {displayed} of {displayed_want})"
-            ));
-            self.flush()?;
-            let mut command = Command::new(&executable);
-            command
-                .args([
-                    "--arm",
-                    arm,
-                    "--agent",
-                    &agent,
-                    "--repo",
-                    repo,
-                    "--seed",
-                    seed,
-                    "--limit",
-                    self.get("LIMIT"),
-                    "--adapter",
-                    &domain,
-                    "--tasks-file",
-                    self.get("TASKS_FILE"),
-                ])
-                .args(&workload_args)
-                .args([
-                    "--results-root",
-                    &dest,
-                    "--runner",
-                    native_runner(self.get("RUNNER")),
-                    "--model",
-                    self.get("MODEL"),
-                    "--optimizer-model",
-                    &agent,
-                    "--fresh",
-                ])
-                .current_dir(&self.cwd)
-                .env_clear()
-                .envs(
-                    self.process_env()
-                        .iter()
-                        .map(|(key, value)| (key, value.as_str().unwrap())),
-                );
-            if self.get("TE_BENCH_PYTHON").is_empty() {
-                command.env("TE_BENCH_PYTHON", &python);
-            }
-            let success = match command.status() {
-                Ok(status) => status.success(),
-                Err(error) => {
-                    self.err(format!("!! could not run {arm} {repo} s{seed}: {error}"));
-                    false
-                }
-            };
-            if success {
-                ran += 1;
-            } else {
-                self.out(format!("[main_sweep] FAILED {arm} {repo} s{seed}"));
-                failed.push(format!("{arm}/{repo}/s{seed}"));
-                if self.get("ON_FAIL") == "abort" {
-                    self.out("[main_sweep] ON_FAIL=abort -- stopping");
-                    break;
-                }
-            }
-        }
-        self.out(format!("[main_sweep] aggregating -> {dest}/index/"));
-        self.flush()?;
-        match aggregate::command("te-bench aggregate", &[dest]) {
-            Ok(output) => {
-                self.stdout.push_str(&output.stdout);
-                self.stderr.push_str(&output.stderr);
-            }
-            Err(error) => self.err(error),
-        }
-        self.out(format!(
-            "[main_sweep] DONE in {} min: ran={ran} skipped={skipped} failed={}",
-            start.elapsed().as_secs() / 60,
-            failed.len()
-        ));
-        if !failed.is_empty() {
-            for cell in failed {
-                self.out(format!("[main_sweep]   FAILED: {cell}"));
-            }
-            self.out(
-                "[main_sweep] re-run this same command to retry only the failed cells (SKIP_DONE=1",
-            );
-            self.out("[main_sweep] skips the finished ones).");
-            self.code = 1;
-        }
-        Ok(())
+        self.run_cells(
+            super::execution::Workflow::Main,
+            &cells,
+            &dest,
+            &workload,
+            &python,
+        )
     }
-}
-
-fn native_runner(spec: &str) -> &str {
-    match spec {
-        "te_harness.swebench:make_runner" => "te_runtime.swebench:make_runner",
-        "te_harness.webbench:make_runner" => "te_runtime.webbench:make_runner",
-        spec => spec,
-    }
-}
-
-fn cell_rows(dir: &Path) -> usize {
-    if fs::symlink_metadata(dir).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
-        return 0;
-    }
-    let Ok(entries) = fs::read_dir(dir) else {
-        return 0;
-    };
-    entries
-        .flatten()
-        .map(|entry| {
-            usize::from(entry.file_name() == "row.json")
-                + if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
-                    cell_rows(&entry.path())
-                } else {
-                    0
-                }
-        })
-        .sum()
 }
 
 pub fn command(args: &[String], env: Map<String, Value>, cwd: PathBuf) -> io::Result<i32> {

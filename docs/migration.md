@@ -744,16 +744,22 @@ complete while any runtime component delegates production behaviour to Python.
   outside their ordinary schemas. Captured configuration callables and arguments
   already retain their references when the prompt callback replaces them.
 - Finish supporting experiment tools, preserving their original test contracts.
+  `scripts/dead_code.py` still has no native replacement. Its 11 original tests
+  currently exercise the Python scanner, deletion safeguards, repeated sweep and
+  report/CLI implementation. Port that policy before counting those tests as
+  native coverage. Audit the documentation image generators
+  `docs/assets/results_overview.py`, `framework_overview.py` and `teaser.py`,
+  including their regeneration and asset-validation requirements.
   The workload registry, manifest exporter, sweep planner, both task exporters,
   YAML mirror, paired comparison reports, shared launch helpers, fleet CPU
-  controls and main sweep have native implementations. Port the Codex A/B
-  launcher and audit the remaining reporting, capture and development tools for
+  controls, main sweep and Codex A/B launcher have native implementations.
+  Audit the remaining reporting, capture and development tools for
   production entry points that lack coverage. Preserve the archived smoke test
-  until final test conversion. The Codex shell-launcher fixture still invokes
-  Python children from the archived tree. Parent-process function traces do not
-  cover those children. Verify the native launch process paths before closing
-  this work; the main-sweep oracle already uses the native planner, driver and
-  aggregator with no upstream import path.
+  until final test conversion. Original Codex launcher tests now invoke the
+  native command with the archive as their fixture working directory. Parent
+  bridge counters do not cover child processes; dedicated main/Codex oracles
+  check native launch execution, driver arguments and results with no upstream
+  import path.
   Aggregation has a native entry point, `te-bench aggregate`, and its source tests
   now call Rust through the validation binding. Weighted costs and per-cell totals
   retain f64 accounting. Include unusually large totals, non-finite JSON, non-UTF-8
@@ -3578,6 +3584,67 @@ complete while any runtime component delegates production behaviour to Python.
   non-UTF-8 settings, Windows detachment and filesystem errors beyond the tested
   corpus remain outside these comparisons.
 
+- The Codex A/B launcher now runs through `te-bench codex-ab`. Rust preserves
+  explicit arm lists, the `ARM` and `BASELINE` modes, model defaults, the source
+  arm-list match, credential and endpoint preflight order, domain/runner checks,
+  task-file and workload selection, and seed/group/arm execution order. Default
+  groups come from the whole workload. Dry runs need a task-file setting and
+  create neither results nor CPU-budget changes. The launcher exports the
+  per-container CPU cap, detaches through the native session helper, then applies
+  and reports the shared fleet budget before running cells.
+  Main and Codex sweeps share row counting, limit-aware completion checks, child
+  process I/O, resume, failure tracking and whole-tree aggregation. Workflow
+  selection retains their distinct optimizer labels, Codex's explicit 80-turn
+  limit, failure messages and post-run instructions. The Codex comparison hint
+  uses `te-bench compare-arms`. Python supplies task SDK I/O; launch planning,
+  fleet policy, cell coordination and aggregation execute in Rust.
+  Child cells receive the launcher's selected `TOKENECONOMIZER_ENV_FILE`.
+  A relocated-bundle regression first reproduced a child loading unrelated
+  `TE_EFFORT_LEVEL` settings from the installed runtime's `.env`. Forwarding the
+  selected path keeps both main and Codex cells on the working directory's
+  configuration; explicit file selections retain their precedence. The failing
+  reproduction is `validation/results/codex-sweep-environment-before.log`.
+  The two original whole-workload launcher checks now execute the native command.
+  Their compatibility binding anchors fixture paths at the archived experiment
+  root without changing the original tests. A dedicated source oracle copies the
+  scripts into an owned fixture, records actual driver arguments and exported
+  CPU/agent/model settings, and compares stdout, stderr, return status, CSVs and
+  transcripts. It covers every documented arm, baseline modes and overrides,
+  duplicate and first-line arm lists, default groups, task-file fallback,
+  preflight refusal, model tags, real offline stub cells for both domains, fleet
+  writes to fake cgroups, full and partial resume, whole-tree aggregation,
+  continue/abort failure handling and native detached execution.
+  Source comparisons normalise run-name timestamps and the comparison-command
+  hint. Native runs use an empty `PATH` with no upstream import path. No paid
+  model or real dataset runner was called, and no host cgroup was changed.
+  The Codex oracle passes 174 checks. The main-sweep regression retains all 81
+  checks, and the shared launch probe retains 164 checks plus three standalone
+  fleet checks. The focused original tests pass with 88 passed and two skipped.
+  The full unchanged suite passes with 1,561 passed and 30 skipped (77.67 seconds),
+  including installed opencode against its loopback fixture. Its call record,
+  `validation/results/codex-sweep-full-calls.json`, records 33 binding loads and
+  43 rewritten shell processes. The separately scoped original launcher test
+  records two native CLI processes, one per domain, in
+  `codex-sweep-original-cli-calls.json`.
+  All 29 Rust tests, Clippy, formatting and debug/release builds pass. Both Linux
+  helper builds pass all 28 library tests and 26 scratch-container checks across
+  both architectures. The relocated bundle passes 261 checks and retains 20 SDK
+  files, 39 manifest hashes and 40 physical files. All 256 upstream files match
+  the pinned Git tree. Main/Codex execution comparisons run on macOS; Linux
+  library and helper checks cover arm64 and amd64.
+  Logs are under `validation/results/`: `codex-sweep-full.log`,
+  `codex-sweep-probe.log`, `codex-sweep-focused.log`,
+  `codex-sweep-main-regression.log`, `codex-sweep-launch-regression.log`,
+  `codex-sweep-rust-tests.log`, `codex-sweep-clippy.log`,
+  `codex-sweep-debug.log`, `codex-sweep-release.log`,
+  `codex-sweep-container-build.log`, `codex-sweep-container-probe.log` and
+  `codex-sweep-bundle.log`.
+  The original smoke test remains unchanged for final test conversion. The
+  supporting-tool and parity audits still precede the three simplification
+  passes, three performance passes and original-test conversion. Windows,
+  general Bash arithmetic and glob expansion, shell-special variables, malformed
+  schema diagnostics and filesystem failures outside the corpus remain open.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -3827,6 +3894,7 @@ jbang validation/YamlMirrorProbe.java
 jbang validation/CompareProbe.java
 jbang validation/LaunchProbe.java
 jbang validation/MainSweepProbe.java
+jbang validation/CodexSweepProbe.java
 jbang validation/StandaloneBenchProbe.java
 jbang validation/StandaloneTransportProbe.java
 jbang validation/HermesGatewayProbe.java
