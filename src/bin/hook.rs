@@ -1,3 +1,5 @@
+#[cfg(unix)]
+use libc::umask;
 use std::{
     env,
     io::{self, Read, Write},
@@ -25,6 +27,11 @@ fn run() -> Result<String, String> {
     runtime.run_hook(&argv, read)
 }
 fn main() {
+    #[cfg(unix)]
+    // Set private creation permissions before state writes or worker threads start.
+    unsafe {
+        umask(0o077);
+    }
     let output = run().unwrap_or_else(|error| {
         eprintln!("te-hook: {error}");
         "{}\n".into()

@@ -1,3 +1,5 @@
+#[cfg(unix)]
+use libc::umask;
 use std::path::Path;
 use tokeneconomizer::plugin::{
     cli::{Error, Result},
@@ -50,6 +52,11 @@ fn run() -> Result<i32> {
         .ok_or_else(|| "invalid command exit status".into())
 }
 fn main() {
+    #[cfg(unix)]
+    // Set private creation permissions before state writes or worker threads start.
+    unsafe {
+        umask(0o077);
+    }
     let code = match run() {
         Ok(code) => code,
         Err(error) if error.is("SystemExit") => error.message.parse().unwrap_or(1),
