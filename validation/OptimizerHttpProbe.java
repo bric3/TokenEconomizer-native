@@ -4,6 +4,7 @@
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.ArrayList;
 import com.sun.net.httpserver.HttpServer;
@@ -12,10 +13,11 @@ import com.sun.net.httpserver.HttpServer;
 class OptimizerHttpProbe {
   static int cases;
   static String q(Object value) {return ParserProbe.q(value);}
-  static void compare(AdapterProbe.Client nativeCode,AdapterProbe.Client source,String fields) throws Exception {
+  static String compare(AdapterProbe.Client nativeCode,AdapterProbe.Client source,String fields) throws Exception {
     var request="{"+fields+"}";var expected=source.call(request);var actual=nativeCode.call(request);
     if(!expected.equals(actual))throw new AssertionError("Case "+cases+": "+request+"\nNative: "+actual+"\nSource: "+expected);
     cases++;
+    return actual;
   }
   static void localHttp(AdapterProbe.Client nativeCode,AdapterProbe.Client source) throws Exception {
     var received=new ArrayList<String>();var server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
@@ -27,17 +29,20 @@ class OptimizerHttpProbe {
     });server.start();
     try {
       var base="http://127.0.0.1:"+server.getAddress().getPort();
-      for(var agent:List.of("claude","codex")) {
-        compare(nativeCode,source,"\"real_http\":true,\"agent\":"+q(agent)+",\"arguments\":{"+(agent.equals("codex")?"\"routing\":{\"base_url\":"+q(base+"/v1/")+",\"api_key\":\"fixture\"}":"\"base_url\":"+q(base+"/")+",\"api_key\":\"fixture\"")+"}");
+      var root=Files.createTempDirectory(Path.of("validation/results"),"optimizer-policy-").toAbsolutePath();
+      for(var agent:List.of("claude","codex"))for(boolean policy:List.of(false,true)) {
+        var result=compare(nativeCode,source,"\"real_http\":true,\"agent\":"+q(agent)+(policy?",\"policy_log\":"+q(root.resolve("optimizer.jsonl")):"")+",\"arguments\":{"+(agent.equals("codex")?"\"routing\":{\"base_url\":"+q(base+"/v1/")+",\"api_key\":\"fixture\"}":"\"base_url\":"+q(base+"/")+",\"api_key\":\"fixture\"")+"}");
+        if(policy&&(!result.contains("\"optimizer_log\":[{")||!result.contains("\"value\":[\"local-")||result.contains("\"raised\"")))throw new AssertionError("HTTP response did not reach native pricing and logging: "+result);
         synchronized(received) {
           int size=received.size();if(size<2||!received.get(size-1).equals(received.get(size-2)))throw new AssertionError("Real request bytes or headers differ: "+received);
         }
       }
-      synchronized(received){if(received.size()!=4)throw new AssertionError("Unexpected real HTTP request count: "+received.size());}
+      Files.delete(root);
+      synchronized(received){if(received.size()!=8)throw new AssertionError("Unexpected real HTTP request count: "+received.size());}
     } finally {server.stop(0);}
   }
   public static void main(String[] args) throws Exception {
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"optimizer_http_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"optimizer_http_host.py")) {
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"optimizer_http_host.py",args.length==1&&args[0].equals("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"optimizer_http_host.py")) {
       for(var agent:List.of("claude","codex")) {
         var a="\"agent\":"+q(agent);
         compare(nativeCode,source,a);

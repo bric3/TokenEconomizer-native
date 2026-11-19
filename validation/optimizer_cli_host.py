@@ -1,6 +1,7 @@
 """Process, filesystem and observer bindings for Copilot optimizer comparisons."""
 import builtins
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -9,11 +10,15 @@ import tempfile
 import types
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
-from te_harness import copilot as cp, swebench as sw
-if "--native" in sys.argv:
-    from native_experiment_providers import install
-    install()
+if "--sdk" in sys.argv:
+    from standalone_optimizer import runtime
+    cp,sw=runtime.copilot,runtime.claude
+else:
+    sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+    from te_harness import copilot as cp, swebench as sw
+    if "--native" in sys.argv:
+        from native_experiment_providers import install
+        install()
 
 for line in sys.stdin:
     request = json.loads(line)
@@ -21,6 +26,7 @@ for line in sys.stdin:
     names = ("copilot_bin","tempfile","subprocess","shutil","run_env","os","read_log_dir","sum_openai_usage","pricing","OPTIMIZER_DENY_TOOLS","OPTIMIZER_EXCLUDE_TOOLS")
     saved = {name:getattr(cp,name) for name in names}
     saved_record = sw._log_optimizer_call
+    saved_environment=dict(os.environ)
     def encode(value):
         if isinstance(value,Token): return {"ref":value.name}
         if isinstance(value,dict): return {key:encode(item) for key,item in value.items()}
@@ -97,15 +103,27 @@ for line in sys.stdin:
         cp.run_env,cp.read_log_dir,cp.sum_openai_usage = environment,read,sum_usage
         cp.pricing = types.SimpleNamespace(effective_tokens=pricing)
         sw._log_optimizer_call = observe
+        if request.get("policy_log"):
+            os.environ["TE_OPTIMIZER_LOG"]=request["policy_log"]
+            cp.os.path=os.path
+            cp.read_log_dir,cp.sum_openai_usage,cp.pricing=(saved[name] for name in ("read_log_dir","sum_openai_usage","pricing"))
+            sw._log_optimizer_call=saved_record
         if "deny" in request: cp.OPTIMIZER_DENY_TOOLS = request["deny"]
         if "exclude" in request: cp.OPTIMIZER_EXCLUDE_TOOLS = request["exclude"]
         value = cp.optimizer_call(**arguments)
-        if isinstance(value,tuple) and value[1] is not None: assert value[1] is effective,"pricing result identity changed"
+        if not request.get("policy_log") and isinstance(value,tuple) and value[1] is not None: assert value[1] is effective,"pricing result identity changed"
         result = {"value":encode(value)}
+        if request.get("policy_log"):
+            path=Path(request["policy_log"])
+            result["optimizer_log"]=[json.loads(row) for row in path.read_text(encoding="utf-8").splitlines()]
+            assert len(result["optimizer_log"]) == 1,"optimizer log was not written exactly once"
+            result["optimizer_log"][0].pop("ts")
+            path.unlink()
     except BaseException as error: result = {"raised":type(error).__name__,"message":str(error)}
     finally:
         for name,value in saved.items(): setattr(cp,name,value)
         sw._log_optimizer_call = saved_record
+        os.environ.clear();os.environ.update(saved_environment)
         if request.get("real"):
             result["remaining"] = [key for key,path in paths.items() if Path(path).exists()]
             for path in paths.values(): shutil.rmtree(path,ignore_errors=True)

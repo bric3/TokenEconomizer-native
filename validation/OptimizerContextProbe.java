@@ -14,7 +14,7 @@ class OptimizerContextProbe {
     cases++;return actual;
   }
   public static void main(String[] args) throws Exception {
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"optimizer_context_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"optimizer_context_host.py")) {
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"optimizer_context_host.py",args.length==1&&args[0].equals("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"optimizer_context_host.py")) {
       for(var explicit:List.of("null","false","0","\"\"","\"relative/log\"","\"é😀\"","\"\\ud800\"","[]","{}","[1]"))for(var root:List.of("null","false","0","\"\"","\"relative/root\"","\"/absolute/root\"","[1]"))
         compare(nativeCode,source,"\"env\":{\"TE_OPTIMIZER_LOG\":"+explicit+",\"TOKENECONOMIZER_RESULTS\":"+root+"}");
       for(var key:List.of("TE_OPTIMIZER_LOG","TOKENECONOMIZER_RESULTS"))for(boolean truth:List.of(false,true))compare(nativeCode,source,"\"env_objects\":["+q(key)+"],\"truthy\":"+truth);

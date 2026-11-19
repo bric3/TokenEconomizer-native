@@ -32,7 +32,7 @@ class ExperimentBundleProbe {
       var hash=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(bundle.resolve(matches.group(1)))));
       require(hash.equals(matches.group(2)),"manifest hash differs: "+matches.group(1));count++;
     }
-    require(count==28,"manifest omitted files: "+count);
+    require(count==29,"manifest omitted files: "+count);
   }
   static void engine(Path bundle)throws Exception {
     try(var client=new ContextProbe.Client(bundle.resolve("bin/te-bridge"),"experiment.swebench")) {
@@ -93,6 +93,8 @@ class ExperimentBundleProbe {
           from te_runtime.codex_install import bind as install_bindings
           from te_runtime.usage import bind as usage_bindings
           from te_runtime.providers import routing
+          from te_runtime.optimizer import bind as optimizer_bindings
+          from types import SimpleNamespace
           from pathlib import Path
           with Bridge(sys.argv[2]) as bridge:
               sdk=bind(bridge.request)
@@ -124,10 +126,22 @@ class ExperimentBundleProbe {
               environment=dict(ANTHROPIC_AUTH_TOKEN='ignored fixture',keep='fixture')
               assert providers.claude.agent_credential_env(environment,api_key='fixture') is environment
               assert environment == dict(keep='fixture',ANTHROPIC_API_KEY='fixture')
+              optimizer=optimizer_bindings(bridge)
+              log=Path(sys.argv[1]).parent.parent/'optimizer.jsonl'
+              optimizer.claude.os=SimpleNamespace(environ=dict(TE_OPTIMIZER_LOG=str(log)),path=__import__('os').path,makedirs=__import__('os').makedirs)
+              optimizer.claude.set_optimizer_context(agent='codex',cell='fixture/repo_s0')
+              optimizer.claude._log_optimizer_call('gpt-5.6-sol','Reply with the single word: ok','ok',dict(input_tokens=10,output_tokens=2))
+              row=__import__('json').loads(log.read_text(encoding='utf-8'))
+              assert row['kind'] == 'preflight' and row['agent'] == 'codex' and row['cell'] == 'fixture/repo_s0'
+              assert row['response'] == 'ok' and row['usage'] == dict(input_tokens=10,output_tokens=2)
+              assert optimizer.codex._responses_text(dict(output_text='bundle answer')) == 'bundle answer'
+              assert optimizer.copilot.build_argv('fixture',log_dir='/fixture/logs')[:3] == ['copilot','-p','fixture']
+              assert optimizer.codex.run_env()['CODEX_HOME'] == '/opt/codex-home'
+              log.unlink()
           print('packaged SDK bindings passed')
           """,moved.resolve("sdk").toString(),moved.resolve("bin/te-bridge").toString()));
       require(controller.code()==0&&controller.out().equals("packaged SDK bindings passed\n"),"relocated SDK binding failed: "+controller);
-      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==29,"benchmark command changed the runtime payload");}
+      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==30,"benchmark command changed the runtime payload");}
       var bootstrap=moved.resolve("sdk/bench.py");var bootstrapBytes=Files.readAllBytes(bootstrap);Files.delete(bootstrap);
       var absent=NativeCliProbe.process(root,Map.of("PATH","","TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString()),List.of(moved.resolve("bin/te-bench").toString(),"--help"));
       require(absent.code()!=0&&absent.err().contains("SDK binding is missing"),"missing bundled SDK selected development files: "+absent);Files.write(bootstrap,bootstrapBytes);

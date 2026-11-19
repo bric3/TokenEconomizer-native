@@ -17,7 +17,7 @@ class CopilotHostProbe {
   }
   public static void main(String[] args) throws Exception {
     var root=Files.createTempDirectory(Path.of("validation/results"),"copilot-host-").toAbsolutePath();
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"copilot_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"copilot_host.py")) {
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"copilot_host.py",args.length==1&&args[0].equals("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"copilot_host.py")) {
       for(var value:List.of("null","false","0","\"\"","\"relative/copilot\"","[]","{}","[1]"))for(boolean accessible:List.of(false,true))for(var which:List.of("null","\"/path/copilot\""))
         compare(nativeCode,source,"\"env\":{\"COPILOT_HOST_BIN\":"+value+"},\"accessible\":"+accessible+",\"which\":"+which);
       compare(nativeCode,source,"\"objects\":[\"COPILOT_HOST_BIN\"]");

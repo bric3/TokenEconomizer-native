@@ -16,7 +16,7 @@ class OptimizerLogProbe {
   }
   public static void main(String[] args) throws Exception {
     var root=Files.createTempDirectory(Path.of("validation/results"),"optimizer-log-").toAbsolutePath();
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"optimizer_log_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"optimizer_log_host.py")) {
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"optimizer_log_host.py",args.length==1&&args[0].equals("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"optimizer_log_host.py")) {
       compare(nativeCode,source,"");
       compare(nativeCode,source,"\"exception_state\":true");
       for(var context:List.of("null","false","0","1","\"\"","[]","{}"))compare(nativeCode,source,"\"file_context\":"+context);

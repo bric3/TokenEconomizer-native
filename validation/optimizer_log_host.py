@@ -8,11 +8,15 @@ import sys
 import types
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
-from te_harness import swebench as sw, webbench as web
-if "--native" in sys.argv:
-    from native_experiment_providers import install
-    install()
+if "--sdk" in sys.argv:
+    from standalone_optimizer import runtime
+    sw=web=runtime.claude
+else:
+    sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+    from te_harness import swebench as sw, webbench as web
+    if "--native" in sys.argv:
+        from native_experiment_providers import install
+        install()
 
 ABSENT = object()
 for line in sys.stdin:

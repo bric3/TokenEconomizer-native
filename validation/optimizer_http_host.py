@@ -9,16 +9,21 @@ import types
 import urllib.error
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
-from te_harness import swebench as sw, codex
-if "--native" in sys.argv:
-    from native_experiment_providers import install
-    install()
+if "--sdk" in sys.argv:
+    from standalone_optimizer import runtime
+    sw,codex=runtime.claude,runtime.codex
+else:
+    sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+    from te_harness import swebench as sw, codex
+    if "--native" in sys.argv:
+        from native_experiment_providers import install
+        install()
 
 for line in sys.stdin:
     request = json.loads(line)
     calls = []
     saved = sw.urllib,codex.urllib,sw.time,codex.time,sw.pricing,codex.pricing,sw._log,sw._log_optimizer_call,codex._responses_text
+    saved_context,saved_environment=sw._OPT_CTX,dict(os.environ)
     integer_limit = sys.get_int_max_str_digits()
     if "int_max_digits" in request: sys.set_int_max_str_digits(request["int_max_digits"])
     data_seen = {}
@@ -108,17 +113,31 @@ for line in sys.stdin:
         codex._responses_text = response_text
         sw.time = codex.time = types.SimpleNamespace(sleep=sleep)
         sw.pricing = codex.pricing = types.SimpleNamespace(effective_tokens=pricing)
+        if request.get("policy_log"):
+            import time
+            os.environ["TE_OPTIMIZER_LOG"]=request["policy_log"]
+            sw._OPT_CTX=dict(agent=agent,cell="fixture/repo_s0")
+            sw._log_optimizer_call=saved[7]
+            sw.time=types.SimpleNamespace(sleep=sleep,gmtime=lambda:time.gmtime(0),strftime=time.strftime)
+            sw.pricing,codex.pricing=saved[4:6]
         if not request.get("real_http"):
             transport = types.SimpleNamespace(request=types.SimpleNamespace(Request=saved[0].request.Request,urlopen=urlopen),error=urllib.error)
             sw.urllib = codex.urllib = transport
         if mode == "text": value = saved[8](request.get("data"))
         else:
             value = (codex.optimizer_call if agent == "codex" else sw.anthropic_optimizer_call)(**arguments)
-            if isinstance(value,tuple) and value[1] is not None and value[0]: assert value[1] is effective,"effective-token result identity changed"
+            if not request.get("policy_log") and isinstance(value,tuple) and value[1] is not None and value[0]: assert value[1] is effective,"effective-token result identity changed"
         result = {"value":encode(value)}
+        if request.get("policy_log"):
+            path=Path(request["policy_log"])
+            result["optimizer_log"]=[json.loads(row) for row in path.read_text(encoding="utf-8").splitlines()]
+            assert len(result["optimizer_log"]) == 1,"optimizer log was not written exactly once"
+            path.unlink()
     except BaseException as error: result = {"raised":type(error).__name__,"message":str(error)}
     finally:
         sw.urllib,codex.urllib,sw.time,codex.time,sw.pricing,codex.pricing,sw._log,sw._log_optimizer_call,codex._responses_text = saved
         sys.set_int_max_str_digits(integer_limit)
+        sw._OPT_CTX=saved_context
+        os.environ.clear();os.environ.update(saved_environment)
     result["calls"] = calls
     print(json.dumps(result,sort_keys=True,separators=(",",":"),ensure_ascii=True),flush=True)

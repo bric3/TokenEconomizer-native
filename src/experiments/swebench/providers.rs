@@ -14,6 +14,52 @@ pub fn constants() -> Value {
     })
 }
 
+pub fn optimizer_constants() -> Value {
+    let deny = [
+        "bash",
+        "view",
+        "grep",
+        "glob",
+        "edit",
+        "create",
+        "str_replace",
+        "web_fetch",
+        "web_search",
+    ];
+    let exclude: Vec<_> = deny
+        .iter()
+        .copied()
+        .chain([
+            "ask_user",
+            "session_store_sql",
+            "sql",
+            "task",
+            "skill",
+            "list_agents",
+            "read_agent",
+            "write_agent",
+            "fetch_copilot_cli_documentation",
+        ])
+        .collect();
+    json!({
+        "claude":{"_ANTHROPIC_DIRECT":"https://api.anthropic.com","_OPT_KINDS":[
+            ["proposer","You mine a DURABLE, REPO-SPECIFIC operating manual"],
+            ["proposer","You maintain a SHORT list of durable, GENERAL operating notes"],
+            ["proposer","You record durable, FILE-SPECIFIC structural knowledge"],
+            ["proposer","You record a durable SUBSYSTEM MAP"],
+            ["tool_judge","You configure the toolset for an autonomous coding agent"],
+            ["spiral_judge","You monitor an AI coding agent that is partway through ONE task"],
+            ["nudge_writer","An AI coding agent is stuck in a REPETITIVE, UNPRODUCTIVE loop"],
+            ["detector","You audit an AI coding agent's PROCESS trace"],
+            ["preflight","Reply with the single word: ok"]]},
+        "copilot":{"OPTIMIZER_DENY_TOOLS":deny,"OPTIMIZER_EXCLUDE_TOOLS":exclude,
+            "_ISOLATION_ARGS":["--excluded-tools","web_fetch","--excluded-tools","web_search","--disable-builtin-mcps"],
+            "PROTECTED_TOOLS":["bash","edit","create","str_replace","view"],
+            "_FATAL_CONFIG_ERRORS":["is not available","does not support reasoning effort"]},
+        "codex":{"C_BIN":"/opt/codex-vendor/bin/codex","C_HOME":"/opt/codex-home"}
+    })
+}
+
 pub(super) fn capture(
     rt: &mut dyn Runtime,
     slot: &str,

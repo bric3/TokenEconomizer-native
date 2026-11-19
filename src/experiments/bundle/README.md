@@ -29,6 +29,8 @@ Accounting bindings cover Claude, Codex and Copilot, including Claude's
 incomplete-stream recovery.
 The SDK also includes the shared object/I/O binding and provider routing. Rust
 supplies credential names and endpoint defaults and validates model pricing.
+Optimizer bindings cover all three agents, endpoint preflights, context and logging,
+Copilot discovery, and sealed Copilot and Codex invocation builders.
 Bindings for the built-in SWE-bench and WebBench harnesses remain pending.
 External agents, the official grader SDK, aider and Node remain caller-provided
 dependencies where the selected experiment uses them.

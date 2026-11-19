@@ -18,7 +18,7 @@ class OptimizerCliProbe {
   }
   public static void main(String[] args) throws Exception {
     var root=Files.createTempDirectory(Path.of("validation/results"),"optimizer-cli-").toAbsolutePath();
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"optimizer_cli_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"optimizer_cli_host.py")) {
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"optimizer_cli_host.py",args.length==1&&args[0].equals("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"optimizer_cli_host.py")) {
       compare(nativeCode,source,"");
       for(var model:List.of("null","false","0","1","\"agent\"","\"AGENT\"","\"copilot\"","\"Copilot\"","\"claude-sonnet-5\"","\"é😀\"","\"\\ud800\""))compare(nativeCode,source,"\"arguments\":{\"model\":"+model+"}");
       for(var options:List.of("\"opaque_effective\":true","\"opaque_usage\":true","\"objects\":[\"binary\"]","\"objects\":[\"model\"]","\"objects\":[\"prompt\"]","\"objects\":[\"model\"],\"strings\":[\"agent\"]","\"objects\":[\"model\"],\"strings\":[\"other\",\"selected\"]","\"mutate_run\":true","\"mutate_environ\":true","\"mutate_sum\":true","\"deny\":[],\"exclude\":[]","\"deny\":[\"a\",\"a\"],\"exclude\":[\"b\"]","\"env\":{\"FIXTURE\":\"override\"}"))compare(nativeCode,source,options);
@@ -50,7 +50,7 @@ class OptimizerCliProbe {
               if(!Files.isDirectory(neutral))throw new AssertionError("neutral directory missing");
               if(args[1].equals("hang"))Thread.sleep(30000);
               var logs=Path.of(args[flags.indexOf("--log-dir")+1]);
-              Files.writeString(logs.resolve("fixture.log"),"fixture log");
+              Files.writeString(logs.resolve("fixture.log"),"\\\"usage\\\": {\\\"prompt_tokens\\\":10,\\\"completion_tokens\\\":2,\\\"total_tokens\\\":12,\\\"prompt_tokens_details\\\":{\\\"cached_tokens\\\":3,\\\"cache_creation_tokens\\\":2}}");
               System.out.println("{\\"type\\":\\"assistant.message\\",\\"data\\":{\\"content\\":\\"local answer\\"}}");
             }
           }
@@ -61,6 +61,8 @@ class OptimizerCliProbe {
       if(!executable.toFile().setExecutable(true))throw new AssertionError("cannot make fixture executable");
       var success=compare(nativeCode,source,"\"real\":true,\"arguments\":{\"binary\":"+q(executable)+"}");
       if(!success.contains("\"value\":[\"local answer\",1.5]")||!success.contains("\"remaining\":[]"))throw new AssertionError("Offline process did not complete and clean up: "+success);
+      var policy=compare(nativeCode,source,"\"real\":true,\"policy_log\":"+q(root.resolve("optimizer.jsonl"))+",\"arguments\":{\"binary\":"+q(executable)+",\"model\":\"claude-sonnet-5\"}");
+      if(!policy.contains("\"optimizer_log\":[{")||!policy.contains("\"tokens_total\":12")||!policy.contains("\"value\":[\"local answer\",")||policy.contains("\"local answer\",null")||policy.contains("\"raised\"")||!policy.contains("\"remaining\":[]"))throw new AssertionError("Offline CLI did not reach native accounting, pricing and logging: "+policy);
       for(var arguments:List.of("\"binary\":"+q(executable)+",\"prompt\":\"hang\",\"timeout\":0.2","\"binary\":"+q(root.resolve("missing-copilot")))) {
         var failure=compare(nativeCode,source,"\"real\":true,\"arguments\":{"+arguments+"}");
         if(!failure.contains("\"value\":[\"\",null]")||!failure.contains("\"remaining\":[\"logdir\"]"))throw new AssertionError("Offline failure did not preserve source cleanup: "+failure);

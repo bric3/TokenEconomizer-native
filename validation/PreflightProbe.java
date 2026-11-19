@@ -14,7 +14,7 @@ class PreflightProbe {
     cases++;
   }
   public static void main(String[] args) throws Exception {
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"preflight_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"preflight_host.py")) {
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"preflight_host.py",args.length==1&&args[0].equals("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"preflight_host.py")) {
       for(var agent:List.of("claude","codex")) {
         var a="\"agent\":"+q(agent);
         compare(nativeCode,source,a);

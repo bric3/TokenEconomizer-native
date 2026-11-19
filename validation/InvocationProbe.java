@@ -11,7 +11,7 @@ class InvocationProbe{
   static String q(Object value){return ParserProbe.q(value);}
   public static void main(String[] args)throws Exception{
     WebContractProbe.artifacts=Files.createTempDirectory(Path.of("validation/results"),"invocation-").toAbsolutePath();boolean passed=false;
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"invocation_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"invocation_host.py")){
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"invocation_host.py",args.length==1&&args[0].equals("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"invocation_host.py")){
       for(var agent:List.of("copilot","codex"))for(var method:agent.equals("copilot")?List.of("build_argv","fatal_config_error"):List.of("build_argv","build_resume_argv","run_env")){
         var base="\"agent\":"+q(agent)+",\"method\":"+q(method);
         WebContractProbe.compare(nativeCode,source,base);

@@ -760,6 +760,8 @@ complete while any runtime component delegates production behaviour to Python.
   Codex installation and configuration probe SDK bindings are packaged too.
   Agent accounting and interrupted-stream recovery also have packaged SDK bindings.
   The shared object/I/O binding and provider routing namespace are packaged too.
+  Optimizer calls, preflights, logging, Copilot discovery and sealed Copilot/Codex
+  invocation builders also have packaged bindings.
   Built-in harness bindings still need to replace their validation bindings.
   Process and SDK calls retain Python I/O bindings.
 - Benchmark driver runner and dataset selection, workload and task filtering,
@@ -2903,6 +2905,32 @@ complete while any runtime component delegates production behaviour to Python.
   Formal simplification and performance passes remain at 0/3 each; final test
   conversion is pending.
 
+- The SDK now assembles the shared Claude, Copilot and Codex optimizer namespaces
+  without importing reference code. Its 23 new bindings cover optimizer calls,
+  endpoint preflights, log paths and context, prompt classification, logging,
+  Copilot installation discovery and sealed Copilot/Codex invocation builders.
+  Rust supplies the default endpoint, prompt signatures, tool lists and container
+  paths. The existing shared binding preserves opaque arguments and callback
+  ordering; the SDK connects the Copilot call to native usage accounting.
+  Seven standalone probe groups pass 2,407 source comparisons: 237 HTTP, 165 CLI,
+  217 context, 307 logging, 241 preflight, 279 Copilot discovery and 961 invocation
+  cases. The same groups pass through the original API bindings. Real loopback
+  HTTP responses for Claude and Codex, plus an offline Copilot executable, also
+  reach native pricing and real optimizer log files. Copilot's integrated case
+  verifies cache-read/cache-write accounting and owned-directory cleanup.
+  The bundle passes 153 checks with ten SDK files and 29 payload hashes. Its relocated SDK check
+  includes optimizer logging, prompt classification, Codex environment and Copilot
+  invocation with reference imports forbidden. Adjacent provider and standalone
+  benchmark probes pass 279 comparisons and 89 checks. All 24 Rust checks,
+  debug/release builds, Clippy and the 256-file reference check pass. The unchanged
+  upstream suite passes with 1,561 passed and 30 skipped (72.29 seconds), including
+  installed-opencode tests against the loopback fixture.
+  IDE inspections remain unavailable because this checkout is not open in the IDE.
+  Windows, other Python versions and live agents remain unverified. Built-in
+  harness/scaffold class bindings and the remaining parity audits stay open.
+  Formal simplification and performance passes remain at 0/3 each; final test
+  conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -3032,6 +3060,13 @@ jbang validation/UsageProbe.java
 jbang validation/UsageProbe.java --sdk
 jbang validation/ProviderProbe.java
 jbang validation/ProviderProbe.java --sdk
+jbang validation/OptimizerHttpProbe.java --sdk
+jbang validation/OptimizerCliProbe.java --sdk
+jbang validation/OptimizerContextProbe.java --sdk
+jbang validation/OptimizerLogProbe.java --sdk
+jbang validation/PreflightProbe.java --sdk
+jbang validation/CopilotHostProbe.java --sdk
+jbang validation/InvocationProbe.java --sdk
 jbang validation/TaskProbe.java
 jbang validation/WebSegmentProbe.java
 jbang validation/WebAgentProbe.java

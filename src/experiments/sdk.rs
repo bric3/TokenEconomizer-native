@@ -34,6 +34,10 @@ pub(super) const FILES: &[(&str, &[u8])] = &[
         "sdk/te_runtime/providers.py",
         include_bytes!("sdk/te_runtime/providers.py"),
     ),
+    (
+        "sdk/te_runtime/optimizer.py",
+        include_bytes!("sdk/te_runtime/optimizer.py"),
+    ),
 ];
 
 /// Resolve the SDK bootstrap and the caller's configuration root.

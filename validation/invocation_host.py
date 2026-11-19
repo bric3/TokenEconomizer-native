@@ -5,11 +5,15 @@ from pathlib import Path
 import sys
 
 ROOT=Path(__file__).resolve().parents[1]
-sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
-from te_harness import copilot,codex
-if "--native" in sys.argv:
-    from native_experiment_providers import install
-    install()
+if "--sdk" in sys.argv:
+    from standalone_optimizer import runtime
+    copilot,codex=runtime.copilot,runtime.codex
+else:
+    sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+    from te_harness import copilot,codex
+    if "--native" in sys.argv:
+        from native_experiment_providers import install
+        install()
 
 for line in sys.stdin:
     request=json.loads(line)
