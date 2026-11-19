@@ -751,9 +751,11 @@ complete while any runtime component delegates production behaviour to Python.
   `docs/assets/results_overview.py` and `framework_overview.py`, now have Rust
   replacements through `te-figures`. Matplotlib retains its rendering SDK role;
   layout, text, paper data, geometry and collision checks execute in Rust.
-  Port the animated `docs/assets/teaser.py`, including its font/logo loading,
-  timeline, layout, poster and ffmpeg export requirements. Its paper results must
-  continue to share the static results figure's data.
+  The animated `docs/assets/teaser.py` also has a Rust replacement through
+  `te-figures teaser`, including font selection, logo loading, timeline, layout,
+  poster and ffmpeg export policy. Pillow supplies drawing and image APIs;
+  ffmpeg supplies the three codecs. Its paper rows are shared with the static
+  results figure, and its logos are embedded from verified pinned assets.
   The workload registry, manifest exporter, sweep planner, both task exporters,
   YAML mirror, paired comparison reports, shared launch helpers, fleet CPU
   controls, main sweep and Codex A/B launcher have native implementations.
@@ -3737,6 +3739,57 @@ complete while any runtime component delegates production behaviour to Python.
   remaining production-parity audits stay open. Formal simplification and
   performance passes remain at 0/3 each; original-test conversion is pending.
 
+- The animated teaser now runs through `te-figures teaser`. Rust owns recursive
+  font selection, colours, text, timeline, easing, bar/card geometry, examples,
+  title and results panels, crossfades, held frames, poster generation and
+  encoder arguments. The paper rows come from the same Rust constant used by
+  the static results figure. Both embedded logos match the pinned PNG assets.
+  The shared renderer binding invokes Matplotlib or Pillow APIs; numeric tuples
+  retain their Python tuple representation for Pillow colours. Rust releases
+  temporary SDK objects after each frame while retaining live images and font
+  and picture caches. This keeps the frame pipeline's image ownership bounded.
+  `--out` exports GIF and PNG; `--page` exports VP9 WebM, H.264 MP4 and PNG.
+  `--still` exposes the original poster operation without running the encoder.
+  Full exports preserve the original codec flags, overwrite behaviour and
+  output summaries. The standalone default directory is `./docs/assets`.
+  Font files remain external inputs; `.ttf` candidates precede `.woff`.
+  Dedicated animation validation passes 1,191 checks. Both the 1.25-scale GIF
+  sequence and 2-scale page sequence contain 581 frames, with every PNG frame
+  byte matching a fresh run of the unchanged source. Posters also match in PNG
+  dimensions, pixels and bytes. A Java encoder fixture records the source's
+  exact arguments and copies its input frames. The native run uses the same
+  fixture to record inputs before invoking real ffmpeg. Encoder arguments match
+  after replacing only input/output fixture paths. Native GIF, WebM and MP4 files
+  pass ffprobe frame-count and dimension checks: 1400 x 750 for GIF and
+  2240 x 1200 for both page formats. Console comparisons normalise output paths
+  and the fixture encoder's file-size field; duration text remains compared.
+  Another 23 checks cover missing-font and missing-encoder preflight, `.ttf`
+  precedence through symlinks, embedded asset bytes, invalid arguments and an
+  encoder exiting with status 23. Both source and native exports then stop
+  before writing the poster and remove their temporary frame directories.
+  Relocated native runs use the selected Python interpreter and embedded logos.
+  Static-figure regression retains all 100 checks after sharing the binding.
+  These comparisons use Python 3.15.2, Pillow 13.0.0, IBM Plex Sans 2.0.0 and
+  Mono 2.5.0 package fonts, and ffmpeg 9.0.2 on macOS. Font packages and generated
+  outputs stay under ignored validation directories. All 256 archived files
+  still match the pinned tree. The full unchanged suite passes with 1,561 passed
+  and 30 skipped (85.92 seconds), including installed opencode against its
+  loopback fixture. All 29 Rust tests, formatting, Clippy and debug/release
+  builds pass. Each Linux helper build passes 28 library tests, and both helpers
+  retain all 26 scratch-container checks across arm64 and amd64.
+  The relocated experiment bundle retains all 261 checks, 20 SDK files,
+  39 manifest hashes and 40 physical files; the figure tool is built separately
+  by Cargo.
+  Logs are under `validation/results/`: `teaser-animations.log`,
+  `teaser-failures.log`, `teaser-static-regression.log`, `teaser-full.log`,
+  `teaser-full-calls.json`, `teaser-rust-tests.log`, `teaser-clippy.log`,
+  `teaser-debug.log`, `teaser-release.log`, `teaser-reference.log`,
+  `teaser-container-build.log`, `teaser-container-probe.log` and
+  `teaser-bundle.log`.
+  Other font/encoder environments, Windows execution and the remaining
+  production-parity audits stay open. Formal simplification and performance
+  passes remain at 0/3 each; original-test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -3989,6 +4042,8 @@ jbang validation/MainSweepProbe.java
 jbang validation/CodexSweepProbe.java
 jbang validation/DeadCodeProbe.java
 jbang validation/FiguresProbe.java
+jbang validation/TeaserProbe.java --animations
+jbang validation/TeaserFailureProbe.java --encoder
 jbang validation/StandaloneBenchProbe.java
 jbang validation/StandaloneTransportProbe.java
 jbang validation/HermesGatewayProbe.java

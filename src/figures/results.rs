@@ -1,20 +1,20 @@
 use super::{
     Result,
-    matplotlib::{Matplotlib, object},
+    renderer::{Renderer, object},
 };
 use serde_json::json;
 use std::{ffi::OsStr, io, path::Path};
 
 // Quoted from the paper's Table 1; upstream shares these rows with the teaser.
-struct Row {
-    agent: &'static str,
-    model: &'static str,
-    cost: f64,
-    sd: f64,
-    base: f64,
-    te: f64,
+pub(super) struct Row {
+    pub agent: &'static str,
+    pub model: &'static str,
+    pub cost: f64,
+    pub sd: f64,
+    pub base: f64,
+    pub te: f64,
 }
-const ROWS: [Row; 5] = [
+pub(super) const ROWS: [Row; 5] = [
     Row {
         agent: "Claude Code",
         model: "Sonnet 5",
@@ -73,7 +73,7 @@ const DOT: f64 = 6.2;
 const RING: f64 = 1.3;
 const STEM: f64 = 1.4;
 
-fn style_axis(plot: &mut Matplotlib, axis: &str) -> Result<()> {
+fn style_axis(plot: &mut Renderer, axis: &str) -> Result<()> {
     for side in ["top", "right", "left"] {
         plot.call(
             &format!("{axis}.spines.{side}.set_visible"),
@@ -109,7 +109,7 @@ fn style_axis(plot: &mut Matplotlib, axis: &str) -> Result<()> {
     plot.call(&format!("{axis}.set_axisbelow"), json!([true]), json!({}))?;
     Ok(())
 }
-fn rounded_bar(plot: &mut Matplotlib, figure: &str, axis: &str, y: i32, length: f64) -> Result<()> {
+fn rounded_bar(plot: &mut Renderer, figure: &str, axis: &str, y: i32, length: f64) -> Result<()> {
     // Convert the four-pixel corner radius to data units at the renderer's current DPI.
     plot.call(&format!("{figure}.canvas.draw"), json!([]), json!({}))?;
     let points = plot.call(
@@ -137,7 +137,7 @@ fn rounded_bar(plot: &mut Matplotlib, figure: &str, axis: &str, y: i32, length: 
 }
 
 pub fn render(out: &Path, python: &OsStr) -> Result<()> {
-    let mut plot = Matplotlib::new(python)?;
+    let mut plot = Renderer::new(python, "matplotlib")?;
     plot.call(
         "plt.rcParams.update",
         json!([{"font.family":"DejaVu Sans"}]),

@@ -1,7 +1,8 @@
 //! Regenerate the pinned documentation figures using native layout and renderer SDKs.
 mod framework;
-mod matplotlib;
+mod renderer;
 mod results;
+pub mod teaser;
 
 pub use framework::render as framework;
 pub use results::render as results;

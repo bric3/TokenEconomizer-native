@@ -59,6 +59,25 @@ configuration.
 This optional developer tool can move independently of the checkout and carries
 its renderer binding inside the executable.
 
+Generate the teaser animation or its still poster with the same tool:
+
+```sh
+target/debug/te-figures teaser --plex /path/to/fonts --out /path/to/readme-assets
+target/debug/te-figures teaser --plex /path/to/fonts --page /path/to/page-assets
+target/debug/te-figures teaser --plex /path/to/fonts --out /path/to/poster --still
+```
+
+The teaser uses [Pillow](https://pillow.readthedocs.io/en/stable/), the five IBM
+Plex Sans/Mono font files named in the original script, and `ffmpeg` on `PATH`
+for animation exports. The [IBM Plex Sans](https://github.com/IBM/plex/tree/master/packages/plex-sans)
+and [Mono](https://github.com/IBM/plex/tree/master/packages/plex-mono) packages
+supply these fonts. The tool searches recursively, preferring `.ttf` to `.woff`.
+`--out` writes `teaser.gif` and `teaser.png`; `--page` writes `teaser.webm`,
+`teaser.mp4` and `teaser.png`. `--still` writes the poster using Pillow and the
+fonts. Rust owns the timeline, frames and encoder arguments. The logos are
+embedded, and the paper rows are shared with the static results figure. These
+commands create output directories and replace existing generated files.
+
 The native hook reads the host's JSON payload from stdin and writes its JSON
 response to stdout:
 

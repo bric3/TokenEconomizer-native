@@ -1,6 +1,6 @@
 use super::{
     Result,
-    matplotlib::{Matplotlib, object},
+    renderer::{Renderer, object},
 };
 use serde_json::{Value, json};
 use std::{collections::HashMap, ffi::OsStr, io, path::Path};
@@ -106,7 +106,7 @@ fn ensure(condition: bool, message: impl Into<String>) -> Result<()> {
     Ok(())
 }
 struct Drawing {
-    plot: Matplotlib,
+    plot: Renderer,
     figure: String,
     axis: String,
 }
@@ -580,7 +580,7 @@ impl Drawing {
     }
 }
 pub fn render(out: &Path, python: &OsStr) -> Result<()> {
-    let mut plot = Matplotlib::new(python)?;
+    let mut plot = Renderer::new(python, "matplotlib")?;
     // Outline SVG glyphs so exported diagrams keep their fonts in other viewers.
     plot.call("plt.rcParams.update",json!([{"font.family":"DejaVu Sans","font.size":10,"svg.fonttype":"path","svg.hashsalt":"framework_overview","pdf.fonttype":42,"ps.fonttype":42,"axes.unicode_minus":false}]),json!({}))?;
     let figure = plot.call("plt.figure", json!([]), json!({"figsize":[5.5,2.775]}))?;
