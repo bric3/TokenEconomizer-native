@@ -127,8 +127,19 @@ uses the real session-settling path. The plain-terminal test invokes the native
 `te` binary and checks that its status names the recent Codex host. Windows
 launch decisions use fixtures on macOS; native Windows execution remains open.
 
-Live-core now has 87 of 99 functions converted, covering 262 of its 274 cases.
-The remaining 12 functions cover side calls and the probe repository.
+The eighth batch completes live-core with 12 functions in
+`live_core_sidecalls.rs` and `live_core_probe.rs`. Side-call tests retain model
+and effort selection, Pi extensions and older-CLI fallback, MCP isolation,
+Copilot log pricing, opencode session deletion, wrapper launch arguments,
+cleanup policy and non-object JSON lines. Rust's host-call plan checks replace
+Python wrapper introspection. The shared opencode event fixture also drives
+the existing reply-parser test.
+
+The probe test runs the generated shell wrappers and Python unittest workload
+and checks that its temporary repository is committed cleanly. This Unix-only
+test requires Python 3, Git and the configured signing key; it creates a signed
+fixture commit. Other converted tests call Rust or its native CLI without a
+Python runtime. All 99 live-core functions and 274 original cases are converted.
 
 Run the native suite and the conversion inventory from the checkout root:
 
@@ -145,8 +156,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 20 pytest modules are complete and live-core is
-partly converted, covering 518 of 1,591 original cases, including the conditional
-Windows case. The other 1,073 cases and standalone executable smoke tests
+Conversion remains in progress: 21 pytest modules are complete, covering 530 of
+1,591 original cases, including the conditional Windows case. The other 1,061
+cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

@@ -830,8 +830,8 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 20 of 67 pytest modules are complete and live-core is
-  partly converted, covering 518 of 1,591 original cases. See
+- Final test conversion: 21 of 67 pytest modules are complete, covering 530 of
+  1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
 
@@ -4428,6 +4428,20 @@ complete while any runtime component delegates production behaviour to Python.
   99 functions and 262 of 274 cases; total conversion covers 518 original cases.
   Its other 12 functions, remaining modules, smoke tests and final parity and
   platform audits stay open. Windows launch branches use fixtures on macOS.
+
+- The eighth test-conversion batch completes live-core: all 99 functions and
+  274 cases have Rust equivalents. Its final 12 functions cover side-call
+  configuration, model and effort selection, bare CLI arguments, extensions,
+  MCP isolation, log pricing, session deletion, cleanup policy and malformed
+  JSON output. Host-call plan checks replace Python wrapper introspection.
+  The Unix probe test executes the generated shell wrappers and Python unittest
+  workload and checks a clean, signed temporary repository. It requires Python
+  3, Git and the configured signing key; other converted tests require no Python.
+  Total conversion covers 530 original cases across 21 complete modules.
+  All 277 native tests on macOS, formatting and all-target Clippy pass. The
+  Windows-only held-file test remains excluded.
+  The remaining modules, smoke tests and final parity and platform audits stay
+  open. Logs use `validation/results/test-conversion-8-*`.
 
 ## Dependencies
 

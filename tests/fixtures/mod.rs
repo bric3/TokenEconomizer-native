@@ -71,6 +71,24 @@ pub fn pi_json_run() -> String {
         .join("\n")
 }
 
+pub fn opencode_run_events() -> String {
+    let events = [
+        json!({"type":"step_start","sessionID":"ses_x","part":{"type":"step-start"}}),
+        json!({"type":"text","sessionID":"ses_x","part":{"type":"text","text":"po"}}),
+        json!({"type":"text","sessionID":"ses_x","part":{"type":"text","text":"ng"}}),
+        json!({"type":"step_finish","sessionID":"ses_x","part":{"type":"step-finish","cost":0.5,
+            "tokens":{"input":10,"output":4,"reasoning":1,"cache":{"read":7,"write":2}}}}),
+    ];
+    format!(
+        "{}\nnot json\n",
+        events
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n")
+    )
+}
+
 // Copilot event fixture from reference/upstream/tests/test_live_core.py.
 pub fn write_copilot_events(path: &Path, calls: &[Value], shutdown: bool) -> PathBuf {
     let mut events = vec![

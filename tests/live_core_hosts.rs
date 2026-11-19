@@ -1,4 +1,5 @@
 // Converted from reference/upstream/tests/test_live_core.py (host payloads and replies).
+pub mod fixtures;
 mod support;
 
 use serde_json::{Map, Value, json};
@@ -353,21 +354,7 @@ fn the_opencode_host_reads_what_the_plugin_sends() {
 
 #[test]
 fn an_opencode_run_reply_is_read_from_its_json_events() {
-    let events = [
-        json!({"type":"step_start","sessionID":"ses_x","part":{"type":"step-start"}}),
-        json!({"type":"text","sessionID":"ses_x","part":{"type":"text","text":"po"}}),
-        json!({"type":"text","sessionID":"ses_x","part":{"type":"text","text":"ng"}}),
-        json!({"type":"step_finish","sessionID":"ses_x","part":{"type":"step-finish","cost":0.5,
-            "tokens":{"input":10,"output":4,"reasoning":1,"cache":{"read":7,"write":2}}}}),
-    ];
-    let output = format!(
-        "{}\nnot json\n",
-        events
-            .iter()
-            .map(Value::to_string)
-            .collect::<Vec<_>>()
-            .join("\n")
-    );
+    let output = fixtures::opencode_run_events();
     let (text, usage, sid) = opencode::run_reply(&output).unwrap();
     assert_eq!((text.as_str(), sid.as_str()), ("pong", "ses_x"));
     let expected = json!({"input_tokens":10,"cache_read_input_tokens":7,"cache_creation_input_tokens":2,"output_tokens":5,"cost_usd":0.5});
