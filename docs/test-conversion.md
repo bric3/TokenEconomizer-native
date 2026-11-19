@@ -141,6 +141,17 @@ test requires Python 3, Git and the configured signing key; it creates a signed
 fixture commit. Other converted tests call Rust or its native CLI without a
 Python runtime. All 99 live-core functions and 274 original cases are converted.
 
+The ninth batch converts `test_loopguard_productive_turns.py` and
+`test_claude_verbose_reply.py`: 16 functions cover 42 original cases. The guard
+tests retain all 16 exit-status examples and the passing Playwright/libuv,
+source-read, reverted-file, dotenv and successful-edit regressions. Commands
+remain parser data. Verbose reply tests cover the final result event, missing
+and error results, measurement, proposer failures and recovery, paused hosts and
+one-line error logs that exclude the prompt. The nullable parser input goes
+through the native bridge, which owns that boundary; other parser inputs call
+Rust directly. Runner error strings and typed side-call failures replace the
+corresponding Python exceptions.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -156,8 +167,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 21 pytest modules are complete, covering 530 of
-1,591 original cases, including the conditional Windows case. The other 1,061
+Conversion remains in progress: 23 pytest modules are complete, covering 572 of
+1,591 original cases, including the conditional Windows case. The other 1,019
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.
