@@ -662,6 +662,7 @@ dependencies = [
  "libc",
  "md5",
  "pcre2",
+ "pcre2-sys",
  "regex",
  "regex-syntax",
  "rusqlite",

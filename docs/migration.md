@@ -670,9 +670,9 @@ complete while any runtime component delegates production behaviour to Python.
   extractor patterns now support Python's global and scoped ASCII flags through
   the native compiler. Character classes, boundaries, literal case folding,
   named-character escapes and group identifiers use Unicode 17 data.
-  Patterns combining ASCII and Unicode caseless backreferences remain unsupported.
-  Include Unicode backreference case folding, syntax errors and engine runtime
-  errors in the audit.
+  Backreferences apply scoped ASCII or Unicode 17 lowercase rules. Continue the
+  remaining syntax and engine runtime-error audit, including nesting and resource
+  limits and patterns containing surrogate code points.
   Include Unicode-version differences outside the evaluator stdout pattern,
   whose explicit Tolong Siki range matches Python 3.15 and the
   [Unicode 17 numeric data](https://www.unicode.org/Public/17.0.0/ucd/extracted/DerivedNumericType.txt).
@@ -3182,6 +3182,38 @@ complete while any runtime component delegates production behaviour to Python.
   conversion is pending. IDE inspections remain unavailable because this checkout
   is not open in the IDE. Windows and other Python versions remain unverified.
 
+- Caseless detector and extractor backreferences now apply Python's per-reference
+  ASCII or Unicode 17 lowercase rules. Mixed ASCII/Unicode scopes compile and
+  match natively. This fixes the previous engine's `Sſ`, `Σς`, `İi` and Beria Erfe
+  differences. Literal case folding retains its separate equivalence rules.
+  PCRE2 calls Rust to validate the captured substring and determine its matching
+  end position. An atomic wrapper retains that position while PCRE2 consumes the
+  reference. Native backreference consumption handles ordinary matches; UTF-8
+  character matching handles the remaining valid lowercase pairs. The compiler
+  tracks fixed character widths for lookbehind. Original pattern text and capture
+  numbering remain intact. ASCII-only subjects use the existing native matcher.
+  The whole-pattern byte encoder and its mixed-mode restriction have been removed.
+  The dedicated probe passes 92 source comparisons covering 61,458 raw searches
+  and detector/extractor integrations. They include every Unicode 17 simple
+  lowercase and case-fold pair, mixed scopes, conditionals, optional and repeated
+  captures, lookarounds, fixed-width quantifiers and 32,769-character captures.
+  All 27 Rust checks pass, including concurrent matches, embedded NUL/newline
+  captures and long successful/unsuccessful searches. Each Linux architecture's
+  build also runs the three callback tests before exporting its static helper.
+  The existing regex corpus retains 2,264 comparisons. The Unicode corpus retains
+  4,560 comparisons and 3,336,192 scalar class memberships. The unchanged upstream
+  suite passes with 1,561 passed and 30 skipped (78.66 seconds), including installed
+  opencode tests against their local stand-in model. Debug/release builds, Clippy,
+  formatting, exact table regeneration and the 256-file reference check pass.
+  Both static Linux helpers pass 26 scratch-container checks without Python, a
+  shell or network. The relocated runtime bundle passes 212 checks, including
+  Unicode lowercase, mixed-mode, lookbehind and empty backreferences.
+  Remaining syntax, runtime-error, resource-limit and other production parity
+  audits stay open. Formal simplification and performance passes remain at 0/3
+  each; final test conversion is pending. IDE inspections remain unavailable
+  because this checkout is not open in the IDE. Windows and other Python versions
+  remain unverified.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -3199,13 +3231,17 @@ The lockfile pins both libraries and their transitive dependencies.
 Detector and extractor patterns use `pcre2` 0.2.11 with bundled PCRE2 10.46. The
 native compiler expands Python character classes, case folding and boundaries
 before matching, and retains the original pattern text in saved metadata.
-ASCII caseless backreferences use byte matching with complete UTF-8 character
-atoms. `.cargo/config.toml` selects static PCRE2 linking for host builds; the
+Caseless backreferences compare captured substrings in a Rust callback using
+Unicode 17 simple lowercase mappings or ASCII rules. The already-locked
+`pcre2-sys` 0.2.10 dependency is now declared directly for this C API. Each match
+owns its callback state, PCRE2 context and capture offsets. `.cargo/config.toml`
+selects static PCRE2 linking for host builds; the
 dependency selects static linking for the Linux musl helpers too. `regex-syntax`
 was already locked transitively and now supplies character ranges and UTF-8
 encoding directly. The notice generator includes embedded C licence headers.
-Generated Unicode 17 corrections extend regex-syntax's Unicode 16 classes and
-simple folds. Reproduce them with `jbang scripts/UnicodeRegexTables.java`; add
+Generated Unicode 17 data extends regex-syntax's Unicode 16 classes and simple
+folds and supplies lowercase mappings. Reproduce it with
+`jbang scripts/UnicodeRegexTables.java`; add
 `--check` to verify the committed data. The script caches five versioned official
 inputs under `validation/results/unicode-ucd` and checks their SHA-256 hashes on
 every run. `unicode-ident` 1.0.24 was already locked and now supplies Unicode 17

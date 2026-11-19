@@ -1,16 +1,17 @@
-use pcre2::bytes::{Regex as Engine, RegexBuilder};
+mod backrefs;
+
 use regex_syntax::{
     ParserBuilder,
     hir::{Class, ClassUnicode, ClassUnicodeRange, HirKind},
-    utf8::Utf8Sequences,
 };
-use std::{collections::BTreeMap, sync::LazyLock};
+use std::{collections::BTreeMap, ops::Range, sync::LazyLock};
 
 use super::unicode17::{CASE_FOLD_ADDED, DIGIT_ADDED, WORD_ADDED};
+use backrefs::{Matcher, Reference};
 
 pub struct Pattern {
     source: String,
-    compiled: Engine,
+    compiled: Matcher,
 }
 impl Pattern {
     pub fn new(source: &str) -> Result<Option<Self>, String> {
@@ -22,21 +23,7 @@ impl Pattern {
         if compiler.incompatible_flags {
             return Err("ASCII and UNICODE flags are incompatible".into());
         }
-        let Compiler {
-            unicode,
-            ascii_refs,
-            ..
-        } = compiler;
-        // ASCII caseless backreferences compare bytes; encoded atoms retain code-point boundaries.
-        let compiled = if ascii_refs {
-            let mut compiler = Compiler::new(source);
-            compiler.encode_bytes = true;
-            compiler.compile();
-            RegexBuilder::new().build(&format!(r"(?![\x80-\xbf]){}", compiler.bytes))
-        } else {
-            RegexBuilder::new().utf(true).ucp(true).build(&unicode)
-        }
-        .ok();
+        let compiled = Matcher::new(&compiler.unicode, compiler.references);
         Ok(compiled.map(|compiled| Self {
             source: source.into(),
             compiled,
@@ -46,9 +33,7 @@ impl Pattern {
         &self.source
     }
     pub fn is_match(&self, text: &str) -> Result<bool, String> {
-        self.compiled
-            .is_match(text.as_bytes())
-            .map_err(|error| error.to_string())
+        self.compiled.is_match(text)
     }
 }
 
@@ -61,21 +46,93 @@ struct Mode {
     verbose: bool,
 }
 
+// Fixed character widths keep backreferences valid inside Python lookbehinds.
+#[derive(Clone, Copy)]
+struct Width {
+    prefix: Option<usize>,
+    atom: Option<usize>,
+    branch: Option<usize>,
+    alternative: bool,
+}
+impl Default for Width {
+    fn default() -> Self {
+        Self {
+            prefix: Some(0),
+            atom: Some(0),
+            branch: Some(0),
+            alternative: false,
+        }
+    }
+}
+impl Width {
+    fn append(&mut self, atom: Option<usize>) {
+        self.prefix = self
+            .prefix
+            .zip(self.atom)
+            .and_then(|(a, b)| a.checked_add(b));
+        self.atom = atom;
+    }
+    fn repeat(&mut self, low: usize, high: Option<usize>) {
+        self.atom = if high == Some(low) {
+            if low == 0 {
+                Some(0)
+            } else {
+                self.atom.and_then(|n| n.checked_mul(low))
+            }
+        } else if self.atom == Some(0) {
+            Some(0)
+        } else {
+            None
+        };
+    }
+    fn alternate(&mut self) {
+        let width = self
+            .prefix
+            .zip(self.atom)
+            .and_then(|(a, b)| a.checked_add(b));
+        if !self.alternative {
+            self.branch = width;
+        } else if self.branch != width {
+            self.branch = None;
+        }
+        self.alternative = true;
+        self.prefix = Some(0);
+        self.atom = Some(0);
+    }
+    fn finish(self) -> Option<usize> {
+        let width = self
+            .prefix
+            .zip(self.atom)
+            .and_then(|(a, b)| a.checked_add(b));
+        if self.alternative && self.branch != width {
+            None
+        } else {
+            width
+        }
+    }
+}
+struct Frame {
+    mode: Mode,
+    capture: Option<usize>,
+    width: Width,
+    assertion: bool,
+    conditional: bool,
+}
+
 struct Compiler<'a> {
     source: &'a str,
     position: usize,
     mode: Mode,
-    stack: Vec<(Mode, Option<usize>)>,
+    stack: Vec<Frame>,
     captures: usize,
+    widths: Vec<Option<usize>>,
+    width: Width,
     names: BTreeMap<String, usize>,
     unicode: String,
-    bytes: String,
+    references: Vec<(Range<usize>, Reference)>,
     start: bool,
     global_ascii: Option<bool>,
-    ascii_refs: bool,
-    unicode_refs: bool,
     incompatible_flags: bool,
-    encode_bytes: bool,
 }
 impl<'a> Compiler<'a> {
     fn new(source: &'a str) -> Self {
@@ -85,22 +142,42 @@ impl<'a> Compiler<'a> {
             mode: Mode::default(),
             stack: Vec::new(),
             captures: 0,
+            widths: vec![None],
+            width: Width::default(),
             names: BTreeMap::new(),
             unicode: String::new(),
-            bytes: String::new(),
+            references: Vec::new(),
             start: true,
             global_ascii: None,
-            ascii_refs: false,
-            unicode_refs: false,
             incompatible_flags: false,
-            encode_bytes: false,
         }
     }
     fn raw(&mut self, text: &str) {
         self.unicode.push_str(text);
-        if self.encode_bytes {
-            self.bytes.push_str(text);
+    }
+    fn open(&mut self, capture: Option<usize>, assertion: bool, conditional: bool) {
+        self.stack.push(Frame {
+            mode: self.mode,
+            capture,
+            width: std::mem::take(&mut self.width),
+            assertion,
+            conditional,
+        });
+    }
+    fn close(&mut self) -> Option<()> {
+        let frame = self.stack.pop()?;
+        let mut width = self.width.finish();
+        if frame.conditional && !self.width.alternative && width != Some(0) {
+            width = None;
         }
+        if let Some(id) = frame.capture {
+            self.widths[id] = width;
+        }
+        self.width = frame.width;
+        self.width
+            .append(if frame.assertion { Some(0) } else { width });
+        self.mode = frame.mode;
+        Some(())
     }
     fn next(&mut self) -> Option<char> {
         let value = self.source[self.position..].chars().next()?;
@@ -148,25 +225,29 @@ impl<'a> Compiler<'a> {
         Some(class)
     }
     fn atom(&mut self, class: &ClassUnicode) {
+        self.width.append(Some(1));
         let unicode = unicode_class(class);
         self.unicode.push_str(&format!("(?-i:{unicode})"));
-        if self.encode_bytes {
-            self.bytes.push_str(&format!("(?-i:{})", byte_class(class)));
-        }
     }
-    fn reference(&mut self, text: &str) {
+    fn reference(&mut self, id: usize) {
+        let width = self.widths[id];
+        self.width.append(width);
+        let start = self.unicode.len();
+        self.raw(&format!(r"\g{{{id}}}"));
         if self.mode.casei {
-            if self.mode.ascii {
-                self.ascii_refs = true;
-            } else {
-                self.unicode_refs = true;
-            }
+            self.references.push((
+                start..self.unicode.len(),
+                Reference {
+                    group: id,
+                    ascii: self.mode.ascii,
+                    width,
+                },
+            ));
         }
-        self.raw(text);
     }
-    fn closed_reference(&self, id: usize) -> Option<String> {
-        (id > 0 && id <= self.captures && !self.stack.iter().any(|(_, open)| *open == Some(id)))
-            .then(|| format!(r"\g{{{id}}}"))
+    fn closed_reference(&self, id: usize) -> Option<usize> {
+        (id > 0 && id <= self.captures && !self.stack.iter().any(|frame| frame.capture == Some(id)))
+            .then_some(id)
     }
     fn escape(&mut self, in_class: bool) -> Option<Escape> {
         let start = self.position - 1;
@@ -230,20 +311,18 @@ impl<'a> Compiler<'a> {
                         self.next();
                     }
                     let id = self.source[start + 1..self.position].parse().ok()?;
-                    return Some(Escape::Raw(self.closed_reference(id)?, true));
+                    return Some(Escape::Reference(self.closed_reference(id)?));
                 }
             }
             'b' | 'B' if !in_class => {
                 let word = category('w', self.mode.ascii);
                 let u = boundary(&unicode_class(&word), c == 'B');
                 self.unicode.push_str(&u);
-                if self.encode_bytes {
-                    self.bytes.push_str(&boundary(&byte_class(&word), c == 'B'));
-                }
+                self.width.append(Some(0));
                 return Some(Escape::Done);
             }
-            'A' if !in_class => return Some(Escape::Raw(r"\A".into(), false)),
-            'Z' | 'z' if !in_class => return Some(Escape::Raw(r"\z".into(), false)),
+            'A' if !in_class => return Some(Escape::Raw(r"\A".into())),
+            'Z' | 'z' if !in_class => return Some(Escape::Raw(r"\z".into())),
             c if c.is_ascii_alphabetic() => return None,
             c => c,
         };
@@ -294,7 +373,8 @@ impl<'a> Compiler<'a> {
     fn group(&mut self) -> Option<()> {
         if !self.source[self.position..].starts_with('?') {
             self.captures += 1;
-            self.stack.push((self.mode, Some(self.captures)));
+            self.widths.push(None);
+            self.open(Some(self.captures), false, false);
             self.raw("(");
             return Some(());
         }
@@ -309,7 +389,7 @@ impl<'a> Compiler<'a> {
         if rest.starts_with("?P=") {
             let end = self.source[self.position..].find(')')? + self.position + 1;
             let name = &self.source[self.position + 3..end - 1];
-            self.reference(&self.closed_reference(*self.names.get(name)?)?);
+            self.reference(self.closed_reference(*self.names.get(name)?)?);
             self.position = end;
             return Some(());
         }
@@ -326,9 +406,10 @@ impl<'a> Compiler<'a> {
                 return None;
             }
             self.captures += 1;
+            self.widths.push(None);
             self.names.insert(name.into(), self.captures);
             // Names remain in source metadata; engine references use validated group numbers.
-            self.stack.push((self.mode, Some(self.captures)));
+            self.open(Some(self.captures), false, false);
             self.raw("(");
             self.position = end;
             return Some(());
@@ -337,7 +418,7 @@ impl<'a> Compiler<'a> {
             let condition = &self.source[self.position + 2..end - 1];
             if !condition.bytes().all(|c| c.is_ascii_digit()) {
                 let id = *self.names.get(condition)?;
-                self.stack.push((self.mode, None));
+                self.open(None, false, true);
                 self.raw(&format!("(?({id})"));
                 self.position = end;
                 return Some(());
@@ -350,7 +431,11 @@ impl<'a> Compiler<'a> {
                 .map(|prefix| self.position + prefix.len())
         };
         if let Some(end) = header {
-            self.stack.push((self.mode, None));
+            self.open(
+                None,
+                rest.starts_with("?=") || rest.starts_with("?!") || rest.starts_with("?<"),
+                rest.starts_with("?("),
+            );
             self.raw(&self.source[start..end]);
             self.position = end;
             return Some(());
@@ -399,7 +484,7 @@ impl<'a> Compiler<'a> {
             return None;
         }
         if scoped {
-            self.stack.push((self.mode, None));
+            self.open(None, false, false);
             self.raw(&format!("(?{engine}:"));
         } else {
             if !self.start || !self.stack.is_empty() {
@@ -419,6 +504,7 @@ impl<'a> Compiler<'a> {
         Some(())
     }
     fn compile(&mut self) -> Option<()> {
+        let mut quantified = false;
         while let Some(c) = self.next() {
             if self.mode.verbose && (" \t\r\n\x0b\x0c".contains(c) || c == '#') {
                 if c == '#' {
@@ -428,11 +514,13 @@ impl<'a> Compiler<'a> {
                 }
                 continue;
             }
+            let modifier = quantified && matches!(c, '?' | '+');
+            quantified = false;
             let was_start = self.start;
             match c {
                 '(' => self.group()?,
                 ')' => {
-                    self.mode = self.stack.pop()?.0;
+                    self.close()?;
                     self.raw(")");
                 }
                 '[' => self.class()?,
@@ -442,8 +530,11 @@ impl<'a> Compiler<'a> {
                         self.atom(&class);
                     }
                     Escape::Class(class) => self.atom(&class),
-                    Escape::Raw(raw, true) => self.reference(&raw),
-                    Escape::Raw(raw, false) => self.raw(&raw),
+                    Escape::Reference(id) => self.reference(id),
+                    Escape::Raw(raw) => {
+                        self.width.append(Some(0));
+                        self.raw(&raw);
+                    }
                     Escape::Done => {}
                 },
                 '.' => {
@@ -454,8 +545,26 @@ impl<'a> Compiler<'a> {
                     class.negate();
                     self.atom(&class);
                 }
-                '$' if !self.mode.multiline => self.raw(r"(?=\n?\z)"),
-                '^' | '$' | '*' | '+' | '?' | '|' => self.raw(&c.to_string()),
+                '$' if !self.mode.multiline => {
+                    self.width.append(Some(0));
+                    self.raw(r"(?=\n?\z)");
+                }
+                '^' | '$' => {
+                    self.width.append(Some(0));
+                    self.raw(&c.to_string());
+                }
+                '|' => {
+                    self.width.alternate();
+                    self.raw("|");
+                }
+                '*' | '+' | '?' => {
+                    if !modifier {
+                        self.width
+                            .repeat(usize::from(c == '+'), (c == '?').then_some(1));
+                    }
+                    self.raw(&c.to_string());
+                    quantified = !modifier;
+                }
                 '{' if self.source[self.position..].split_once('}').is_some_and(
                     |(count, _)| {
                         !count.is_empty() && count.chars().all(|c| c.is_ascii_digit() || c == ',')
@@ -463,6 +572,26 @@ impl<'a> Compiler<'a> {
                 ) =>
                 {
                     let end = self.source[self.position..].find('}')? + self.position + 1;
+                    let count = &self.source[self.position..end - 1];
+                    let parts = count.split(',').collect::<Vec<_>>();
+                    let bounds = match parts.as_slice() {
+                        [n] => n.parse::<usize>().ok().map(|n| (n, Some(n))),
+                        [low, high] => {
+                            let low = if low.is_empty() {
+                                Some(0)
+                            } else {
+                                low.parse().ok()
+                            };
+                            low.map(|low| (low, high.parse().ok()))
+                        }
+                        _ => None,
+                    };
+                    if let Some((low, high)) = bounds {
+                        self.width.repeat(low, high);
+                        quantified = true;
+                    } else {
+                        self.width.append(Some(count.len() + 2));
+                    }
                     if self.source[self.position..].starts_with(',') {
                         self.raw(&format!("{{0{}", &self.source[self.position..end]));
                     } else {
@@ -478,8 +607,7 @@ impl<'a> Compiler<'a> {
             // Only leading global flags and comments leave the start position available.
             self.start = was_start && c == '(' && self.stack.is_empty();
         }
-        // shortcut: mixed ASCII/Unicode caseless backreferences need per-reference VM modes.
-        if !self.stack.is_empty() || self.ascii_refs && self.unicode_refs {
+        if !self.stack.is_empty() {
             return None;
         }
         Some(())
@@ -488,7 +616,8 @@ impl<'a> Compiler<'a> {
 enum Escape {
     Char(char),
     Class(ClassUnicode),
-    Raw(String, bool),
+    Raw(String),
+    Reference(usize),
     Done,
 }
 fn named_character(name: &str) -> Option<char> {
@@ -575,23 +704,6 @@ fn unicode_class(class: &ClassUnicode) -> String {
     }
     out.push(']');
     out
-}
-fn byte_class(class: &ClassUnicode) -> String {
-    let mut branches = Vec::new();
-    for range in class.iter() {
-        for sequence in Utf8Sequences::new(range.start(), range.end()) {
-            let mut branch = String::new();
-            for range in sequence.as_slice() {
-                branch.push_str(&format!(r"[\x{:02x}-\x{:02x}]", range.start, range.end));
-            }
-            branches.push(branch);
-        }
-    }
-    if branches.is_empty() {
-        "(?!)".into()
-    } else {
-        format!("(?:{})", branches.join("|"))
-    }
 }
 fn boundary(word: &str, negative: bool) -> String {
     let boundary = format!("(?:(?<={word})(?!{word})|(?<!{word})(?={word}))");

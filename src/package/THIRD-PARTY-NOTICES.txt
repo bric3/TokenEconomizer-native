@@ -1,6 +1,6 @@
 Third-party notices for TokenEconomizer native
 
-Cargo.lock SHA-256: cf66599f11b826eb7d462631747cf5eb2427aad16e19b7db0fb9e9a71915963c
+Cargo.lock SHA-256: 9236efe4802c90b3c931a7a7ebd2d3e2a383681eea3ead1a6f88dea8cfc8a439
 
 These texts cover bundled Unicode data and every registry crate in the lockfile,
 including build and platform dependencies. Some crates may not be linked into a

@@ -43,6 +43,10 @@ class ExperimentBundleProbe {
       }
       var rejected=client.call("distiller.regex_search","\"pattern\":"+q("(?a)\\bpytest\\b")+",\"text\":"+q("none"));
       require(rejected.equals("{\"result\":false}"),"relocated detector matcher accepted unrelated text: "+rejected);
+      for(var entry:Map.of("(?i)(.)\\1",Map.of("İi",true,"Sſ",false,"Σς",false,upper+lower,true),"(?ai)(.)\\1(?ui:(.)\\2)",Map.of("aAéÉ",true,"éÉaA",false),"(?i)(.)\\1(?<=\\1\\1)",Map.of("éÉ",true,"Σς",false),"(?i)()\\1(?<=\\1)é",Map.of("é",true)).entrySet())for(var match:entry.getValue().entrySet()) {
+        var result=client.call("distiller.regex_search","\"pattern\":"+q(entry.getKey())+",\"text\":"+q(match.getKey()));
+        require(result.equals("{\"result\":"+match.getValue()+"}"),"relocated backreference matcher failed: "+result);
+      }
       var decision=client.call("experiment.net_guard.decide","\"command\":\"echo https://github.com/probe\"");
       require(decision.contains("[true,"),"relocated guard policy failed: "+decision);
       var result=client.call("experiment.swebench.guard.install","\"name\":\"owned-fixture\"");boolean copied=false;

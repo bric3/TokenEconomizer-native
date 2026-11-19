@@ -84,6 +84,14 @@ class UnicodeRegexTables {
     return result;
   }
   static BitSet difference(BitSet left,BitSet right){var result=(BitSet)left.clone();result.andNot(right);return result;}
+  static Map<Integer,Integer> lowercase()throws Exception {
+    var result=new TreeMap<Integer,Integer>();
+    for(var line:input(17,"UnicodeData.txt")) {
+      var fields=line.split(";",-1);
+      if(!fields[13].isEmpty())result.put(Integer.parseInt(fields[0],16),Integer.parseInt(fields[13],16));
+    }
+    return result;
+  }
   static String character(int code){return "'\\u{"+Integer.toHexString(code)+"}'";}
   static void ranges(StringBuilder text,String name,BitSet values) {
     var entries=new ArrayList<String>();
@@ -104,6 +112,9 @@ class UnicodeRegexTables {
     ranges(text,"DIGIT_ADDED",difference(after.digit,before.digit));
     text.append("pub(super) const CASE_FOLD_ADDED: &[&[char]] = &[\n");
     for(var group:folds)text.append("    &[").append(String.join(", ",group.stream().map(UnicodeRegexTables::character).toList())).append("],\n");
+    text.append("];\n");
+    text.append("pub(super) const LOWER: &[(char, char)] = &[\n");
+    for(var entry:lowercase().entrySet())text.append("    (").append(character(entry.getKey())).append(", ").append(character(entry.getValue())).append("),\n");
     text.append("];\n");
     var output=Path.of("src/microskills/distiller/unicode17.rs");var rendered=text.toString();
     if(args.length==1){if(!Files.readString(output).equals(rendered))throw new IllegalStateException("Unicode regex tables are stale");}
