@@ -1,6 +1,7 @@
 use super::job::{self, Channel};
 use serde_json::{Value, json};
 use std::path::Path;
+use tokeneconomizer::experiments::datasets;
 use tokeneconomizer::experiments::swebench::{
     self, Failure, Runtime, Task, codex_config, codex_install, codex_trace, containers, controls,
     grading, guard_install, official, providers, settings, setup, wrappers,
@@ -29,6 +30,47 @@ pub(super) fn failure(error: Failure) -> Value {
 }
 
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
+    if let Some(method) = op.strip_prefix("experiment.datasets.") {
+        if method == "constants" {
+            return Ok(Some(datasets::constants()));
+        }
+        if method == "resume" {
+            return job::advance(
+                args["job"].as_u64().ok_or("missing dataset job")?,
+                args.get("reply").cloned(),
+            )
+            .map(Some);
+        }
+        if !matches!(method, "build" | "swebench_main") {
+            return Ok(None);
+        }
+        let method = method.to_owned();
+        let args = args.clone();
+        return job::start("dataset_export", move |channel| {
+            let result = if method == "build" {
+                serde_json::from_value(args["wanted"].clone())
+                    .map_err(|e| Failure::new("TypeError", e.to_string()))
+                    .and_then(|wanted| datasets::build(&mut Transport(channel), &wanted))
+                    .map(|value| json!(value))
+            } else {
+                serde_json::from_value::<Vec<String>>(args["argv"].clone())
+                    .map_err(|e| Failure::new("TypeError", e.to_string()))
+                    .and_then(|argv| {
+                        datasets::swebench_command(
+                            &mut Transport(channel),
+                            args["program"]
+                                .as_str()
+                                .unwrap_or("te-bench export-swebench"),
+                            &argv,
+                            Path::new(args["process_cwd"].as_str().unwrap_or(".")),
+                        )
+                    })
+                    .map(|output| json!(output))
+            };
+            result.unwrap_or_else(failure)
+        })
+        .map(Some);
+    }
     let Some(method) = op.strip_prefix("experiment.swebench.") else {
         return Ok(None);
     };

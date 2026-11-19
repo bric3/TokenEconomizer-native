@@ -746,8 +746,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Finish supporting experiment tools, preserving their original test contracts.
   The workload registry, manifest exporter and sweep planner have native
   implementations.
-  A traced run of the source tests found remaining Python execution in
-  `export_swebench_tasks.py`. Port it and audit the reporting,
+  The SWE-bench dataset exporter also has native policy and file generation.
+  Port the WebBench task exporter and YAML mirror tool, then audit reporting,
   capture, launch and smoke scripts for production entry points that lack coverage.
   Original shell-launcher fixtures still invoke Python children from the archived
   tree. Parent-process function traces do not cover those children. Port their
@@ -3314,6 +3314,41 @@ complete while any runtime component delegates production behaviour to Python.
   conversion. Native Windows execution and remaining CLI/I/O diagnostic details
   remain unverified.
 
+- SWE-bench dataset export now uses Rust for task selection, Verified-row
+  precedence, canonical stream order, grading-field projection, missing-task
+  checks and all three output files. `te-bench export-swebench --out-dir DIR`
+  keeps only the external Hugging Face `load_dataset(path, split="test")` call
+  and iterator operations in the Python SDK binding. Rust requests one record
+  at a time, so a malformed row stops iteration before another row is read.
+  SDK errors retain their original Python exception object. Missing tasks stop
+  the export before it creates directories or writes files. Filesystem failures
+  preserve the source's write order and partial outputs. JSON escaping, field
+  order, spaces and image-tag newlines match the original files. Help and
+  argument errors run in the native frontend without Python or the dataset SDK.
+  All 32 original workload tests pass, including the export-order assertion.
+  Their parent-process function trace executes only the exporter module's
+  initialiser; the build and iterator decisions reach Rust through counted calls.
+  The dedicated probe passes 57 source comparisons for helper and CLI behaviour,
+  complete file bytes, first-row precedence, malformed records, missing tasks,
+  SDK import failures, iterator failures and stop points, exception identity,
+  empty output paths and file-write errors. The actual standalone command also
+  writes the three reference files byte-for-byte against the offline SDK fixture.
+  The full original suite passes with 1,561 passed and 30 skipped (66.91 seconds),
+  including installed opencode against its local model fixture. All 27 Rust
+  checks, debug/release builds, Clippy, formatting and the unchanged 256-file
+  reference check pass. The relocated runtime bundle passes 233 checks. It
+  carries 20 SDK files, 39 manifest hashes and 40 physical files; all archive
+  bytes and hashes pass. Its exporter runs with an empty PATH and rejects
+  reference-package imports while reproducing all three reference exports.
+  The dataset API call follows the
+  [official loading documentation](https://huggingface.co/docs/datasets/loading).
+  Live dataset downloads remain unverified. No dependency or guard-helper
+  behaviour changed; existing Linux helpers were reused. Original tests remain
+  unmodified. The WebBench exporter, YAML mirror, launch workflows and supporting
+  tools remain pending before the three simplification passes, three performance
+  passes and final test conversion. Windows, additional CLI spellings and values
+  outside the dataset's JSON row schema remain outside the verified corpus.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -3557,6 +3592,7 @@ jbang validation/DriverMainProbe.java
 jbang validation/AggregateProbe.java
 jbang validation/WorkloadProbe.java
 jbang validation/SweepProbe.java
+jbang validation/DatasetExportProbe.java
 jbang validation/StandaloneBenchProbe.java
 jbang validation/StandaloneTransportProbe.java
 jbang validation/HermesGatewayProbe.java

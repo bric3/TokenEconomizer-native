@@ -1,5 +1,6 @@
 //JAVA 25
 //SOURCES NativeCliProbe.java CliProbe.java ContextProbe.java ParserProbe.java ContainerProbe.java AdapterProbe.java ExtractProposerPrompts.java
+//SOURCES DatasetExportProbe.java
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,7 +33,7 @@ class ExperimentBundleProbe {
       var hash=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(bundle.resolve(matches.group(1)))));
       require(hash.equals(matches.group(2)),"manifest hash differs: "+matches.group(1));count++;
     }
-    require(count==38,"manifest omitted files: "+count);
+    require(count==39,"manifest omitted files: "+count);
   }
   static void engine(Path bundle)throws Exception {
     try(var client=new ContextProbe.Client(bundle.resolve("bin/te-bridge"),"experiment.swebench")) {
@@ -109,6 +110,15 @@ class ExperimentBundleProbe {
       var custom=run(root,moved.resolve("bin/te-bench"),"sweep-plan","--format","counts");
       require(custom.code()==0&&custom.out().equals("custom\t2\n"),"relocated sweep ignored its local manifest: "+custom);
       Files.writeString(manifest,originalManifest);
+      var datasetRoot=Files.createDirectory(root.resolve("dataset-export"));
+      try(var source=new AdapterProbe.Client(checkout,false,"dataset_export_host.py")) {
+        DatasetExportProbe.fixtures(source,datasetRoot);
+        var reference=source.call(DatasetExportProbe.request("main",datasetRoot.resolve("reference"),""));
+        require(!reference.contains("\"raised\""),"reference dataset fixture failed: "+reference);
+      }
+      var dataset=DatasetExportProbe.command(checkout,datasetRoot,moved.resolve("bin/te-bench"),"--out-dir","native");
+      require(dataset.code()==0&&dataset.out().contains("wrote 277 tasks"),"relocated dataset export failed: "+dataset);
+      for(var name:List.of("swebench_tasks.json","swebench_grading.json","image_tags.txt"))require(Files.mismatch(datasetRoot.resolve("native").resolve(name),datasetRoot.resolve("reference/out").resolve(name))==-1,"relocated dataset bytes changed: "+name);
       var builtin=NativeCliProbe.process(root,Map.of("PATH","","HOME",root.toString(),"TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString(),"TOKENECONOMIZER_ENV_FILE",root.resolve("absent.env").toString(),"ANTHROPIC_API_KEY",""),List.of(moved.resolve("bin/te-bench").toString(),"--arm","baseline","--runner","te_runtime.swebench:make_runner","--agent","claude","--tasks-file",tasks.toString(),"--results-root",root.resolve("builtin-results").toString()));
       require(builtin.code()!=0&&builtin.err().contains("ANTHROPIC_API_KEY is unset"),"built-in runner did not reach credential validation: "+builtin);
       var webBuiltin=NativeCliProbe.process(root,Map.of("PATH","","HOME",root.toString(),"TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString(),"TOKENECONOMIZER_ENV_FILE",root.resolve("absent.env").toString(),"ANTHROPIC_API_KEY",""),List.of(moved.resolve("bin/te-bench").toString(),"--arm","baseline","--runner","te_runtime.webbench:make_runner","--agent","claude","--tasks-file",tasks.toString(),"--results-root",root.resolve("web-builtin-results").toString()));
@@ -318,7 +328,7 @@ class ExperimentBundleProbe {
           print('packaged SDK bindings passed')
           """,moved.resolve("sdk").toString(),moved.resolve("bin/te-bridge").toString()));
       require(controller.code()==0&&controller.out().equals("packaged SDK bindings passed\n"),"relocated SDK binding failed: "+controller);
-      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==39,"benchmark command changed the runtime payload");}
+      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==40,"benchmark command changed the runtime payload");}
       var bootstrap=moved.resolve("sdk/bench.py");var bootstrapBytes=Files.readAllBytes(bootstrap);Files.delete(bootstrap);
       var absent=NativeCliProbe.process(root,Map.of("PATH","","TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString()),List.of(moved.resolve("bin/te-bench").toString(),"--help"));
       require(absent.code()!=0&&absent.err().contains("SDK binding is missing"),"missing bundled SDK selected development files: "+absent);Files.write(bootstrap,bootstrapBytes);

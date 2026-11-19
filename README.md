@@ -181,6 +181,18 @@ embedded runnable registry. `--workload` selects another manifest. Counts and
 cell enumeration run in Rust; `--show-cost` includes the declared time and dollar
 assumptions.
 
+Export SWE-bench task descriptions, grading fields and image tags with:
+
+```sh
+TE_BENCH_PYTHON=/path/to/python target/release/te-bench export-swebench --out-dir /path/to/swebench
+```
+
+The selected interpreter needs the Hugging Face `datasets` package for
+[`load_dataset`](https://huggingface.co/docs/datasets/loading). Rust selects and
+orders the runnable tasks, prefers Verified rows and writes all three files.
+Missing tasks stop the export before it creates files. Help and argument errors
+run without Python.
+
 Use `--runner module:factory` for an external task runner. Python 3.10 or newer supplies
 standard-library I/O; `TE_BENCH_PYTHON` selects its interpreter. The runtime bundle
 carries the SDK and command, including the generic streamed-rollout controller

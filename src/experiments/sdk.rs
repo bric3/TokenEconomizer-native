@@ -3,6 +3,10 @@ use std::{io, path::PathBuf};
 pub(super) const FILES: &[(&str, &[u8])] = &[
     ("sdk/bench.py", include_bytes!("sdk/bench.py")),
     (
+        "sdk/te_runtime/datasets.py",
+        include_bytes!("sdk/te_runtime/datasets.py"),
+    ),
+    (
         "sdk/te_runtime/__init__.py",
         include_bytes!("sdk/te_runtime/__init__.py"),
     ),

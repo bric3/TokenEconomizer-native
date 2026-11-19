@@ -1,11 +1,13 @@
 use std::{env, error::Error, process::Command};
-use tokeneconomizer::experiments::{aggregate, sdk, sweep, workloads};
+use tokeneconomizer::experiments::{aggregate, datasets, sdk, sweep, workloads};
 
 fn run() -> Result<i32, Box<dyn Error>> {
-    if let Some(command) = env::args_os()
-        .nth(1)
-        .filter(|arg| arg == "aggregate" || arg == "export-workloads" || arg == "sweep-plan")
-    {
+    if let Some(command) = env::args_os().nth(1).filter(|arg| {
+        arg == "aggregate"
+            || arg == "export-workloads"
+            || arg == "sweep-plan"
+            || arg == "export-swebench"
+    }) {
         let args = env::args_os()
             .skip(2)
             .map(|arg| {
@@ -14,22 +16,29 @@ fn run() -> Result<i32, Box<dyn Error>> {
             })
             .collect::<Result<Vec<_>, _>>()?;
         let output = if command == "aggregate" {
-            aggregate::command("te-bench aggregate", &args)?
+            Some(aggregate::command("te-bench aggregate", &args)?)
         } else if command == "export-workloads" {
             let root = env::current_dir()?;
-            workloads::export_command(
+            Some(workloads::export_command(
                 "te-bench export-workloads",
                 &args,
                 &root.join("workloads"),
                 &root,
-            )?
-        } else {
+            )?)
+        } else if command == "sweep-plan" {
             let root = env::current_dir()?;
-            sweep::command("te-bench sweep-plan", &args, &root, &root).map_err(|e| e.message)?
+            Some(
+                sweep::command("te-bench sweep-plan", &args, &root, &root)
+                    .map_err(|e| e.message)?,
+            )
+        } else {
+            datasets::parse_swebench("te-bench export-swebench", &args).err()
         };
-        print!("{}", output.stdout);
-        eprint!("{}", output.stderr);
-        return Ok(output.exit.or(output.returncode).unwrap_or(0));
+        if let Some(output) = output {
+            print!("{}", output.stdout);
+            eprint!("{}", output.stderr);
+            return Ok(output.exit.or(output.returncode).unwrap_or(0));
+        }
     }
     let executable = env::current_exe()?;
     let bin = executable

@@ -4,6 +4,7 @@ pub mod arms;
 mod assets;
 pub mod bundle;
 pub mod codex_spiral;
+pub mod datasets;
 pub mod driver;
 pub mod facade;
 pub mod net_guard;

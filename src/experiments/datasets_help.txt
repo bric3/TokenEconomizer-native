@@ -1,0 +1,18 @@
+
+Write the SWE-bench files the harness reads, for the 277 evaluated tasks.
+
+    swebench_tasks.json     {instance_id, repo, problem_statement} per task: the driver's task
+                            list ($TOKENECONOMIZER_SWEBENCH_TASKS)
+    swebench_grading.json   instance_id -> the fields the official grader needs
+                            ($TE_SWEBENCH_GRADING)
+    image_tags.txt          the Docker image of each task, one per line, to `docker pull`
+
+The ids come from `te_bench.workloads.runnable_instances("swebench")`. Most are in
+SWE-bench_Verified; the rest exist only in the full SWE-bench test split, so both are read.
+Needs the `datasets` package, which the SWE-bench grader installs.
+
+    python scripts/export_swebench_tasks.py --out-dir "$DATA/swebench"
+
+options:
+  -h, --help         show this help message and exit
+  --out-dir OUT_DIR  where to write the three files
