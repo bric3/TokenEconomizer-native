@@ -682,7 +682,9 @@ complete while any runtime component delegates production behaviour to Python.
   values accepted by Python.
   Audit remaining JSON object and exception-message codecs for adjacent surrogate
   code points; the shared exact-string and logging-format bindings preserve them.
-  Include the Hermes redirect helper's raw JSON validation in that audit.
+  Hermes redirect validation now accepts Python's non-finite constants while
+  preserving the result bytes. Its nesting and integer digit limits remain
+  in that audit.
   Include the native scaffold merge command's invalid-UTF-8 diagnostics, deeply
   nested JSON and filesystem error details outside its verified file corpus.
   Include scaffold merge callback failures and path objects outside string paths,
@@ -3995,6 +3997,31 @@ complete while any runtime component delegates production behaviour to Python.
   simplification and performance passes remain at 0/3 each; original-test
   conversion is pending.
 
+- Hermes `with_redirect` now recognises Python's `NaN`, `Infinity` and `-Infinity`
+  constants during JSON validation. A validation copy replaces those tokens with
+  `null`; quoted strings keep their original bytes. The returned object uses
+  the original result, including its constants, whitespace and duplicate keys.
+  JSON scalars and lists retain their source behaviour, and malformed tokens
+  still take the plain-text branch. Ordinary results avoid the validation copy.
+  The new Java probe found 150 differences in 4,184 source comparisons before
+  the fix. All 4,184 now pass, covering nested objects, scalar/list results,
+  malformed token prefixes and suffixes, escaped quotes and backslashes,
+  Unicode escapes, duplicate keys and pre-existing redirect fields.
+  All 34 Rust tests, formatting, Clippy and debug/release builds pass. The
+  unchanged original suite passes with 1,561 passed and 30 skipped (77.77 seconds).
+  Relocated experiment bundles pass all 270 checks. All 256 archived files
+  still match the pinned tree. No dependency or SDK protocol changed.
+  Logs are under `validation/results/`: `hermes-redirect-before.log`,
+  `hermes-redirect-probe.log`, `hermes-redirect-rust-tests.log`,
+  `hermes-redirect-clippy.log`, `hermes-redirect-debug.log`,
+  `hermes-redirect-release.log`, `hermes-redirect-full.log`,
+  `hermes-redirect-full-calls.json`, `hermes-redirect-bundle.log` and
+  `hermes-redirect-reference.log`.
+  Nesting, integer digit limits and the remaining JSON/SDK codecs stay in the
+  production-parity audit. Native Windows execution remains unverified. Formal
+  simplification and performance passes remain at 0/3 each; original-test
+  conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -4218,6 +4245,7 @@ jbang validation/ClaudeCallProbe.java
 jbang validation/AgentCallsProbe.java
 jbang validation/LocalModelProbe.java
 jbang validation/HermesCallProbe.java
+jbang validation/HermesRedirectProbe.java
 jbang validation/SidecallFailureProbe.java
 jbang validation/CleanupProbe.java
 jbang validation/ConfigNumberProbe.java

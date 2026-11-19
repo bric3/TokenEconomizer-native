@@ -4,12 +4,13 @@ use crate::{
     value::{json_text, scalar_text, truthy},
 };
 use indexmap::IndexMap;
+use regex::{Captures, Regex};
 use serde_json::{Value, json, value::RawValue};
 use std::{
     collections::BTreeSet,
     path::{Path, PathBuf},
     sync::{
-        Arc, Mutex, MutexGuard, TryLockError,
+        Arc, LazyLock, Mutex, MutexGuard, TryLockError,
         atomic::{AtomicBool, Ordering},
     },
     thread,
@@ -42,8 +43,16 @@ pub fn with_redirect(result: &Value, text: &Value) -> Result<Value> {
     let Some(raw) = result.as_str() else {
         return Ok(Value::Null);
     };
-    // shortcut: raw JSON validation is strict, add non-finite values in the JSON parity audit.
-    let Ok(parsed) = serde_json::from_str::<&RawValue>(raw) else {
+    static CONSTANTS: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r#"(?s)("(?:[^"\\]|\\.)*")|-?Infinity|NaN"#).unwrap());
+    // Validate Python's constants as null; quoted strings and the returned bytes stay intact.
+    let normalized = (raw.contains("NaN") || raw.contains("Infinity")).then(|| {
+        CONSTANTS.replace_all(raw, |capture: &Captures<'_>| {
+            capture.get(1).map_or("null", |text| &raw[text.range()])
+        })
+    });
+    // shortcut: nesting and integer digit limits still need the JSON parity audit.
+    let Ok(parsed) = serde_json::from_str::<&RawValue>(normalized.as_deref().unwrap_or(raw)) else {
         return Ok(json!(format!("{raw}\n\n{}", scalar_text(text))));
     };
     if !parsed.get().starts_with('{') {
