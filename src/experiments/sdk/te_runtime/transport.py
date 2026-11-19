@@ -1,11 +1,22 @@
 """Own a JSON-lines engine connection and send each request once."""
 import contextlib
+import builtins
 import json
 import os
 from pathlib import Path
 import signal
 import subprocess
 import threading
+
+
+def checked(value):
+    if not isinstance(value,dict) or "raised" not in value: return value
+    details=value.get("details") or {}
+    if "errno" in details: raise OSError(details["errno"],details["strerror"],details["filename"])
+    if value["raised"] == "JSONDecodeError": raise json.JSONDecodeError(value["message"],details["doc"],details["pos"])
+    if value["raised"] == "UnicodeDecodeError":
+        raise UnicodeDecodeError("utf-8",bytes(details["bytes"]),details["start"],details["end"],details["reason"])
+    raise getattr(builtins,value["raised"])(value["message"])
 
 
 class Bridge:

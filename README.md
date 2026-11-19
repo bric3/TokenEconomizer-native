@@ -146,10 +146,11 @@ The standalone command runs without importing the original checkout:
 target/release/te-bench --arm baseline --tasks-file /path/to/tasks.json --results-root /path/to/results
 ```
 
-Use `--runner module:factory` for an external task runner. Python 3 supplies
+Use `--runner module:factory` for an external task runner. Python 3.10 or newer supplies
 standard-library I/O; `TE_BENCH_PYTHON` selects its interpreter. The runtime bundle
-carries the SDK and command. Built-in SWE-bench and WebBench harness bindings
-remain pending.
+carries the SDK and command, including Codex policy, state, resume-guard and
+envelope-tracker bindings. Their state transitions execute in Rust. Built-in
+SWE-bench and WebBench harness bindings remain pending.
 
 SWE-bench controller selection, constructor parameters, continuation dispatch and
 telemetry fields run in Rust for all three agents. SDK bindings retain controller,

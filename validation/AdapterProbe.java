@@ -22,9 +22,10 @@ class AdapterProbe {
     Client(Path checkout, boolean nativeCode) throws Exception {
       this(checkout, nativeCode, "adapter_host.py");
     }
-    Client(Path checkout, boolean nativeCode, String host) throws Exception {
+    Client(Path checkout, boolean nativeCode, String host, String... options) throws Exception {
       var command = new java.util.ArrayList<>(List.of(checkout.resolve(".venv/bin/python").toString(), checkout.resolve("validation").resolve(host).toString()));
       if (nativeCode) command.add("--native");
+      command.addAll(List.of(options));
       process = new ProcessBuilder(command).directory(checkout.toFile()).redirectError(ProcessBuilder.Redirect.INHERIT).start();
       input = new PrintWriter(new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
       output = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));

@@ -39,7 +39,7 @@ pub(super) fn failure(error: String) -> Value {
 fn codex(method: &str, args: &Value) -> Result<Value, String> {
     Ok(match method {
         "constants" => {
-            json!({"PROFILE_VERSION":cs::PROFILE_VERSION,"DEFENSIVE_PROFILE_VERSION":cs::DEFENSIVE_PROFILE_VERSION,"CODEX_DEFAULT_PROFILE":cs::CODEX_DEFAULT_PROFILE,"DEFAULT_POLICY":Policy::default(),"SHIPPED_POLICY":Policy::shipped(),"DEFENSIVE_POLICY":Policy::defensive()})
+            json!({"PROFILE_VERSION":cs::PROFILE_VERSION,"DEFENSIVE_PROFILE_VERSION":cs::DEFENSIVE_PROFILE_VERSION,"CODEX_DEFAULT_PROFILE":cs::CODEX_DEFAULT_PROFILE,"DEFAULT_POLICY":Policy::default(),"SHIPPED_POLICY":Policy::shipped(),"DEFENSIVE_POLICY":Policy::defensive(),"DEFAULT_TRACKER":EnvelopeTracker::default()})
         }
         "policy.at_threshold" => json!(
             decode::<Policy>(&args["self"])?

@@ -44,10 +44,11 @@ class SpiralProbe {
     }
   }
   public static void main(String[] args) throws Exception {
+    boolean standalone=args.length==1&&args[0].equals("--sdk");
     prompts(args.length == 1 && args[0].equals("--write"));
-    if (args.length > 0) { System.out.println("Verified eight native Codex nudge resources"); return; }
+    if (args.length > 0&&!standalone) { System.out.println("Verified eight native Codex nudge resources"); return; }
     var checkout = Path.of("").toAbsolutePath();
-    try (var nativeCode = new AdapterProbe.Client(checkout, true, "spiral_host.py");
+    try (var nativeCode = new AdapterProbe.Client(checkout, true, "spiral_host.py",standalone?new String[]{"--sdk"}:new String[0]);
          var source = new AdapterProbe.Client(checkout, false, "spiral_host.py")) {
       var commands = List.of("", "pytest", "K=1 pytest -q", "rtk pytest -q", "rtk proxy python3.14 -m pytest tests/test_a.py::test_foo", "rtk K=2 pytest -q", "cd x && rtk pytest -q",
           "python3 -m unittest", "python -m django test", "python ./bin/test", "./tests/runtests.py", "tox", "nox -s test", "pytest tests/test_a.py tests/test_b.py -q",
@@ -96,6 +97,11 @@ class SpiralProbe {
       for (var min : List.of(0, 1, 3, 5)) for (var pct : List.of(0, 50, 90, 100)) compare(nativeCode, source, "{\"kind\":\"tracker\",\"arguments\":{\"min_samples\":" + min + ",\"percentile\":" + pct + "},\"rows\":[[0,true],[3,false],[-1,true],[10,true],[30,true],[20,true],[45,true]]}");
       compare(nativeCode, source, "{\"kind\":\"tracker\",\"rows\":[[\"unused\",false],[20.9,true],[\"٢٣\",true],[false,true],[\"1_2\",true]]}");
       for (int window : List.of(-1, 0, 1)) compare(nativeCode, source, replay(List.of(thread("one"), edit(1), fail, research, research), "\"recent_window\":" + window + ",\"min_tool_turns\":1", ""));
+      compare(nativeCode,source,"{\"kind\":\"objects\"}");
+      if(standalone) {
+        System.out.println("Standalone Codex SDK matches upstream in "+cases+" comparisons with reference imports forbidden; decision rules, lazy iteration, nudge texts, envelope learning and telemetry passed");
+        return;
+      }
       var rows = "[{\"resolved\":true,\"num_turns\":20,\"codex_spiral_tool_turns\":10},{\"resolved\":false,\"num_turns\":30,\"codex_spiral_tool_turns\":20},{\"resolved\":true,\"num_turns\":40,\"spiral_judge_tokens\":2.5,\"spiral_nudges\":null,\"spiral_nudge_writer_tokens\":3,\"codex_spiral_paid_judge_tokens\":7,\"codex_spiral_events\":[{\"type\":\"resume\"}]},{\"resolved\":true,\"num_turns\":50},{\"resolved\":true,\"num_turns\":60},{\"resolved\":true,\"num_turns\":70}]";
       for (var config : List.of("{}", "{\"guard\":true,\"judge\":true,\"nudge\":true,\"nudge_llm\":true}", "{\"codex_spiral\":true,\"codex_spiral_profile\":\"defensive\"}", "{\"guard\":true,\"nudge\":true,\"codex_spiral\":true}", "{\"guard\":true,\"frozen_envelope\":30}")) {
         for (var agent : List.of("claude", "codex", "copilot")) for (var adapter : List.of(false, true)) compare(nativeCode, source, "{\"kind\":\"stage\",\"agent\":" + q(agent) + ",\"config\":" + config + ",\"adapter\":" + adapter + ",\"rows\":" + rows + ",\"snapshot\":{\"edit_churn\":4,\"distinct_edit_files\":3,\"error_outputs\":2,\"stagnation\":0.5}}");

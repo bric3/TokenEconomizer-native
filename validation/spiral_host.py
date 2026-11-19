@@ -7,15 +7,30 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT / "reference/upstream"), str(ROOT / "reference/upstream/experiments")]
-from te_bench import codex_spiral as cs
-from te_bench.spiral_stage import SpiralStage
-from tokeneconomizer.config import SpiralConfig
-from native_experiment_spiral import state_data
-
-if "--native" in sys.argv:
-    from native_experiment_spiral import install
-    install()
+if "--sdk" in sys.argv:
+    import atexit
+    import builtins
+    original_import=builtins.__import__
+    def guarded(name,*args,**kwargs):
+        if name.split(".")[0] in ("tokeneconomizer","te_bench","te_harness","native_plugin"):
+            raise AssertionError("Codex SDK imported reference/test code: "+name)
+        return original_import(name,*args,**kwargs)
+    builtins.__import__=guarded
+    sys.path.insert(0,str(ROOT / "src/experiments/sdk"))
+    from te_runtime.codex_spiral import bind, state_data
+    from te_runtime.transport import Bridge
+    bridge=Bridge(ROOT / "target/debug/te-bridge")
+    atexit.register(bridge.close)
+    cs=bind(bridge.request)
+else:
+    sys.path[:0] = [str(ROOT / "reference/upstream"), str(ROOT / "reference/upstream/experiments")]
+    from te_bench import codex_spiral as cs
+    from te_bench.spiral_stage import SpiralStage
+    from tokeneconomizer.config import SpiralConfig
+    from native_experiment_spiral import state_data
+    if "--native" in sys.argv:
+        from native_experiment_spiral import install
+        install()
 
 
 def data(value):
@@ -69,6 +84,19 @@ for line in sys.stdin:
                     tracker.update(turns, resolved)
                     steps.append(tracker.snapshot())
                 value = {"steps": steps, "state": vars(tracker)}
+            elif kind == "objects":
+                policy=dataclasses.replace(cs.DEFAULT_POLICY,min_tool_turns=7)
+                try: policy.min_tool_turns=99
+                except dataclasses.FrozenInstanceError: frozen=True
+                else: frozen=False
+                state=cs.CodexSpiralState(3)
+                state.edited_paths.update({"a.py":3,"b.py":1})
+                state.failure_sigs_since_green.update({"failure":2})
+                state.recent_commands.append("pytest")
+                state.outstanding_failure_scopes.add("a.py")
+                properties={name:getattr(state,name) for name in ("distinct_edit_files","edit_churn","green_after_edit","currently_green","repeated_failure_count")}
+                value=dict(frozen=frozen,policy=policy.at_threshold(8.5),state=state,properties=properties,
+                    tracker_threshold=cs.CodexEnvelopeTracker().threshold)
             elif kind == "stage":
                 calls = []
                 class Adapter:

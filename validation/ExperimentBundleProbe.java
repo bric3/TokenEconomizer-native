@@ -32,7 +32,7 @@ class ExperimentBundleProbe {
       var hash=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(bundle.resolve(matches.group(1)))));
       require(hash.equals(matches.group(2)),"manifest hash differs: "+matches.group(1));count++;
     }
-    require(count==23,"manifest omitted files: "+count);
+    require(count==24,"manifest omitted files: "+count);
   }
   static void engine(Path bundle)throws Exception {
     try(var client=new ContextProbe.Client(bundle.resolve("bin/te-bridge"),"experiment.swebench")) {
@@ -79,7 +79,7 @@ class ExperimentBundleProbe {
       var tasks=root.resolve("tasks.json");Files.writeString(tasks,"[{\"instance_id\":\"pkg__0\",\"problem_statement\":\"Offline fixture\"}]");
       var bench=NativeCliProbe.process(root,Map.of("PATH","","HOME",root.toString(),"TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString(),"TOKENECONOMIZER_ENV_FILE",root.resolve("absent.env").toString()),List.of(moved.resolve("bin/te-bench").toString(),"--arm","baseline","--tasks-file",tasks.toString(),"--results-root",root.resolve("bench-results").toString()));
       require(bench.code()==0&&bench.out().contains("tasks=1 resolved=0"),"relocated standalone benchmark failed: "+bench);
-      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==24,"benchmark command changed the runtime payload");}
+      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==25,"benchmark command changed the runtime payload");}
       var bootstrap=moved.resolve("sdk/bench.py");var bootstrapBytes=Files.readAllBytes(bootstrap);Files.delete(bootstrap);
       var absent=NativeCliProbe.process(root,Map.of("PATH","","TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString()),List.of(moved.resolve("bin/te-bench").toString(),"--help"));
       require(absent.code()!=0&&absent.err().contains("SDK binding is missing"),"missing bundled SDK selected development files: "+absent);Files.write(bootstrap,bootstrapBytes);

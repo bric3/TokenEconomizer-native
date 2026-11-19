@@ -1,7 +1,6 @@
 """Object, standard-library and external-runner bindings; experiment policy runs in Rust."""
 import argparse
 import builtins
-import dataclasses
 import importlib
 import inspect
 import json
@@ -10,15 +9,8 @@ import os
 import time
 from types import SimpleNamespace
 
-
-def checked(value):
-    if not isinstance(value,dict) or "raised" not in value: return value
-    details=value.get("details") or {}
-    if "errno" in details: raise OSError(details["errno"],details["strerror"],details["filename"])
-    if value["raised"] == "JSONDecodeError": raise json.JSONDecodeError(value["message"],details["doc"],details["pos"])
-    if value["raised"] == "UnicodeDecodeError":
-        raise UnicodeDecodeError("utf-8",bytes(details["bytes"]),details["start"],details["end"],details["reason"])
-    raise getattr(builtins,value["raised"])(value["message"])
+from .codex_spiral import bind as codex_bindings
+from .transport import checked
 
 
 def special(instance,name):
@@ -110,10 +102,8 @@ class Driver:
         adapters=bridge.request("experiment.adapters.constants",{})
         self.adapter_env=[adapters[key] for key in ("SWEBENCH_TASKS_ENV","PROJECTS_ROOT_ENV","CREDDATA_ROOT_ENV","REPOSVUL_ROOT_ENV")]
         registry=bridge.request("experiment.arms.registry",{})
-        policy=bridge.request("codex_spiral.constants",{})["DEFAULT_POLICY"]
-        self.policy=dataclasses.make_dataclass("CodexSpiralPolicy",[(key,type(value),dataclasses.field(default=value)) for key,value in policy.items()],namespace={"__module__":__name__})
-        def threshold(policy,turns): return self.policy(**checked(bridge.request("codex_spiral.policy.at_threshold",{"self":dataclasses.asdict(policy),"turns":turns})))
-        self.policy.at_threshold=threshold
+        self.codex_spiral=codex_bindings(bridge.request)
+        self.policy=self.codex_spiral.CodexSpiralPolicy
         def factory(name): return lambda: bridge.request("experiment.arms.config",{"name":name})
         self.module=SimpleNamespace(os=os,json=json,time=time,argparse=argparse,inspect=inspect,importlib=importlib,
             _REPO_ROOT=os.fspath(root),__doc__=constants["description"],ledger=SimpleNamespace(OVERHEAD_KEYS=tuple(constants["overhead_keys"])),

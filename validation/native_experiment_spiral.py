@@ -1,77 +1,13 @@
-"""Original experiment spiral classes as JSON bindings; all policy executes in Rust."""
-import builtins
-import collections
+"""Original stage bindings and the production Codex controller SDK."""
 import dataclasses
-import functools
-import inspect
 import os
+import sys
 
-from native_plugin import invoke
+from native_plugin import ROOT, invoke
 
-
-def checked(value):
-    if isinstance(value, dict) and "raised" in value:
-        raise getattr(builtins, value["raised"])(value["message"])
-    return value
-
-
-def state_data(obj):
-    return dict(vars(obj), edited_paths=dict(obj.edited_paths), failure_sigs_since_green=dict(obj.failure_sigs_since_green),
-                recent_commands=list(obj.recent_commands), recent_blocked=list(obj.recent_blocked),
-                recent_window=obj.recent_commands.maxlen, outstanding_failure_scopes=list(obj.outstanding_failure_scopes))
-
-
-def restore_state(obj, data):
-    for key, value in data.items():
-        if key == "recent_window":
-            continue
-        if key in ("edited_paths", "failure_sigs_since_green"):
-            value = collections.Counter(value)
-        elif key in ("recent_commands", "recent_blocked"):
-            value = collections.deque(value, maxlen=data["recent_window"])
-        elif key == "outstanding_failure_scopes":
-            value = set(value)
-        setattr(obj, key, value)
-    return obj
-
-
-def guard_data(obj):
-    return dict(vars(obj), state=state_data(obj.state), policy=dataclasses.asdict(obj.policy), fired_reasons=list(obj.fired_reasons))
-
-
-def constructor(original, operation, restore):
-    signature = inspect.signature(original)
-    @functools.wraps(original)
-    def native(self, *args, **kwargs):
-        bound = signature.bind(self, *args, **kwargs)
-        bound.apply_defaults()
-        data = dict(bound.arguments)
-        data.pop("self")
-        if "policy" in data:
-            data["policy"] = dataclasses.asdict(data["policy"])
-        if operation == "tracker":
-            data = {"fields": data}
-        restore(self, checked(invoke("codex_spiral." + operation + ".new", data)))
-    return native
-
-
-def method(original, operation, encode, restore):
-    signature = inspect.signature(original)
-    @functools.wraps(original)
-    def native(*args, **kwargs):
-        bound = signature.bind(*args, **kwargs)
-        bound.apply_defaults()
-        data = dict(bound.arguments)
-        obj = data.pop("self")
-        for key in ("event", "policy"):
-            if key in data:
-                data[key] = dataclasses.asdict(data[key])
-        result = checked(invoke("codex_spiral." + operation, {"self": encode(obj), **data}))
-        restore(obj, result["self"])
-        for message in result.get("messages", []):
-            print(message)
-        return result["value"]
-    return native
+sys.path.insert(0,str(ROOT / "src/experiments/sdk"))
+from te_runtime.codex_spiral import bind, state_data
+from te_runtime.transport import checked
 
 
 def stage_data(obj):
@@ -154,78 +90,5 @@ def stage_after(self, task, row, run_dir_path, srow):
 def install():
     from te_bench import codex_spiral as cs
     from te_bench.spiral_stage import SpiralStage
-    constants = invoke("codex_spiral.constants", {})
-    for name in ("PROFILE_VERSION", "DEFENSIVE_PROFILE_VERSION", "CODEX_DEFAULT_PROFILE"):
-        assert constants[name] == getattr(cs, name)
-        setattr(cs, name, constants[name])
-    for name in ("DEFAULT_POLICY", "SHIPPED_POLICY", "DEFENSIVE_POLICY"):
-        assert constants[name] == dataclasses.asdict(getattr(cs, name))
-        setattr(cs, name, cs.CodexSpiralPolicy(**constants[name]))
-
-    def event(data):
-        return cs.CodexEvent(**dict(data, paths=tuple(data["paths"])))
-
-    def restore_guard(obj, data):
-        obj.policy = cs.CodexSpiralPolicy(**data["policy"])
-        obj.state = restore_state(getattr(obj, "state", cs.CodexSpiralState.__new__(cs.CodexSpiralState)), data["state"])
-        for key in ("verbose", "nudges_done", "pending_reason", "events"):
-            setattr(obj, key, data[key])
-        obj.fired_reasons = set(data["fired_reasons"])
-
-    cs.CodexSpiralState.__init__ = constructor(cs.CodexSpiralState.__init__, "state", restore_state)
-    for name in ("update", "decision", "snapshot"):
-        setattr(cs.CodexSpiralState, name, method(getattr(cs.CodexSpiralState, name), "state." + name, state_data, restore_state))
-    for name in ("distinct_edit_files", "edit_churn", "green_after_edit", "currently_green", "repeated_failure_count"):
-        setattr(cs.CodexSpiralState, name, property(method(getattr(cs.CodexSpiralState, name).fget, "state." + name, state_data, restore_state)))
-    cs.CodexResumeGuard.__init__ = constructor(cs.CodexResumeGuard.__init__, "guard", restore_guard)
-    for name in ("monitor", "continuation", "telemetry"):
-        setattr(cs.CodexResumeGuard, name, method(getattr(cs.CodexResumeGuard, name), "guard." + name, guard_data, restore_guard))
-    cs.CodexResumeGuard.segment = property(method(cs.CodexResumeGuard.segment.fget, "guard.segment", guard_data, restore_guard))
-    restore_tracker = lambda obj, data: vars(obj).update(data)
-    cs.CodexEnvelopeTracker.__init__ = constructor(cs.CodexEnvelopeTracker.__init__, "tracker", restore_tracker)
-    for name in ("update", "snapshot"):
-        setattr(cs.CodexEnvelopeTracker, name, method(getattr(cs.CodexEnvelopeTracker, name), "tracker." + name, vars, restore_tracker))
-    cs.CodexEnvelopeTracker.threshold = property(method(cs.CodexEnvelopeTracker.threshold.fget, "tracker.threshold", vars, restore_tracker))
-
-    def function(original, name):
-        signature = inspect.signature(original)
-        @functools.wraps(original)
-        def native(*args, **kwargs):
-            bound = signature.bind(*args, **kwargs)
-            bound.apply_defaults()
-            data = dict(bound.arguments)
-            if name == "policy.at_threshold":
-                data["self"] = dataclasses.asdict(data["self"])
-            if name == "replay_events":
-                data["events"] = [dataclasses.asdict(ev) for ev in data["events"]]
-                data["policy"] = dataclasses.asdict(data["policy"])
-            value = checked(invoke("codex_spiral." + name, data))
-            if name in ("shipped_policy", "defensive_policy", "profile_policy", "policy.at_threshold"):
-                return cs.CodexSpiralPolicy(**value)
-            if name in ("verification_scopes", "failure_signatures"):
-                return set(value) if value is not None else None
-            if name == "patch_paths":
-                return tuple(value)
-            if name == "parse_events":
-                return [event(ev) for ev in value]
-            if name == "replay_events":
-                return value["decision"], restore_state(cs.CodexSpiralState.__new__(cs.CodexSpiralState), value["state"])
-            return value
-        return native
-
-    cs.CodexSpiralPolicy.at_threshold = function(cs.CodexSpiralPolicy.at_threshold, "policy.at_threshold")
-    for name in ("shipped_policy", "defensive_policy", "profile_policy", "profile_version", "_normalize", "_command_fingerprint",
-                 "green_is_trustworthy", "verification_scopes", "is_test_command", "is_verification_command", "is_research_command",
-                 "failure_signatures", "patch_paths", "shell_patch_applied", "parse_events", "replay_events", "_percentile", "nudge_text"):
-        setattr(cs, name, function(getattr(cs, name), name))
-
-    def iter_events(lines, *, first_thread_only=False):
-        cursor = None
-        for line in lines:
-            value = checked(invoke("codex_spiral.iterator", {"self": cursor, "line": line, "first_thread_only": first_thread_only}))
-            cursor = value["self"]
-            yield from (event(ev) for ev in value["events"])
-            if cursor["finished"]:
-                return
-    cs.iter_events = iter_events
+    vars(cs).update(vars(bind(invoke)))
     SpiralStage.__init__, SpiralStage.run_kwargs, SpiralStage.after_task = stage_constructor, stage_kwargs, stage_after
