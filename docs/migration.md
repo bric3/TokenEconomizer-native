@@ -744,10 +744,14 @@ complete while any runtime component delegates production behaviour to Python.
   outside their ordinary schemas. Captured configuration callables and arguments
   already retain their references when the prompt callback replaces them.
 - Finish supporting experiment tools, preserving their original test contracts.
-  The workload registry and manifest exporter have native implementations.
+  The workload registry, manifest exporter and sweep planner have native
+  implementations.
   A traced run of the source tests found remaining Python execution in
-  `sweep_plan.py` and `export_swebench_tasks.py`. Port these and audit the reporting,
+  `export_swebench_tasks.py`. Port it and audit the reporting,
   capture, launch and smoke scripts for production entry points that lack coverage.
+  Original shell-launcher fixtures still invoke Python children from the archived
+  tree. Parent-process function traces do not cover those children. Port their
+  launch workflows and verify their native process paths before closing this work.
   Aggregation has a native entry point, `te-bench aggregate`, and its source tests
   now call Rust through the validation binding. Weighted costs and per-cell totals
   retain f64 accounting. Include unusually large totals, non-finite JSON, non-UTF-8
@@ -3281,6 +3285,35 @@ complete while any runtime component delegates production behaviour to Python.
   details remain unverified. Existing Linux guard helpers were reused because
   their behaviour and dependencies did not change.
 
+- Sweep planning now executes in Rust as `te-bench sweep-plan`, including the
+  complete `arms`, `cells`, `counts` and `estimate` modes. It reads a local workload
+  manifest when present and otherwise uses the embedded runnable registry.
+  Explicit relative manifests use the caller's working directory. Seed-major
+  enumeration, empty seed lists, per-cell limits, duplicate-repository counting,
+  unknown-repository warnings and WebBench scaffold exclusions preserve the source
+  behaviour. Derived time and dollar assumptions remain behind `--show-cost`.
+  The planner reuses the native manifest reader and argument-choice diagnostics.
+  The dedicated probe passes 404 source comparisons covering all modes, exact
+  console text, Unicode group names, manifest precedence, malformed JSON, UTF-8
+  errors, integer rate types, rounding, signed and padded seeds and refusal paths.
+  All 73 original sweep-arm and workload tests pass with native function bindings.
+  The full original suite passes with 1,561 passed and 30 skipped (68.30 seconds),
+  including installed opencode against its local model fixture. The relocated
+  runtime bundle passes 224 checks, including native planning from the exported
+  manifests, local overrides and scaffold filtering with an empty PATH.
+  All 27 Rust checks, debug/release builds, Clippy, formatting and the unchanged
+  256-file reference check pass. No dependencies or guard-helper behaviour changed;
+  the existing Linux helpers were reused. The archived shell launchers still run
+  their Python child scripts and remain pending production work. Source-test
+  function traces cover the pytest process; the native CLI is checked separately.
+  Original tests remain unmodified. Dataset exports and the supporting-script
+  audit remain pending before the three simplification passes, three performance
+  passes and final test conversion. The planner currently requires finite rates
+  and uses Rust decimal float spellings, JSON integers for seeds and i64 for
+  limits. Wider counters and additional Python numeric spellings still need
+  conversion. Native Windows execution and remaining CLI/I/O diagnostic details
+  remain unverified.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -3523,6 +3556,7 @@ jbang validation/EnvironmentProbe.java
 jbang validation/DriverMainProbe.java
 jbang validation/AggregateProbe.java
 jbang validation/WorkloadProbe.java
+jbang validation/SweepProbe.java
 jbang validation/StandaloneBenchProbe.java
 jbang validation/StandaloneTransportProbe.java
 jbang validation/HermesGatewayProbe.java

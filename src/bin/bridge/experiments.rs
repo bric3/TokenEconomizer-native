@@ -9,10 +9,11 @@ use tokeneconomizer::experiments::{
     aggregate, arms,
     driver::parse_env,
     scaffolds,
+    swebench::Failure,
     swebench::providers,
     swebench::setup,
     swebench::web_contract,
-    workloads,
+    sweep, workloads,
 };
 use tokeneconomizer::{ledger, microskills::distiller};
 
@@ -43,6 +44,41 @@ fn response(result: Result<Value, Error>) -> Value {
     }
 }
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
+    if let Some(method) = op.strip_prefix("experiment.sweep.") {
+        let root = Path::new(args["root"].as_str().unwrap_or("."));
+        let cwd = Path::new(args["process_cwd"].as_str().unwrap_or("."));
+        let result = match method {
+            "constants" => Ok(sweep::constants()),
+            "group_sizes" => sweep::group_sizes(
+                args["domain"].as_str().ok_or("expected domain")?,
+                path(args, "manifest").as_deref(),
+                root,
+                cwd,
+            )
+            .map(|sizes| json!(sizes)),
+            "cells" => Ok(json!(sweep::cells(
+                &strings(args, "arms")?,
+                &strings(args, "repos")?,
+                args["seeds"].as_array().ok_or("expected seeds")?
+            ))),
+            "estimate" => serde_json::from_value::<sweep::Sweep>(args.clone())
+                .map_err(|e| Failure::new("ValueError", e.to_string()))
+                .and_then(|sweep| sweep.estimate(root, cwd)),
+            "_fmt_estimate" => {
+                sweep::format_estimate(&args["e"], args["show_cost"].as_bool().unwrap_or(false))
+                    .map(|text| json!(text))
+            }
+            "main" => sweep::command(
+                args["program"].as_str().ok_or("expected program")?,
+                &strings(args, "argv")?,
+                root,
+                cwd,
+            )
+            .map(|output| json!(output)),
+            _ => return Ok(None),
+        };
+        return Ok(Some(result.unwrap_or_else(super::task_dispatch::failure)));
+    }
     if let Some(method) = op.strip_prefix("experiment.workloads.") {
         let domain = args["domain"].as_str().unwrap_or("");
         let group = args["group"].as_str();

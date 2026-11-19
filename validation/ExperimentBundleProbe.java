@@ -98,6 +98,17 @@ class ExperimentBundleProbe {
       var checked=NativeCliProbe.process(root,Map.of("PATH","","TE_BENCH_PYTHON","/missing-python"),List.of(moved.resolve("bin/te-bench").toString(),"export-workloads","--check"));
       require(checked.code()==0&&checked.out().contains("up to date (4 domains)"),"relocated workload check required Python: "+checked);
       for(var domain:List.of("swebench","webbench","creddata","reposvul"))require(Files.mismatch(root.resolve("workloads/"+domain+".json"),checkout.resolve("reference/upstream/experiments/workloads/"+domain+".json"))==-1,"relocated workload bytes changed: "+domain);
+      var planned=run(root,moved.resolve("bin/te-bench"),"sweep-plan");
+      require(planned.code()==0&&planned.out().contains("task-runs=  9,972")&&!planned.out().contains("serial="),"relocated sweep estimate failed: "+planned);
+      var counted=run(root,moved.resolve("bin/te-bench"),"sweep-plan","--format","counts");
+      require(counted.code()==0&&counted.out().contains("sympy/sympy\t60\n"),"relocated sweep counts drifted: "+counted);
+      var selected=run(root,moved.resolve("bin/te-bench"),"sweep-plan","--domain","webbench","--format","cells","--arms","serena","baseline","repomap","--repos","calculator","--seeds","0");
+      require(selected.code()==0&&selected.out().equals("baseline\tcalculator\t0\n")&&selected.err().contains("serena repomap"),"relocated sweep lost scaffold filtering: "+selected);
+      var manifest=root.resolve("workloads/swebench.json");var originalManifest=Files.readString(manifest);
+      Files.writeString(manifest,"{\"groups\":{\"custom\":[1,2]}}");
+      var custom=run(root,moved.resolve("bin/te-bench"),"sweep-plan","--format","counts");
+      require(custom.code()==0&&custom.out().equals("custom\t2\n"),"relocated sweep ignored its local manifest: "+custom);
+      Files.writeString(manifest,originalManifest);
       var builtin=NativeCliProbe.process(root,Map.of("PATH","","HOME",root.toString(),"TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString(),"TOKENECONOMIZER_ENV_FILE",root.resolve("absent.env").toString(),"ANTHROPIC_API_KEY",""),List.of(moved.resolve("bin/te-bench").toString(),"--arm","baseline","--runner","te_runtime.swebench:make_runner","--agent","claude","--tasks-file",tasks.toString(),"--results-root",root.resolve("builtin-results").toString()));
       require(builtin.code()!=0&&builtin.err().contains("ANTHROPIC_API_KEY is unset"),"built-in runner did not reach credential validation: "+builtin);
       var webBuiltin=NativeCliProbe.process(root,Map.of("PATH","","HOME",root.toString(),"TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString(),"TOKENECONOMIZER_ENV_FILE",root.resolve("absent.env").toString(),"ANTHROPIC_API_KEY",""),List.of(moved.resolve("bin/te-bench").toString(),"--arm","baseline","--runner","te_runtime.webbench:make_runner","--agent","claude","--tasks-file",tasks.toString(),"--results-root",root.resolve("web-builtin-results").toString()));

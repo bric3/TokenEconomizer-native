@@ -13,6 +13,7 @@ pub mod scaffolds;
 pub mod sdk;
 pub mod spiral_stage;
 pub mod swebench;
+pub mod sweep;
 pub mod usage;
 pub mod workloads;
 

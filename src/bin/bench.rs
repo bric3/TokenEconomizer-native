@@ -1,10 +1,10 @@
 use std::{env, error::Error, process::Command};
-use tokeneconomizer::experiments::{aggregate, sdk, workloads};
+use tokeneconomizer::experiments::{aggregate, sdk, sweep, workloads};
 
 fn run() -> Result<i32, Box<dyn Error>> {
     if let Some(command) = env::args_os()
         .nth(1)
-        .filter(|arg| arg == "aggregate" || arg == "export-workloads")
+        .filter(|arg| arg == "aggregate" || arg == "export-workloads" || arg == "sweep-plan")
     {
         let args = env::args_os()
             .skip(2)
@@ -15,7 +15,7 @@ fn run() -> Result<i32, Box<dyn Error>> {
             .collect::<Result<Vec<_>, _>>()?;
         let output = if command == "aggregate" {
             aggregate::command("te-bench aggregate", &args)?
-        } else {
+        } else if command == "export-workloads" {
             let root = env::current_dir()?;
             workloads::export_command(
                 "te-bench export-workloads",
@@ -23,6 +23,9 @@ fn run() -> Result<i32, Box<dyn Error>> {
                 &root.join("workloads"),
                 &root,
             )?
+        } else {
+            let root = env::current_dir()?;
+            sweep::command("te-bench sweep-plan", &args, &root, &root).map_err(|e| e.message)?
         };
         print!("{}", output.stdout);
         eprint!("{}", output.stderr);

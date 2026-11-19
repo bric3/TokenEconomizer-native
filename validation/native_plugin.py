@@ -132,6 +132,9 @@ def native_package_module(loader, module):
     elif module.__name__ == "te_bench.workloads" or str(loader.path) == str(ROOT / "reference/upstream/experiments/scripts/export_workloads.py"):
         from native_workloads import install
         install(module)
+    elif str(loader.path) == str(ROOT / "reference/upstream/experiments/scripts/sweep_plan.py"):
+        from native_sweep import install
+        install(module)
     elif module.__name__ == "te_bench.arms":
         from native_experiment_arms import install
         install(module)

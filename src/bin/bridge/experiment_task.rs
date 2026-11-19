@@ -20,7 +20,7 @@ impl Runtime for Transport {
         Ok(reply["value"].clone())
     }
 }
-fn failure(error: Failure) -> Value {
+pub(super) fn failure(error: Failure) -> Value {
     let mut value = json!({"raised":error.kind,"message":error.message});
     if let Some(details) = error.details {
         value["details"] = *details;

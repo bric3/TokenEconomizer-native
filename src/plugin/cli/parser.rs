@@ -470,7 +470,7 @@ fn matching_characters(a: &[char], b: &[char]) -> usize {
         + size
         + matching_characters(&a[start_a + size..], &b[start_b + size..])
 }
-fn invalid_choice(label: &str, value: &str, accepted: &[String]) -> String {
+pub(crate) fn invalid_choice(label: &str, value: &str, accepted: &[String]) -> String {
     let word = value.chars().collect::<Vec<_>>();
     // argparse 3.15 suggests the closest difflib match, breaking equal ratios by name.
     let suggestion = accepted
@@ -500,7 +500,7 @@ fn invalid_choice(label: &str, value: &str, accepted: &[String]) -> String {
             .join(", ")
     )
 }
-fn is_option(value: &str) -> bool {
+pub(crate) fn is_option(value: &str) -> bool {
     static NEGATIVE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^-\.?\d").unwrap());
     value.starts_with('-') && value != "-" && !NEGATIVE.is_match(value) && !value.contains(' ')
 }

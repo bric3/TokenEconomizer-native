@@ -1,0 +1,50 @@
+usage: sweep_plan.py [-h] [--domain {swebench,webbench}] [--arms [ARMS ...]]
+                     [--repos [REPOS ...]] [--seeds [SEEDS ...]]
+                     [--limit LIMIT] [--show-cost]
+                     [--sec-per-task SEC_PER_TASK]
+                     [--usd-per-task USD_PER_TASK] [--workload WORKLOAD]
+                     [--format {cells,estimate,arms,counts}]
+
+Enumerate and cost a sweep BEFORE running it.
+
+A sweep is a product: arms x repos x seeds, per (agent, model, domain) tree. At the sizes
+the main experiments ask for that product is five figures of task-runs, and the only cheap
+moment to notice is before the first container starts. So this module is the one place the
+matrix is written down, and it answers three questions offline (no Docker, no datasets, no
+API key):
+
+  --format cells      one `arm<TAB>repo<TAB>seed` line per cell, for a launcher to loop over
+  --format estimate   task-runs, wall-clock and dollars for the requested slice
+
+Task counts come from the committed `workloads/<domain>.json` manifest -- the same file
+the launcher passes as `--workload` and the driver filters the task stream to -- so the
+plan cannot drift from what the run actually executes. That matters beyond tidiness:
+`main_sweep.sh` decides a cell is finished by comparing its stored row count against this
+number, so a plan that counted excluded instances would re-run completed cells forever.
+
+Rate assumptions are declared, not hidden: `--sec-per-task` and `--usd-per-task` default to
+what the stored Claude-direct SWE-bench tree actually measured, and both are printed with
+the estimate so a reader can rescale it. They are means over a heavy-tailed distribution;
+treat the output as an order of magnitude, not a quote.
+
+Usage:
+    python scripts/sweep_plan.py --domain swebench --arms baseline trimech \
+        --repos django/django --seeds 0 1 2 --format cells
+
+options:
+  -h, --help            show this help message and exit
+  --domain {swebench,webbench}
+  --arms [ARMS ...]     default: the domain's SWEEP_ARMS
+  --repos [REPOS ...]   default: every group in the domain's workload record
+  --seeds [SEEDS ...]   default: 0 1 2
+  --limit LIMIT         cap tasks per cell (0 = all), mirroring the launcher's
+                        LIMIT so a pilot is costed as a pilot
+  --show-cost           also print the DERIVED wall-clock and $ estimate (off
+                        by default: it is one repo-dominated per-task mean
+                        times the task count, and reads like a quote it cannot
+                        support)
+  --sec-per-task SEC_PER_TASK
+  --usd-per-task USD_PER_TASK
+  --workload WORKLOAD   workload manifest to count tasks from (default:
+                        workloads/<domain>.json)
+  --format {cells,estimate,arms,counts}

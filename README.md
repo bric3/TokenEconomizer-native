@@ -168,6 +168,19 @@ The executable carries the task registry and preserves published workload counts
 separately from the additions and exclusions used for new runs. Workload exports
 also run entirely in Rust.
 
+Plan a sweep without launching tasks:
+
+```sh
+target/release/te-bench sweep-plan
+target/release/te-bench sweep-plan --domain webbench --format cells
+target/release/te-bench sweep-plan --arms baseline trimech --limit 1 --show-cost
+```
+
+The planner reads `./workloads/<domain>.json` when present and otherwise uses the
+embedded runnable registry. `--workload` selects another manifest. Counts and
+cell enumeration run in Rust; `--show-cost` includes the declared time and dollar
+assumptions.
+
 Use `--runner module:factory` for an external task runner. Python 3.10 or newer supplies
 standard-library I/O; `TE_BENCH_PYTHON` selects its interpreter. The runtime bundle
 carries the SDK and command, including the generic streamed-rollout controller
