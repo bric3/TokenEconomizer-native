@@ -5,6 +5,7 @@ use std::{
     path::Path,
 };
 
+use crate::value::python_space;
 use serde_json::Value;
 
 pub struct Lines {
@@ -21,10 +22,8 @@ pub fn lines(path: &Path) -> Lines {
     }
 }
 
-impl Iterator for Lines {
-    type Item = String;
-
-    fn next(&mut self) -> Option<String> {
+impl Lines {
+    fn next_with<T>(&mut self, parse: impl FnOnce(&str) -> T) -> Option<T> {
         loop {
             self.buffer.clear();
             loop {
@@ -55,19 +54,33 @@ impl Iterator for Lines {
                 }
             }
             let text = String::from_utf8_lossy(&self.buffer);
-            let text = text.trim();
+            let text = text.trim_matches(python_space);
             if !text.is_empty() {
-                return Some(text.to_owned());
+                return Some(parse(text));
             }
             self.reader.as_ref()?;
         }
     }
 }
 
+impl Iterator for Lines {
+    type Item = String;
+
+    fn next(&mut self) -> Option<String> {
+        self.next_with(str::to_owned)
+    }
+}
+
 pub fn records(path: &Path) -> impl Iterator<Item = Value> {
-    lines(path)
-        .filter_map(|line| serde_json::from_str::<Value>(&line).ok())
-        .filter(Value::is_object)
+    let mut input = lines(path);
+    std::iter::from_fn(move || {
+        loop {
+            let value = input.next_with(|line| serde_json::from_str::<Value>(line).ok())?;
+            if let Some(value) = value.filter(Value::is_object) {
+                return Some(value);
+            }
+        }
+    })
 }
 
 pub struct TextReader {

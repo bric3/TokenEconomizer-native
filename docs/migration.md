@@ -30,9 +30,9 @@ complete while any runtime component delegates production behaviour to Python.
 
 ## Status
 
-- Current phase: all three simplification passes and performance pass 1 of 3
-  are complete. The unchanged original suite passes. Two further measured
-  performance passes precede original-test conversion. The parity and platform
+- Current phase: all three simplification passes and performance passes 1 and 2
+  are complete. The unchanged original suite passes. One further measured
+  performance pass precedes original-test conversion. The parity and platform
   audits below stay open through final verification.
 - Git initialised on `main`.
 - Upstream archived at the revision recorded in `reference/revision.txt`.
@@ -829,7 +829,7 @@ complete while any runtime component delegates production behaviour to Python.
   coordination and the offline stub runner are native. The standalone benchmark
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
-- Simplification passes: 3 of 3. Performance passes: 1 of 3.
+- Simplification passes: 3 of 3. Performance passes: 2 of 3.
 - Final test conversion: pending until the preceding gates pass.
 
 ## Verified milestones
@@ -4232,6 +4232,51 @@ complete while any runtime component delegates production behaviour to Python.
   performance passes. The earlier numeric-read regression and the parity and
   platform audits remain open.
 
+- Performance pass 2 parses JSONL records while normalized text still borrows
+  the reusable read buffer. The string iterator retains its owned output;
+  the record iterator avoids an intermediate string allocation and copy for
+  every non-empty line. JSON values still own their fields. File opening,
+  replacement decoding, CR/LF handling, skipped rows and iterator termination
+  retain their existing policy.
+  Byte-fixture comparisons also found that Rust's `trim` retained Python's four
+  extra control separators. The shared reader now uses `value::python_space`,
+  accepting records wrapped in those separators. Both iterator APIs match the
+  source in 648 comparisons, including split UTF-8 characters, split CRLF pairs,
+  invalid bytes, wide integers, malformed rows and incomplete tails.
+  Two Rust regression tests cover read-buffer boundaries and repeated EOF.
+
+  `TraceReadBenchmark.java` measures complete Claude prompt counts against
+  `293502e` through persistent release bridges. Nine alternating batches follow
+  warmup; files are reused. The identical-binary control differed by less than 3%.
+  The repeat run is shown below.
+
+  | Trace          | Bytes     | Before (us) | After (us) |
+  | -------------- | --------: | ----------: | ---------: |
+  | Empty          |         0 |        28.7 |       28.6 |
+  | Small          |     1,561 |        33.8 |       33.9 |
+  | Typical        |   297,405 |       463.4 |      437.2 |
+  | Large          | 8,961,621 |    10,108.3 |    9,666.8 |
+  | Wide lines     | 4,194,572 |     2,953.2 |    2,889.8 |
+  | Malformed rows | 2,296,491 |     2,043.1 |    1,884.5 |
+
+  Across the two runs, typical traces improve by 5-6%, large traces by 4-6%
+  and malformed rows by about 8%. Small and wide-line changes are minor. The
+  first run's empty-file time increased by 1.9 us; that change did not repeat.
+  Native macOS sampling of repeated synthetic reads confirms substantial reader
+  scanning and UTF-8 validation work remains. These are component measurements.
+  The profile and both benchmark runs are retained with the other logs under
+  `validation/results/performance-2-*`; the baseline release bridge, revision and
+  toolchain are under `validation/results/performance-baselines/config-keys/`.
+  All 44 Rust tests, formatting, Clippy and debug/release builds pass. The
+  unchanged original suite passes with 1,561 passed and 30 skipped
+  (87.98 seconds). The broader bridge checks pass. Both Linux builds pass 33
+  library tests, the helpers pass 28 scratch-container checks and the relocated
+  runtime bundle passes 272 checks. No dependency was added.
+  Performance passes are now 2/3; simplification remains complete at 3/3.
+  Original tests remain unchanged. Their conversion follows the final
+  performance pass. The numeric-read regression and the remaining parity and
+  platform audits stay open.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -4464,6 +4509,8 @@ jbang validation/CleanupProbe.java
 jbang validation/ConfigNumberProbe.java
 jbang validation/NumberCodecProbe.java
 jbang validation/ConfigLoadBenchmark.java /path/to/baseline/te-bridge target/release/te-bridge
+jbang validation/JsonlReaderProbe.java
+jbang validation/TraceReadBenchmark.java /path/to/baseline/te-bridge target/release/te-bridge
 jbang scripts/VerifySerdeJson.java
 jbang validation/LedgerSumProbe.java
 jbang validation/AccountingSumProbe.java
