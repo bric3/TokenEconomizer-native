@@ -758,6 +758,7 @@ complete while any runtime component delegates production behaviour to Python.
   Codex installation discovery, captured-prompt loading and offline probes are
   native. Codex captures and the WebBench preload use native runtime asset paths.
   Codex installation and configuration probe SDK bindings are packaged too.
+  Agent accounting and interrupted-stream recovery also have packaged SDK bindings.
   Built-in harness bindings still need to replace their validation bindings.
   Process and SDK calls retain Python I/O bindings.
 - Benchmark driver runner and dataset selection, workload and task filtering,
@@ -2839,6 +2840,33 @@ complete while any runtime component delegates production behaviour to Python.
   Formal simplification and performance passes remain at 0/3 each; final test
   conversion is pending.
 
+- Agent usage accounting and Claude's stream recovery now have production SDK
+  bindings. Rust parses all three usage schemas, combines segment counters,
+  preserves unknown costs, deduplicates assistant messages and decides whether
+  recovered rows remain incomplete. The binding restores `_UsageRecovery._by_msg`
+  and sends warnings to the supplied log function. `session_output_tokens`
+  returns the total and a set of message IDs. Copilot log reads resolve relative
+  paths against `os.getcwd()` supplied by the binding.
+  The original test adapter delegates to these bindings while retaining its
+  original function and class references. The ordinary and standalone probes
+  each pass 474 source comparisons. The standalone mode forbids reference-package
+  and `native_plugin` imports. Cases include numeric coercion, unknown costs,
+  message-ID aliases, partial recovery, session-log completeness, segment merges
+  and actual log-directory reads. SWE-bench and WebBench each pass 24 owned
+  process checks across all three agents, including guard stops, timeouts,
+  configuration refusals and resume requests. These use offline agent fixtures.
+  The runtime bundle now contains eight SDK files and 27 payload hashes. Its
+  145 checks include relocated accounting calls for all three agents and Claude
+  recovery warnings delivered through the supplied log function.
+  The unchanged upstream suite passes with 1,561 passed and 30 skipped
+  (65.55 seconds), including installed-opencode tests against the loopback model
+  fixture. All 24 Rust checks, debug/release builds, Clippy and the 256-file
+  reference check pass. IDE inspections remain unavailable because this checkout
+  is not open in the IDE. Windows, other Python versions and live agents remain
+  unverified. Built-in harness SDK bindings and remaining parity audits stay open.
+  Formal simplification and performance passes remain at 0/3 each; final test
+  conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2965,6 +2993,7 @@ jbang validation/NudgeProbe.java
 jbang validation/NudgeProbe.java --sdk
 jbang validation/FacadeProbe.java
 jbang validation/UsageProbe.java
+jbang validation/UsageProbe.java --sdk
 jbang validation/TaskProbe.java
 jbang validation/WebSegmentProbe.java
 jbang validation/WebAgentProbe.java

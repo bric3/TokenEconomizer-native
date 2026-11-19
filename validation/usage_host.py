@@ -7,12 +7,28 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT / "reference/upstream"), str(ROOT / "reference/upstream/experiments")]
-from te_harness import swebench, codex, copilot
-
-if "--native" in sys.argv:
-    from native_experiment_usage import install
-    install()
+if "--sdk" in sys.argv:
+    import atexit
+    import builtins
+    original_import=builtins.__import__
+    def guarded(name,*args,**kwargs):
+        if name.split(".")[0] in ("tokeneconomizer","te_bench","te_harness","native_plugin"):
+            raise AssertionError("Agent usage SDK imported reference/test code: "+name)
+        return original_import(name,*args,**kwargs)
+    builtins.__import__=guarded
+    sys.path.insert(0,str(ROOT / "src/experiments/sdk"))
+    from te_runtime.usage import bind
+    from te_runtime.transport import Bridge
+    bridge=Bridge(ROOT / "target/debug/te-bridge")
+    atexit.register(bridge.close)
+    sdk=bind(bridge.request,lambda message:swebench._log(message))
+    swebench,codex,copilot=sdk.claude,sdk.codex,sdk.copilot
+else:
+    sys.path[:0] = [str(ROOT / "reference/upstream"), str(ROOT / "reference/upstream/experiments")]
+    from te_harness import swebench, codex, copilot
+    if "--native" in sys.argv:
+        from native_experiment_usage import install
+        install()
 
 
 def data(value):

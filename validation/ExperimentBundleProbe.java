@@ -32,7 +32,7 @@ class ExperimentBundleProbe {
       var hash=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(bundle.resolve(matches.group(1)))));
       require(hash.equals(matches.group(2)),"manifest hash differs: "+matches.group(1));count++;
     }
-    require(count==26,"manifest omitted files: "+count);
+    require(count==27,"manifest omitted files: "+count);
   }
   static void engine(Path bundle)throws Exception {
     try(var client=new ContextProbe.Client(bundle.resolve("bin/te-bridge"),"experiment.swebench")) {
@@ -91,6 +91,7 @@ class ExperimentBundleProbe {
           from te_runtime.transport import Bridge
           from te_runtime.nudge_guard import bind
           from te_runtime.codex_install import bind as install_bindings
+          from te_runtime.usage import bind as usage_bindings
           from pathlib import Path
           with Bridge(sys.argv[2]) as bridge:
               sdk=bind(bridge.request)
@@ -107,10 +108,19 @@ class ExperimentBundleProbe {
               capture=Path(sys.argv[1]).parent/'assets/codex_base_prompt/0.153.1.md'
               assert codex.base_prompt_for('codex-cli 0.153.1') == capture.read_text(encoding='utf-8')
               assert codex.base_prompt_for('unknown') is None
+              usage_logs=[]
+              accounting=usage_bindings(bridge.request,usage_logs.append)
+              row=accounting.codex.row_usage('{"type":"turn.completed","usage":{"input_tokens":10,"cached_input_tokens":3,"output_tokens":2}}')
+              assert row['input_tokens'] == 7 and row['tokens_total'] == 12
+              assert accounting.copilot.stream_output_tokens('{"type":"assistant.turn_start","data":{"outputTokens":4}}') == 4
+              recovery=accounting.claude._UsageRecovery()
+              recovery.observe(dict(type='assistant',message=dict(id='m1',usage=dict(input_tokens=5,output_tokens=1))))
+              recovered=recovery.synthesize('owned fixture')
+              assert recovered['usage_incomplete'] and recovered['usage']['output_tokens'] == 0 and len(usage_logs) == 1
           print('packaged SDK bindings passed')
           """,moved.resolve("sdk").toString(),moved.resolve("bin/te-bridge").toString()));
       require(controller.code()==0&&controller.out().equals("packaged SDK bindings passed\n"),"relocated SDK binding failed: "+controller);
-      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==27,"benchmark command changed the runtime payload");}
+      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==28,"benchmark command changed the runtime payload");}
       var bootstrap=moved.resolve("sdk/bench.py");var bootstrapBytes=Files.readAllBytes(bootstrap);Files.delete(bootstrap);
       var absent=NativeCliProbe.process(root,Map.of("PATH","","TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString()),List.of(moved.resolve("bin/te-bench").toString(),"--help"));
       require(absent.code()!=0&&absent.err().contains("SDK binding is missing"),"missing bundled SDK selected development files: "+absent);Files.write(bootstrap,bootstrapBytes);

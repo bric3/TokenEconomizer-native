@@ -26,9 +26,10 @@ class UsageProbe {
     cases++;
   }
   public static void main(String[] args) throws Exception {
+    boolean standalone=args.length==1&&args[0].equals("--sdk");
     var root = Path.of("").toAbsolutePath(); artifacts = Files.createTempDirectory("te-usage-probe-");
     boolean passed = false;
-    try (var nativeCode = new AdapterProbe.Client(root,true,"usage_host.py"); var source = new AdapterProbe.Client(root,false,"usage_host.py")) {
+    try (var nativeCode = new AdapterProbe.Client(root,true,"usage_host.py",standalone?new String[]{"--sdk"}:new String[0]); var source = new AdapterProbe.Client(root,false,"usage_host.py")) {
       var empty = List.of("", "garbage", "{}", "[]", "null", "false", "true", "12", "[1]", "{\"type\":\"other\"}");
       for (var text : empty) for (var separator : List.of("\n", "\r\n", "\r", "\u001c", "\u0085", "\u2028")) {
         var stream = text + separator + " " + text;
@@ -80,7 +81,7 @@ class UsageProbe {
       Files.createDirectory(logs.resolve("ab.log"));
       compare(nativeCode,source,request("copilot","read_log_dir","\"log_dir\":" + q(logs)));
       compare(nativeCode,source,request("copilot","read_log_dir","\"log_dir\":" + q(logs.resolve("missing"))));
-      System.out.println("Harness usage accounting matches the pinned implementation in " + cases + " cases; three schemas, unknown costs, segment merges, message deduplication and interrupted recovery passed without model calls");
+      System.out.println((standalone?"Standalone SDK (reference imports forbidden): ":"")+"Harness usage accounting matches the pinned implementation in " + cases + " cases; three schemas, unknown costs, segment merges, message deduplication and interrupted recovery passed without model calls");
       passed = true;
     } finally {
       if (passed) { try (var paths = Files.walk(artifacts)) { for (var path : paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(path); } }

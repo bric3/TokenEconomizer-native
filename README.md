@@ -151,7 +151,8 @@ standard-library I/O; `TE_BENCH_PYTHON` selects its interpreter. The runtime bun
 carries the SDK and command, including the generic streamed-rollout controller
 and Codex policy, state, resume-guard and envelope-tracker bindings. Their state
 transitions execute in Rust. Codex installation discovery, bundled skill discovery
-and configuration validation also execute in Rust through the SDK. Built-in
+and configuration validation also execute in Rust through the SDK. Accounting
+bindings cover all three agents, including Claude's incomplete-stream recovery. Built-in
 SWE-bench and WebBench harness bindings remain pending.
 
 SWE-bench controller selection, constructor parameters, continuation dispatch and

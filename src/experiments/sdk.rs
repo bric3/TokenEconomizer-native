@@ -26,6 +26,10 @@ pub(super) const FILES: &[(&str, &[u8])] = &[
         "sdk/te_runtime/codex_install.py",
         include_bytes!("sdk/te_runtime/codex_install.py"),
     ),
+    (
+        "sdk/te_runtime/usage.py",
+        include_bytes!("sdk/te_runtime/usage.py"),
+    ),
 ];
 
 /// Resolve the SDK bootstrap and the caller's configuration root.
