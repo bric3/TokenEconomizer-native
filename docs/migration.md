@@ -668,9 +668,10 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit regular-expression compatibility with Python in the production parity
   pass, including word boundaries, whitespace classes and syntax. Detector and
   extractor patterns now support Python's global and scoped ASCII flags through
-  the native compiler. Unicode character-name escapes and patterns combining
-  ASCII and Unicode caseless backreferences remain unsupported. Include Unicode
-  backreference case folding, syntax errors and engine runtime errors in the audit.
+  the native compiler. Named-character escapes use Unicode 17 names and aliases.
+  Patterns combining ASCII and Unicode caseless backreferences remain unsupported.
+  Include Unicode backreference case folding, syntax errors and engine runtime
+  errors in the audit.
   Include Unicode-version differences outside the evaluator stdout pattern,
   whose explicit Tolong Siki range matches Python 3.15 and the
   [Unicode 17 numeric data](https://www.unicode.org/Public/17.0.0/ucd/extracted/DerivedNumericType.txt).
@@ -3125,6 +3126,32 @@ complete while any runtime component delegates production behaviour to Python.
   is pending. IDE inspections remain unavailable because this checkout is not
   open in the IDE. Windows and other Python versions remain unverified.
 
+- Detector and extractor patterns now resolve `\N{name}` in Rust, including
+  character classes, ranges, quantifiers and backreferences. Unicode 17's
+  compressed name database supplies canonical characters; an exact copy of the
+  official 481-entry alias table preserves Python's spellings. Canonical-name
+  validation retains spaces and hyphens while accepting ASCII case changes.
+  The compiler derives names for the two Tangut ranges that the crate omits.
+  Unknown names, loose spellings, malformed escapes and named sequences retain
+  the source's missing-matcher result. Lookup runs inside the executable without
+  reading files or starting Python.
+  The expanded corpus passes 2,256 source comparisons, including all aliases in
+  original and lowercase spellings, class and ASCII-caseless contexts, algorithmic
+  range boundaries, escaped punctuation and detector/extractor integration.
+  The unchanged upstream suite passes with 1,561 passed and 30 skipped (77.59
+  seconds), including installed opencode tests against their local stand-in model.
+  All 24 Rust checks, debug/release builds, Clippy, formatting and the 256-file
+  reference check pass. Both rebuilt static Linux helpers pass 26 scratch-container
+  checks without Python, a shell or network. The relocated bundle passes 198
+  checks, including named escapes and their ASCII caseless backreferences.
+  Dependency notices cover all 101 locked registry crates and the Unicode data
+  licence. All 86 previous crate sections remain unchanged; fifteen are added.
+  Mixed ASCII/Unicode caseless backreferences, remaining Unicode-version and error
+  parity audits remain open. Formal simplification and performance passes remain
+  at 0/3 each; final test conversion is pending. IDE inspections remain unavailable
+  because this checkout is not open in the IDE. Windows and other Python versions
+  remain unverified.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -3147,6 +3174,11 @@ atoms. `.cargo/config.toml` selects static PCRE2 linking for host builds; the
 dependency selects static linking for the Linux musl helpers too. `regex-syntax`
 was already locked transitively and now supplies character ranges and UTF-8
 encoding directly. The notice generator includes embedded C licence headers.
+`unicode_names2` 4.0.0 supplies compressed Unicode 17 character names. The compiler
+checks canonical spellings and the official alias table to preserve Python's
+spaces and hyphens. It derives Tangut names for the two ranges omitted by the
+crate. Name data is compiled into executables; runtime lookup needs no files or
+Python process. The notice generator includes the crate's Unicode data licence.
 The existing `serde_json` dependency enables `raw_value` so Hermes can validate
 tool JSON before copying its existing field text after a redirect. Python's
 non-finite extensions remain in the JSON parity audit.

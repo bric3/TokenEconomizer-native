@@ -173,6 +173,15 @@ impl<'a> Compiler<'a> {
             't' => '\t',
             'v' => '\x0b',
             'b' if in_class => '\x08',
+            'N' => {
+                if self.next()? != '{' {
+                    return None;
+                }
+                let end = self.source[self.position..].find('}')? + self.position;
+                let character = named_character(&self.source[self.position..end])?;
+                self.position = end + 1;
+                character
+            }
             'x' | 'u' | 'U' => {
                 let count = match c {
                     'x' => 2,
@@ -226,7 +235,6 @@ impl<'a> Compiler<'a> {
             }
             'A' if !in_class => return Some(Escape::Raw(r"\A".into(), false)),
             'Z' | 'z' if !in_class => return Some(Escape::Raw(r"\z".into(), false)),
-            // shortcut: Unicode character names need a name table before the regex audit closes.
             c if c.is_ascii_alphabetic() => return None,
             c => c,
         };
@@ -470,6 +478,34 @@ enum Escape {
     Class(ClassUnicode),
     Raw(String, bool),
     Done,
+}
+fn named_character(name: &str) -> Option<char> {
+    // UnicodeData stores Tangut ranges without the names that Python derives from code points.
+    if let Some((prefix, hex)) = name.split_once('-')
+        && prefix.eq_ignore_ascii_case("TANGUT IDEOGRAPH")
+        && hex.len() == 5
+        && let Ok(code) = u32::from_str_radix(hex, 16)
+        && matches!(code, 0x17000..=0x187ff | 0x18d00..=0x18d1e)
+    {
+        return char::from_u32(code);
+    }
+    // Python preserves spaces and hyphens in names; the database accepts looser spellings.
+    if let Some(character) = unicode_names2::character(name)
+        && unicode_names2::name(character)
+            .is_some_and(|canonical| canonical.to_string().eq_ignore_ascii_case(name))
+    {
+        return Some(character);
+    }
+    include_str!("data/NameAliases-17.0.0.txt")
+        .lines()
+        .find_map(|line| {
+            let (code, rest) = line.split_once(';')?;
+            let (alias, _) = rest.split_once(';')?;
+            if !alias.eq_ignore_ascii_case(name) {
+                return None;
+            }
+            char::from_u32(u32::from_str_radix(code, 16).ok()?)
+        })
 }
 fn union(target: &mut ClassUnicode, item: Escape, compiler: &Compiler<'_>) -> Option<()> {
     match item {

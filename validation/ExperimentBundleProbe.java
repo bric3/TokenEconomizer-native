@@ -36,7 +36,7 @@ class ExperimentBundleProbe {
   }
   static void engine(Path bundle)throws Exception {
     try(var client=new ContextProbe.Client(bundle.resolve("bin/te-bridge"),"experiment.swebench")) {
-      for(var entry:Map.of("(?ai)\\bpytest\\b",List.of("pytest", "PYTEST"),"(?ai)(.+)\\1",List.of("aéAé", "😀😀")).entrySet())for(var text:entry.getValue()) {
+      for(var entry:Map.of("(?ai)\\bpytest\\b",List.of("pytest", "PYTEST"),"(?ai)(.+)\\1",List.of("aéAé", "😀😀"),"\\N{SNOWMAN}",List.of("☃"),"(?ai)(\\N{LATIN SMALL LETTER E WITH ACUTE})\\1",List.of("éé")).entrySet())for(var text:entry.getValue()) {
         var match=client.call("distiller.regex_search","\"pattern\":"+q(entry.getKey())+",\"text\":"+q(text));
         require(match.equals("{\"result\":true}"),"relocated detector matcher failed: "+match);
       }

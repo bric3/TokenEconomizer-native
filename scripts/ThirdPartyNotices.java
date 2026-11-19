@@ -57,6 +57,8 @@ class ThirdPartyNotices {
       var source=candidates.getFirst();var manifest=Files.readString(source.resolve("Cargo.toml"));
       var files=new ArrayList<Path>();
       try(var paths=Files.list(source)){files.addAll(paths.filter(Files::isRegularFile).filter(ThirdPartyNotices::legal).toList());}
+      var data=source.resolve("data");
+      if(Files.isDirectory(data))try(var paths=Files.list(data)){files.addAll(paths.filter(Files::isRegularFile).filter(ThirdPartyNotices::legal).toList());}
       for(var name:List.of("license","licenses","licence","licences","LICENSES")) {
         var directory=source.resolve(name);
         if(Files.isDirectory(directory))try(var paths=Files.walk(directory)){files.addAll(paths.filter(Files::isRegularFile).toList());}
