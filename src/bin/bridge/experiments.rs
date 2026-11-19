@@ -10,6 +10,7 @@ use tokeneconomizer::experiments::{
     driver::parse_env,
     scaffolds,
     swebench::providers,
+    swebench::setup,
 };
 use tokeneconomizer::{ledger, microskills::distiller};
 
@@ -48,6 +49,9 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
     }
     if op == "experiment.scaffolds.constants" {
         return Ok(Some(scaffolds::constants().map_err(|error| error.message)?));
+    }
+    if op == "experiment.harness.constants" {
+        return Ok(Some(setup::constants()));
     }
     if op == "experiment.driver.constants" {
         return Ok(Some(

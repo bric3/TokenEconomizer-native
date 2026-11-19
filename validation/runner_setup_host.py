@@ -2,24 +2,34 @@
 import builtins
 import json
 import os
+import signal
 from pathlib import Path
 import sys
 import types
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
-from te_harness import swebench as sw
-if "--native" in sys.argv:
-    from native_experiment_task import install
-    install()
-    from native_runner_setup import install
-    install()
-    from native_experiment_providers import install
-    install()
+if "--sdk" in sys.argv:
+    from standalone_harness import sw
+else:
+    sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+    from te_harness import swebench as sw
+    if "--native" in sys.argv:
+        from native_experiment_task import install
+        install()
+        from native_runner_setup import install
+        install()
+        from native_experiment_providers import install
+        install()
+
 
 for line in sys.stdin:
     request = json.loads(line)
     calls = []
+    interrupt_number=getattr(signal,request["signal"]) if request.get("signal") else None
+    interrupt_previous=signal.getsignal(interrupt_number) if interrupt_number is not None else None
+    def interrupt(number,frame):
+        if number == signal.SIGINT: raise KeyboardInterrupt
+        raise SystemExit(number)
     integer_limit = sys.get_int_max_str_digits()
     if "int_max_digits" in request: sys.set_int_max_str_digits(request["int_max_digits"])
     saved = {name:getattr(sw,name) for name in ("os","scaffolds_pkg","pricing","codex","copilot","resolve_anthropic_key","claude_bin","cli_version","_Grader","_log")}
@@ -38,6 +48,7 @@ for line in sys.stdin:
         return value
     def record(name,args=None):
         calls.append([name,encode(args)])
+        if interrupt_number is not None and name == "scaffold.get": os.kill(os.getpid(),interrupt_number)
         if request.get("fail") == name:
             error = request.get("error","RuntimeError")
             if error == "ShadowValueError": raise type("ValueError",(Exception,),{})("fixture failure")
@@ -93,6 +104,7 @@ for line in sys.stdin:
             super().__setattr__(name,value)
     runner = object.__new__(Runner)
     try:
+        if interrupt_number is not None: signal.signal(interrupt_number,interrupt)
         sw.os = types.SimpleNamespace(environ=Environment(request.get("env",{})))
         sw._log = lambda message:record("log",message)
         sw.scaffolds_pkg = types.SimpleNamespace(get=helper("scaffold.get",get_scaffold))
@@ -145,6 +157,9 @@ for line in sys.stdin:
         response = {"value":None}
     except BaseException as error: response = {"raised":type(error).__name__,"message":str(error)}
     finally:
+        if interrupt_number is not None:
+            response["signal_restored"]=signal.getsignal(interrupt_number) is interrupt
+            signal.signal(interrupt_number,interrupt_previous)
         response.update(state=encode(vars(runner)),calls=calls)
         for name,value in saved.items(): setattr(sw,name,value)
         for name,value in helper_os.items(): saved[name].os = value

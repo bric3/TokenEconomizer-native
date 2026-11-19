@@ -17,6 +17,7 @@ class TaskProbe {
     var request="{\"root\":"+q(root)+(fields.isEmpty()?"":","+fields)+"}";
     var expected=source.call(request); clear(root);
     var actual=nativeCode.call(request);
+    if(fields.contains("\"signal\":")&&(!expected.contains("\"signal_restored\":true")||!expected.contains("\"raised\":\""+(fields.contains("SIGINT")?"KeyboardInterrupt":"SystemExit")+"\"")))throw new AssertionError("Source signal fixture did not interrupt and restore its handler: "+expected);
     if (cases==0 && (expected.contains("\"raised\":") || !expected.contains("\"resolved\":true"))) throw new AssertionError("Default source fixture did not complete: "+expected);
     if (!expected.equals(actual)) {
       Files.writeString(artifacts.resolve("request.json"),request);Files.writeString(artifacts.resolve("expected.json"),expected);Files.writeString(artifacts.resolve("actual.json"),actual);
@@ -33,10 +34,12 @@ class TaskProbe {
   }
   public static void main(String[] args) throws Exception {
     prompt(); artifacts=Files.createTempDirectory("te-task-probe-"); boolean passed=false;
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"task_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"task_host.py")) {
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"task_host.py",args.length==1&&args[0].equals("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"task_host.py")) {
       compare(nativeCode,source,"");
       for(boolean guard:List.of(false,true))for(int resumes:List.of(0,1,3))for(boolean scaffold:List.of(false,true))compare(nativeCode,source,"\"guard\":"+guard+",\"resumes\":"+resumes+",\"scaffold\":"+scaffold+",\"injected\":\" manual \\n \",\"excluded\":[\"WebSearch\"]");
       compare(nativeCode,source,"\"guard\":true,\"falsey_guard\":true");
+      for(var signal:List.of("SIGINT","SIGTERM"))for(var phase:List.of("_start","_segment","_grade"))
+        compare(nativeCode,source,"\"guard\":true,\"signal\":"+q(signal)+",\"signal_at\":"+q(phase));
       for(var method:List.of("_container_name","_build_guard","_write_run_config","_start","_record_env_activation","_apply_scaffold","_install_net_guard","_install_answer_key_hosts","_segment","_guard_continuation","_graded_diff","_grade","_net_guard_blocks","_stop","_row_from_segment","_answer_key_attempts","_patch_excludes","_guard_row"))
         for(var kind:List.of("RuntimeError","TimeoutExpired","OSError","ValueError","KeyboardInterrupt","TransientFailure","ShadowRuntimeError"))compare(nativeCode,source,"\"guard\":true,\"scaffold\":true,\"fail\":"+q(method)+",\"error_kind\":"+q(kind));
       for(var count:List.of("0","1","\"12\"","null"))compare(nativeCode,source,"\"kwargs\":{\"max_turns\":"+count+"},\"max_turns_env\":\"23\"");

@@ -87,6 +87,11 @@ const INTERACTIVE: &[&str] = &[
     "### Visualizations",
 ];
 
+pub(super) fn constants() -> Value {
+    json!({"CONFIG_CAPABILITIES":CONFIG_CAPABILITIES,"PROTECTED_CAPABILITIES":PROTECTED,
+        "DEFAULT_SYSTEM_SKILLS":SKILLS})
+}
+
 fn space(c: char) -> bool {
     c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}')
 }

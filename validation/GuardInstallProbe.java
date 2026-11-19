@@ -104,6 +104,10 @@ class GuardInstallProbe {
       var ownArgs=List.of(executable,"--install-hook","claude",ownPath.toString(),executable);
       var first=run(root,ownArgs,ownPath);var second=run(root,ownArgs,ownPath);
       if(first.code()!=0 || second.code()!=0 || !java.util.Arrays.equals(first.file(),second.file()))throw new AssertionError("Native executable installation duplicated its hook");selfChecks++;
+      var installed=nativeCode.call("{\"mode\":\"install\"}");
+      if(!installed.contains("\"value\":true"))throw new AssertionError("Native helper fixture did not install: "+installed);selfChecks++;
+      var missing=nativeCode.call("{\"mode\":\"install\",\"artifact_root\":"+q(root.resolve("missing-artifacts"))+"}");
+      if(!missing.contains("\"value\":false")||!missing.contains("UNGUARDED"))throw new AssertionError("Native binding ignored the changed helper root: "+missing);selfChecks++;
       if(List.of(args).contains("--docker"))liveHosts(nativeCode,source);
       passed=true;System.out.println("Guard integration passes "+cases+" source comparisons and "+selfChecks+" native checks; DNS commands, refusal probes, exact counts, patch exclusions and hook-file merge passed");
     } finally {if(passed)ContainerProbe.clear(root);else System.err.println("Probe artifacts: "+root);}

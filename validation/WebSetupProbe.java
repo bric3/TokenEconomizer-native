@@ -14,7 +14,7 @@ class WebSetupProbe {
     cases++;return actual;
   }
   public static void main(String[] args) throws Exception {
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"web_setup_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"web_setup_host.py")) {
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"web_setup_host.py",args.length==1&&args[0].equals("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"web_setup_host.py")) {
       for(var agent:List.of("claude","copilot","codex")) {
         var a="\"agent\":"+q(agent);
         compare(nativeCode,source,a);

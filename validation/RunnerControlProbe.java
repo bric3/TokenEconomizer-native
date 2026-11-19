@@ -14,7 +14,7 @@ class RunnerControlProbe {
     cases++;
   }
   public static void main(String[] args) throws Exception {
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"control_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"control_host.py")) {
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"control_host.py",args.length==1&&args[0].equals("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"control_host.py")) {
       compare(nativeCode,source,"");
       for(var agent:List.of("claude","copilot","codex"))for(var value:List.of("null","false","true","0","1","[]","{}","{\"cold_start\":3}"))
         compare(nativeCode,source,"\"agent\":"+q(agent)+",\"kwargs\":{"+q(agent.equals("codex")?"codex_spiral_policy":"spiral_guard")+":"+value+"}");

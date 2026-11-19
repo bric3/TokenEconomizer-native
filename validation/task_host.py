@@ -5,17 +5,22 @@ import io
 import json
 import os
 import subprocess
+import signal
 import sys
 import types
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT / "reference/upstream"), str(ROOT / "reference/upstream/experiments")]
-from te_harness import swebench as sw, webbench as wb
+if "--sdk" in sys.argv:
+    from standalone_harness import sw,wb
+else:
+    sys.path[:0] = [str(ROOT / "reference/upstream"), str(ROOT / "reference/upstream/experiments")]
+    from te_harness import swebench as sw, webbench as wb
 
-if "--native" in sys.argv:
-    from native_experiment_task import install
-    install()
+    if "--native" in sys.argv:
+        from native_experiment_task import install
+        install()
+
 
 
 def data(value):
@@ -52,8 +57,15 @@ for line in sys.stdin:
     grading_env = {key:os.environ.get(key) for key in ("TE_SWEBENCH_GRADING","DATA","TE_SWEBENCH_REPO")}
     settings_env = {key:os.environ.get(key) for key in ("TE_ENV_ACTIVATION","TE_ALLOW_NETWORK_TOOLS","TE_SWEBENCH_MAX_CPUS")}
     saved_env = os.environ.get("TE_MAX_TURNS")
+    interrupt_number=getattr(signal,request["signal"]) if request.get("signal") else None
+    interrupt_previous=signal.getsignal(interrupt_number) if interrupt_number is not None else None
+    def interrupt(number,frame):
+        if number == signal.SIGINT: raise KeyboardInterrupt
+        raise SystemExit(number)
     def record(method, args=()):
         calls.append({"method":method,"args":data(args)})
+        if interrupt_number is not None and method == request.get("signal_at"):
+            os.kill(os.getpid(),interrupt_number)
         if request.get("fail") == method:
             kind = request.get("error_kind","RuntimeError")
             message = request.get("error_message","fixture failure")
@@ -184,6 +196,7 @@ for line in sys.stdin:
             record("_patch_excludes")
             return sw.ClaudeSwebenchRunner._patch_excludes(self)
     try:
+        if interrupt_number is not None: signal.signal(interrupt_number,interrupt)
         sw.time.time, sw._log = clock, logs.append
         if "max_turns_env" in request: os.environ["TE_MAX_TURNS"] = request["max_turns_env"]
         if "cwd" in request: os.chdir(request["cwd"])
@@ -304,6 +317,9 @@ for line in sys.stdin:
         if isinstance(error,UnicodeDecodeError): response["error_info"] = {"object":list(error.object),"encoding":error.encoding,"start":error.start,"end":error.end,"reason":error.reason}
         if isinstance(error,json.JSONDecodeError): response["error_info"] = {key:getattr(error,key) for key in ("msg","doc","pos","lineno","colno")}
     finally:
+        if interrupt_number is not None:
+            response["signal_restored"]=signal.getsignal(interrupt_number) is interrupt
+            signal.signal(interrupt_number,interrupt_previous)
         sw.time.time, sw._log = original_time, original_log
         sw._import_swebench = original_import
         for key,value in grading_env.items():

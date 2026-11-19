@@ -9,12 +9,17 @@ import sys
 import types
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
-from te_harness import swebench as sw
+if "--sdk" in sys.argv:
+    from standalone_harness import sw
+else:
+    sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+    from te_harness import swebench as sw
 
-if "--native" in sys.argv:
-    from native_experiment_task import install
-    install()
+    if "--native" in sys.argv:
+        from native_experiment_task import install
+        install()
+
+
 
 def data(value):
     if isinstance(value,os.PathLike): return os.fspath(value)

@@ -6,20 +6,23 @@ import sys
 import types
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
-from te_harness import swebench as sw
-if "--native" in sys.argv:
-    from native_runner_setup import install
-    install()
-    from native_experiment_providers import install as providers
-    providers()
-from te_harness import webbench as wb
-if "--native" in sys.argv:
-    install(wb)
-    providers(wb)
-    original_constructor = wb.CodexWebBenchRunner.__init__
-    install(wb)
-    assert wb.CodexWebBenchRunner.__init__ is original_constructor,"constructor install is not idempotent"
+if "--sdk" in sys.argv:
+    from standalone_harness import sw,wb
+else:
+    sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+    from te_harness import swebench as sw
+    if "--native" in sys.argv:
+        from native_runner_setup import install
+        install()
+        from native_experiment_providers import install as providers
+        providers()
+    from te_harness import webbench as wb
+    if "--native" in sys.argv:
+        install(wb)
+        providers(wb)
+        original_constructor = wb.CodexWebBenchRunner.__init__
+        install(wb)
+        assert wb.CodexWebBenchRunner.__init__ is original_constructor,"constructor install is not idempotent"
 
 for line in sys.stdin:
     request = json.loads(line)

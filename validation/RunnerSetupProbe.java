@@ -12,11 +12,13 @@ class RunnerSetupProbe {
     var request="{"+fields+"}";
     var expected=source.call(request).replace("into te_harness/data/codex_base_prompt/<version>.md", "in the runtime bundle at assets/codex_base_prompt/<version>.md");
     var actual=nativeCode.call(request);
+    if(fields.contains("\"signal\":")&&(!expected.contains("\"signal_restored\":true")||!expected.contains("\"raised\":\""+(fields.contains("SIGINT")?"KeyboardInterrupt":"SystemExit")+"\"")))throw new AssertionError("Constructor signal fixture did not interrupt and restore its handler: "+expected);
     if(!expected.equals(actual))throw new AssertionError("Case "+cases+": "+request+"\nNative: "+actual+"\nSource: "+expected);
     cases++;
   }
   public static void main(String[] args) throws Exception {
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"runner_setup_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"runner_setup_host.py")) {
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"runner_setup_host.py",args.length==1&&args[0].equals("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"runner_setup_host.py")) {
+      for(var agent:List.of("claude","copilot","codex"))for(var signal:List.of("SIGINT","SIGTERM"))compare(nativeCode,source,"\"agent\":"+q(agent)+",\"signal\":"+q(signal));
       for(var agent:List.of("claude","copilot","codex")) {
         var a="\"agent\":"+q(agent);
         compare(nativeCode,source,a);

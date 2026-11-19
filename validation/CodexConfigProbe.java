@@ -17,7 +17,7 @@ class CodexConfigProbe {
     cases++;
   }
   public static void main(String[] args) throws Exception {
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"codex_config_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"codex_config_host.py")) {
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"codex_config_host.py",args.length==1&&args[0].equals("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"codex_config_host.py")) {
       var capabilities=List.of("collaboration","goals","image_media","interactive_guidance","skills","web");
       for(int mask=0;mask<64;mask++) {
         var selected=new ArrayList<String>();

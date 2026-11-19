@@ -4,6 +4,19 @@ use serde_json::{Value, json};
 
 mod web;
 
+pub fn constants() -> Value {
+    let mut codex = super::codex_config::constants();
+    codex["EFFORT_LEVELS"] = json!(["minimal", "low", "medium", "high", "xhigh", "max"]);
+    codex["PROTECTED_TOOLS"] = json!(["shell", "apply_patch"]);
+    json!({
+        "claude":{"EFFORT_LEVELS":["low","medium","high","xhigh","max"],"PROTECTED_TOOLS":["Bash","Edit","Write","Read"]},
+        "copilot":{"EFFORT_LEVELS":["none","low","medium","high","xhigh","max"]},
+        "codex":codex,
+        "web":{"WEBBENCH_SCAFFOLDS":["rtk"],"WEBBENCH_UNDICI_ABORT_DEFAULT_S":300,
+            "WEBBENCH_TASK_TIMEOUT_HEADROOM_S":40,"WEBBENCH_TASK_TIMEOUT_DEFAULT":240}
+    })
+}
+
 const OPTIMIZER_MODEL_ERROR: &str = "TE_OPTIMIZER_MODEL is no longer honoured: the between-task optimizer runs on the agent's own model so mechanism overhead is priced on the same basis as the task rows. Unset it.";
 
 fn field(name: &str) -> Value {

@@ -743,7 +743,7 @@ complete while any runtime component delegates production behaviour to Python.
   scaffold merge helpers are deployed through harness callbacks. Both harnesses
   select native guard executables. The runtime bundle ships executables and
   assets. The standalone benchmark command and its SDK are packaged. Bindings
-  for the built-in SWE-bench and WebBench harnesses remain open.
+  for complete built-in SWE-bench and WebBench class assembly remain open.
   Generic and Codex controller SDK bindings are packaged and used by the original
   controller tests. The driver uses the Codex policy binding too; state transitions
   remain native.
@@ -763,7 +763,11 @@ complete while any runtime component delegates production behaviour to Python.
   Optimizer calls, preflights, logging, Copilot discovery and sealed Copilot/Codex
   invocation builders also have packaged bindings.
   Shared scaffold classes, RTK, Serena, repo-map and their registry are packaged too.
-  Built-in harness bindings still need to replace their validation bindings.
+  Task-lifecycle and constructor object/I/O bindings are packaged and used by the
+  original API adapters. Complete built-in class assembly remains open, including
+  the guard convenience methods still exercised through original class bodies:
+  `_answer_key_attempts`, `_net_guard_merge_program`, `_write_hook_entry` and
+  `_register_net_guard`.
   Process and SDK calls retain Python I/O bindings.
 - Benchmark driver runner and dataset selection, workload and task filtering,
   group matching and overhead-field copying are native. The arm registry and
@@ -2953,6 +2957,31 @@ complete while any runtime component delegates production behaviour to Python.
   class bindings and the remaining parity audits stay open. Formal simplification
   and performance passes remain at 0/3 each; final test conversion is pending.
 
+- The task-lifecycle and constructor object/I/O dispatchers now ship in the SDK.
+  The original API adapters register the packaged bindings and supply counted
+  channels. The SDK accepts caller-provided class declarations; signature-only
+  fixture interfaces raise if an unbound body executes, and all reference imports
+  are forbidden in standalone probes. Rust supplies effort levels, protected
+  capabilities, default system skills and Web-Bench timeout/scaffold metadata.
+  Six standalone probe groups pass 2,592 source comparisons: 288 task/grading,
+  292 container, 196 controller, 466 Codex configuration, 489 SWE-bench constructor
+  and 861 Web-Bench constructor cases. Both task and constructor probes exercise
+  real SIGINT/SIGTERM delivery, cleanup or partial state, and handler restoration
+  (12 signal cases in total). Original API probes pass too. The guard probe passes
+  289 source comparisons and four native checks, including a changed helper
+  directory; helper paths resolve at each installation.
+  The bundle passes 169 checks with 14 SDK files and 33 payload hashes. Its
+  relocated SDK exercises native constructor rejection and network-tool policy
+  without executing supplied interface bodies or importing reference code.
+  The unchanged upstream suite passes with 1,561 passed and 30 skipped (66.49
+  seconds), including the installed-opencode loopback fixture. All 24 Rust checks,
+  debug/release builds, Clippy and the 256-file reference check pass. IDE inspections
+  remain unavailable because this checkout is not open in the IDE. Windows, other
+  Python versions and live agents remain unverified. Full built-in class assembly,
+  guard convenience APIs and the remaining parity audits stay open. Formal
+  simplification and performance passes remain at 0/3 each; final test conversion
+  is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -3094,6 +3123,12 @@ jbang validation/SerenaScaffoldProbe.java --sdk
 jbang validation/RtkScaffoldProbe.java --sdk
 jbang validation/RepoMapScaffoldProbe.java --sdk
 jbang validation/ScaffoldRegistryProbe.java --sdk
+jbang validation/TaskProbe.java --sdk
+jbang validation/ContainerProbe.java --sdk
+jbang validation/RunnerControlProbe.java --sdk
+jbang validation/CodexConfigProbe.java --sdk
+jbang validation/RunnerSetupProbe.java --sdk
+jbang validation/WebSetupProbe.java --sdk
 jbang validation/TaskProbe.java
 jbang validation/WebSegmentProbe.java
 jbang validation/WebAgentProbe.java

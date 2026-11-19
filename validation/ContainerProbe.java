@@ -31,7 +31,7 @@ class ContainerProbe {
   }
   public static void main(String[] args) throws Exception {
     artifacts=Files.createTempDirectory("te-container-probe-");boolean passed=false;
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"container_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"container_host.py")) {
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"container_host.py",args.length==1&&args[0].equals("--sdk")?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"container_host.py")) {
       compare(nativeCode,source,"");
       for(var agent:List.of("claude","copilot","codex"))for(var mode:List.of("start","flow"))for(boolean scaffold:List.of(false,true))
         compare(nativeCode,source,"\"agent\":"+q(agent)+",\"mode\":"+q(mode)+",\"scaffold\":"+scaffold);

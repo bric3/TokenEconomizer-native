@@ -33,7 +33,9 @@ Optimizer bindings cover all three agents, endpoint preflights, context and logg
 Copilot discovery, and sealed Copilot and Codex invocation builders.
 Scaffold bindings include the shared profile/context classes, RTK, Serena, repo-map
 and their registry. Rust supplies their metadata, selects scaffolds and drives setup.
-Bindings for the built-in SWE-bench and WebBench harnesses remain pending.
+Task-lifecycle and constructor bindings accept caller-provided harness namespaces,
+including opaque SDK references and subclass callbacks. Built-in SWE-bench and
+WebBench class assembly remains pending.
 External agents, the official grader SDK, aider and Node remain caller-provided
 dependencies where the selected experiment uses them.
 

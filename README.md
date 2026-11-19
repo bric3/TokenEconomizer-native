@@ -157,7 +157,8 @@ Provider routing, catalogue reads and pricing checks also use the packaged SDK.
 Optimizer calls, preflights, logging and Copilot discovery are packaged, with their
 policy in Rust. Sealed Copilot and Codex invocation builders use the same binding.
 Shared scaffold classes, RTK, Serena, repo-map and their registry also ship in the SDK.
-Built-in SWE-bench and WebBench harness bindings remain pending.
+Task-lifecycle and constructor bindings accept caller-provided harness namespaces.
+Built-in SWE-bench and WebBench class assembly remains pending.
 
 SWE-bench controller selection, constructor parameters, continuation dispatch and
 telemetry fields run in Rust for all three agents. SDK bindings retain controller,
