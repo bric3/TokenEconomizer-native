@@ -11,6 +11,7 @@ use tokeneconomizer::experiments::{
     scaffolds,
     swebench::providers,
     swebench::setup,
+    swebench::web_contract,
 };
 use tokeneconomizer::{ledger, microskills::distiller};
 
@@ -52,6 +53,9 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
     }
     if op == "experiment.harness.constants" {
         return Ok(Some(setup::constants()));
+    }
+    if op == "experiment.webbench.constants" {
+        return Ok(Some(web_contract::constants()));
     }
     if op == "experiment.driver.constants" {
         return Ok(Some(

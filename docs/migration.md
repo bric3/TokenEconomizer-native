@@ -745,8 +745,9 @@ complete while any runtime component delegates production behaviour to Python.
   scaffold merge helpers are deployed through harness callbacks. Both harnesses
   select native guard executables. The runtime bundle ships executables and
   assets. The standalone benchmark command and its SDK are packaged. Bindings
-  for built-in WebBench class assembly remain open. SWE-bench's built-in
-  namespace assembles all three agent classes, profiles, grader and helpers.
+  assemble both built-in harnesses. SWE-bench's namespace supplies all three agent
+  classes, profiles, grader and helpers; WebBench's supplies its three runners,
+  evaluator session and HTTP handler.
   Generic and Codex controller SDK bindings are packaged and used by the original
   controller tests. The driver uses the Codex policy binding too; state transitions
   remain native.
@@ -770,16 +771,16 @@ complete while any runtime component delegates production behaviour to Python.
   original API adapters. Guard properties, attempt forwarding, merge-program
   construction, hook-entry writing and per-agent registration also execute in
   Rust through the SDK. SWE-bench segments, retained scaffold callbacks, optimizer
-  wrappers, factories and cleanup also have packaged bindings. Complete built-in
-  WebBench class assembly remains open. SWE-bench assembly is packaged and is
-  selected with `te_runtime.swebench:make_runner`.
+  wrappers, factories and cleanup also have packaged bindings. Both class
+  assemblies are packaged and selected with `te_runtime.swebench:make_runner` or
+  `te_runtime.webbench:make_runner`.
   Process and SDK calls retain Python I/O bindings.
 - Benchmark driver runner and dataset selection, workload and task filtering,
   group matching and overhead-field copying are native. The arm registry and
   environment-file parsing, selection and application are native too. Main stream
   coordination and the offline stub runner are native. The standalone benchmark
   command, core SDK and runtime packaging are implemented; built-in harness
-  bindings remain open.
+  parity audits remain open.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
 
@@ -3069,6 +3070,32 @@ complete while any runtime component delegates production behaviour to Python.
   remain at 0/3 each; final test conversion is pending. IDE inspections, Windows,
   other Python versions and live agents remain unverified.
 
+- Built-in WebBench class assembly and its method mappings now ship in the SDK.
+  The namespace supplies 16 module functions, five classes and 71 method
+  signatures, including all three runners, the evaluator session and HTTP handler.
+  Every declaration is bound before the namespace is returned. Native callbacks
+  retain the lexical class for `super()` dispatch in task wrappers and Codex guard
+  installation. Rust supplies prompts, filters, attempt-pattern metadata, timeout
+  defaults and class constants. Both factories retain their namespaces and share
+  the same agent and scaffold services in a driver. The source-independent
+  validation host now assembles both production harnesses; its final signature-only
+  fixture module has been removed. Original API adapters use the shipped WebBench
+  mappings too.
+  The assembled namespace passes 861 constructor comparisons and 214 cleanup
+  comparisons. Runner/factory validation passes 914 comparisons across both
+  domains. Six owned offline HTTP/process pipelines pass across three agents,
+  exercising guard registration, workspace edits, agent segments, usage replies,
+  scaffold callbacks, exclusions and evaluator cleanup without a model or
+  Playwright. The relocated bundle passes 191 checks with 19 SDK files and 38
+  payload hashes, including both native factory selections, bound descriptors,
+  shared services and startup credential validation without reference imports.
+  Driver main/stub validation retains 198 checks. The unchanged upstream suite
+  passes with 1,561 passed and 30 skipped (71.71 seconds). All 24 Rust checks,
+  debug/release builds, Clippy and the 256-file reference check pass. Production
+  parity audits remain open. Formal simplification and performance passes remain
+  at 0/3 each; final test conversion is pending. IDE inspections, Windows, other
+  Python versions and live agents remain unverified.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -3223,6 +3250,8 @@ jbang validation/SweSegmentProbe.java --sdk
 jbang validation/SweSegmentProcessProbe.java --sdk
 jbang validation/SweScaffoldContextProbe.java --sdk
 jbang validation/SweHostProbe.java --sdk
+jbang validation/WebTaskPipelineProbe.java --sdk
+jbang validation/WebCleanupProbe.java --sdk
 jbang validation/TaskProbe.java
 jbang validation/WebSegmentProbe.java
 jbang validation/WebAgentProbe.java

@@ -125,10 +125,12 @@ class Driver:
 
     def main(self): return self.call("main",{})
     def _import_module(self,name):
-        if name == "te_runtime.swebench":
+        if name in ("te_runtime.swebench","te_runtime.webbench"):
             if name not in self.harnesses:
-                from .swebench import bind
-                self.harnesses[name]=bind(self.bridge)
+                module=importlib.import_module(name)
+                if name == "te_runtime.webbench":
+                    self.harnesses[name]=module.bind(self.bridge,shared=self._import_module("te_runtime.swebench"))
+                else: self.harnesses[name]=module.bind(self.bridge)
             return self.harnesses[name]
         return importlib.import_module(name)
     def load_runner(self,spec,agent,model=None,scaffold=None): return self.call("load_runner",dict(spec=spec,agent=agent,model=model,scaffold=scaffold))

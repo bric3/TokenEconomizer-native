@@ -7,17 +7,19 @@ import sys
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
-from te_harness import swebench
-if "--native" in sys.argv:
+if "--sdk" in sys.argv:
+    from standalone_harness import sw as swebench, wb
+else:
+    sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+    from te_harness import swebench, webbench as wb
+if "--native" in sys.argv and "--sdk" not in sys.argv:
     from native_experiment_usage import install as install_usage
     install_usage()
     from native_experiment_task import install as install_task
     install_task()
     from native_experiment_providers import install
     install()
-from te_harness import webbench as wb
-if "--native" in sys.argv:
+if "--native" in sys.argv and "--sdk" not in sys.argv:
     install(wb)
     from native_experiment_net_guard import install as install_guard
     install_guard()
@@ -58,7 +60,9 @@ class Scaffold:
         assert result.returncode == 0 and result.stdout == "installed"
         result=context.host_run(["/bin/echo","fixture-host"])
         assert result.returncode == 0 and result.stdout == "fixture-host\n"
-        from te_bench.baselines.rtk import RtkScaffold
+        if "--sdk" in sys.argv: RtkScaffold=swebench.scaffolds_pkg.RtkScaffold
+        else:
+            from te_bench.baselines.rtk import RtkScaffold
         class FixtureRtk(RtkScaffold):
             def stage_host_binary(self,ctx): return True
             def bin_path(self): return os.environ["TE_FIXTURE_RTK_BIN"]
@@ -122,7 +126,7 @@ finally:
     if session.proc.stdout is not None: session.proc.stdout.close()
     session._reader.join(5);session._http_thread.join(5)
 assert session.finished and session._log_fh.closed
-if "--native" in sys.argv:
+if "--native" in sys.argv and "--sdk" not in sys.argv:
     import native_plugin
     for name in ("run_task","write_run_config","build_prompt","strip_transport","eval_start","http_post","materialize","collect","load_ignore_globs","ancestors","next_event","next_request","_read_stdout","eval_close"):
         assert native_plugin.CALLS["experiment.swebench.provider.webbench."+name] > 0,"pipeline bypassed native "+name

@@ -9,7 +9,7 @@ use regex::Regex;
 use serde_json::{Value, json};
 use std::sync::LazyLock;
 
-const ATTEMPT: &str = r"^\[(?P<project>[^\]]+)\]\s+(?P<task>init|task-\d+)\s+(?P<ord>\d+)(?:st|nd|rd|th)\s+Attempt\s+(?P<mark>Started|✅|❌)";
+pub(super) const ATTEMPT: &str = r"^\[(?P<project>[^\]]+)\]\s+(?P<task>init|task-\d+)\s+(?P<ord>\d+)(?:st|nd|rd|th)\s+Attempt\s+(?P<mark>Started|✅|❌)";
 
 enum Attempt {
     Captured(Value),

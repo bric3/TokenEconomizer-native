@@ -7,8 +7,7 @@ import types
 
 ROOT = Path(__file__).resolve().parents[1]
 if "--sdk" in sys.argv:
-    from standalone_harness import sw as swebench
-    webbench=None
+    from standalone_harness import sw as swebench, wb as webbench
 else:
     sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
     from te_harness import swebench, webbench

@@ -32,7 +32,7 @@ class ExperimentBundleProbe {
       var hash=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(bundle.resolve(matches.group(1)))));
       require(hash.equals(matches.group(2)),"manifest hash differs: "+matches.group(1));count++;
     }
-    require(count==36,"manifest omitted files: "+count);
+    require(count==38,"manifest omitted files: "+count);
   }
   static void engine(Path bundle)throws Exception {
     try(var client=new ContextProbe.Client(bundle.resolve("bin/te-bridge"),"experiment.swebench")) {
@@ -81,6 +81,8 @@ class ExperimentBundleProbe {
       require(bench.code()==0&&bench.out().contains("tasks=1 resolved=0"),"relocated standalone benchmark failed: "+bench);
       var builtin=NativeCliProbe.process(root,Map.of("PATH","","HOME",root.toString(),"TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString(),"TOKENECONOMIZER_ENV_FILE",root.resolve("absent.env").toString(),"ANTHROPIC_API_KEY",""),List.of(moved.resolve("bin/te-bench").toString(),"--arm","baseline","--runner","te_runtime.swebench:make_runner","--agent","claude","--tasks-file",tasks.toString(),"--results-root",root.resolve("builtin-results").toString()));
       require(builtin.code()!=0&&builtin.err().contains("ANTHROPIC_API_KEY is unset"),"built-in runner did not reach credential validation: "+builtin);
+      var webBuiltin=NativeCliProbe.process(root,Map.of("PATH","","HOME",root.toString(),"TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString(),"TOKENECONOMIZER_ENV_FILE",root.resolve("absent.env").toString(),"ANTHROPIC_API_KEY",""),List.of(moved.resolve("bin/te-bench").toString(),"--arm","baseline","--runner","te_runtime.webbench:make_runner","--agent","claude","--tasks-file",tasks.toString(),"--results-root",root.resolve("web-builtin-results").toString()));
+      require(webBuiltin.code()!=0&&webBuiltin.err().contains("ANTHROPIC_API_KEY is unset"),"built-in WebBench did not reach credential validation: "+webBuiltin);
       var controller=NativeCliProbe.process(root,Map.of("PATH","","HOME",root.toString()),List.of(checkout.resolve(".venv/bin/python").toString(),"-B","-c","""
           import builtins, sys
           original_import=builtins.__import__
@@ -271,10 +273,22 @@ class ExperimentBundleProbe {
               loaded._install_signal_cleanup=lambda:None
               loaded.RUNNERS['claude']=lambda **kwargs:kwargs
               assert driver.load_runner('te_runtime.swebench:make_runner','claude','fixture','rtk') == dict(agent='claude',model='fixture',scaffold='rtk')
+              web=driver._import_module('te_runtime.webbench')
+              assert driver._import_module('te_runtime.webbench') is web
+              assert web.codex is loaded.codex and web.copilot is loaded.copilot
+              assert web.WebBenchRunner.NET_GUARD_HOOK_KEY == 'PreToolUse'
+              assert web.CopilotWebBenchRunner.NET_GUARD_HOOK_KEY == 'preToolUse'
+              for cls in (web._AgentHandler,web._EvalSession,*web.RUNNERS.values()):
+                  for descriptor in vars(cls).values():
+                      function=descriptor.__func__ if isinstance(descriptor,staticmethod) else descriptor
+                      if web.inspect.isfunction(function): assert hasattr(function,'__wrapped__'),function
+              web._install_signal_cleanup=lambda:None
+              web.RUNNERS['claude']=lambda **kwargs:kwargs
+              assert driver.load_runner('te_runtime.webbench:make_runner','claude','fixture','rtk') == dict(agent='claude',model='fixture',scaffold='rtk')
           print('packaged SDK bindings passed')
           """,moved.resolve("sdk").toString(),moved.resolve("bin/te-bridge").toString()));
       require(controller.code()==0&&controller.out().equals("packaged SDK bindings passed\n"),"relocated SDK binding failed: "+controller);
-      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==37,"benchmark command changed the runtime payload");}
+      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==39,"benchmark command changed the runtime payload");}
       var bootstrap=moved.resolve("sdk/bench.py");var bootstrapBytes=Files.readAllBytes(bootstrap);Files.delete(bootstrap);
       var absent=NativeCliProbe.process(root,Map.of("PATH","","TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString()),List.of(moved.resolve("bin/te-bench").toString(),"--help"));
       require(absent.code()!=0&&absent.err().contains("SDK binding is missing"),"missing bundled SDK selected development files: "+absent);Files.write(bootstrap,bootstrapBytes);

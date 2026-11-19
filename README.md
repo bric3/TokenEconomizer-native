@@ -170,8 +170,10 @@ bin/te-bench --runner te_runtime.swebench:make_runner --agent claude --arm basel
   --tasks-file /path/to/tasks.json --results-root /path/to/results
 ```
 
-The selected agent CLI, credentials and official grader remain external
-dependencies. Built-in WebBench class assembly remains pending.
+Use `te_runtime.webbench:make_runner` for the built-in WebBench runners with the
+same command options. Both factories retain their assembled namespaces and share
+the SDK's agent and scaffold services. The selected agent CLI, credentials and
+official grader or WebBench evaluator remain external dependencies.
 
 SWE-bench controller selection, constructor parameters, continuation dispatch and
 telemetry fields run in Rust for all three agents. SDK bindings retain controller,

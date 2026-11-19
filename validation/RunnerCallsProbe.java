@@ -16,7 +16,7 @@ class RunnerCallsProbe {
   public static void main(String[] args) throws Exception {
     boolean sdk=List.of(args).contains("--sdk");
     try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"runner_calls_host.py",sdk?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"runner_calls_host.py")) {
-      for(boolean web:sdk?List.of(false):List.of(false,true))for(var agent:List.of("claude","copilot","codex")) {
+      for(boolean web:List.of(false,true))for(var agent:List.of("claude","copilot","codex")) {
         var base="\"webbench\":"+web+",\"agent\":"+q(agent);
         for(var mode:List.of("optimizer","preflight")) {
           var call=base+",\"mode\":"+q(mode);
@@ -45,7 +45,7 @@ class RunnerCallsProbe {
         for(var mode:List.of("optimizer","preflight"))
           compare(nativeCode,source,base+",\"mode\":"+q(mode)+",\"real_helpers\":true,\"fields\":{\"optimizer_endpoint\":[\"http://fixture\",\"fixture-key\",\"\"]}");
       }
-      for(boolean web:sdk?List.of(false):List.of(false,true)) {
+      for(boolean web:List.of(false,true)) {
         var base="\"mode\":\"factory\",\"webbench\":"+web;
         for(var agent:List.of("null","false","0","1","\"\"","\"CLAUDE\"","\"copilot\"","\"Codex\"","\"missing\"","\" claude \"","\"é😀\"","[]","{}","[1]"))for(var env:List.of("{}","{\"TE_AGENT\":\"CoPiLoT\"}"))
           compare(nativeCode,source,base+",\"arguments\":{\"agent\":"+agent+"},\"env\":"+env);
@@ -64,6 +64,6 @@ class RunnerCallsProbe {
         }
       }
     }
-    System.out.println("Runner calls and factories match the source in "+cases+" comparisons; "+(sdk?"SWE-bench":"both domains")+", optimizer and preflight wrappers, inheritance, getter order, model routing and opaque identities passed");
+    System.out.println("Runner calls and factories match the source in "+cases+" comparisons; both domains, optimizer and preflight wrappers, inheritance, getter order, model routing and opaque identities passed");
   }
 }

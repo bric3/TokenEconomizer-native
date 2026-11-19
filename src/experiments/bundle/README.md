@@ -37,8 +37,9 @@ Task-lifecycle and constructor bindings accept caller-provided harness namespace
 including opaque SDK references and subclass callbacks. Built-in SWE-bench
 classes, profiles and helpers are assembled by the SDK. Select them with
 `--runner te_runtime.swebench:make_runner` and the desired `--agent`. The native
-driver retains the assembled namespace across factory lookups. Built-in
-WebBench class assembly remains pending.
+driver retains the assembled namespace across factory lookups. Built-in WebBench
+classes, evaluator sessions and HTTP handlers use the same SDK assembly. Select
+them with `--runner te_runtime.webbench:make_runner`.
 Guard convenience APIs and hook-entry merging execute in Rust. The legacy
 merge-program API returns a Python I/O launcher for the bundled native installer.
 SWE-bench segment, scaffold-callback, optimizer, factory and cleanup bindings are

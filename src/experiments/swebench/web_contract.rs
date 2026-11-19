@@ -10,6 +10,29 @@ use serde_json::{Value, json};
 const TASK: &str = include_str!("web-task-prompt.txt");
 const ERROR: &str = include_str!("web-error-prompt.txt");
 
+pub fn constants() -> Value {
+    let mut constants = super::setup::constants()["web"].clone();
+    constants.as_object_mut().unwrap().extend(json!({
+        "TASK_TEMPLATE":TASK,"ERROR_TEMPLATE":ERROR,"attempt_pattern":super::web_output::ATTEMPT,
+        "_MARK_OK":"✅","_MAX_FILE_BYTES":512*1024,
+        "WEBBENCH_UNDICI_ABORT_S":300,"WEBBENCH_TASK_TIMEOUT_MAX":260,
+        "_INIT_FORMAT_LINES":["Add filename after code block.",
+            "The filename should appear on the line following the language specifier in your code block."],
+        "_SKIP_DIRS":["node_modules",".git",".next",".nuxt",".svelte-kit",".parcel-cache",".turbo",
+            "dist","build","out","coverage","test-results","playwright-report","eval","assets",
+            "__pycache__",".pytest_cache",".claude",".copilot"],
+        "_SKIP_FILES":["package-lock.json","pnpm-lock.yaml","yarn.lock",".DS_Store"],
+        "classes":{
+            "_AgentHandler":{"session":null},
+            "WebBenchRunner":{"NET_GUARD_HOOK_KEY":"PreToolUse","NET_GUARD_PROBE":"echo https://github.com/probe"},
+            "CopilotWebBenchRunner":{"NET_GUARD_HOOK_KEY":"preToolUse"},
+            "CodexWebBenchRunner":{"_NS_PROBE":"echo https://github.com/probe","_net_guard_armed":false,
+                "_AGENT_HOME_KEEP":["config.toml","instructions.md","AGENTS.md","RTK.md"]}
+        }
+    }).as_object().unwrap().clone());
+    constants
+}
+
 fn builtin(rt: &mut dyn Runtime, name: &str) -> Result<()> {
     rt.call("eval_builtin", json!([name])).map(|_| ())
 }

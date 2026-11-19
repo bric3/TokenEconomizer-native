@@ -32,6 +32,7 @@ class WebTaskPipelineProbe {
         var directory=Files.createDirectories(root.resolve((nativeCode?"native-":"source-")+agent));
         var command=new ArrayList<>(List.of(Path.of(".venv/bin/python").toAbsolutePath().toString(),"validation/web_task_pipeline_host.py",binary.toString(),root.resolve("repo").toString(),directory.resolve("run").toString()));
         if(nativeCode)command.add("--native");
+        if(nativeCode&&List.of(args).contains("--sdk"))command.add("--sdk");
         var builder=new ProcessBuilder(command).redirectOutput(directory.resolve("stdout").toFile()).redirectError(directory.resolve("stderr").toFile());
         builder.environment().put("TE_FIXTURE_TASK_LOOP","1");
         builder.environment().put("TE_FIXTURE_AGENT",agent);
