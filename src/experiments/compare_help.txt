@@ -1,0 +1,8 @@
+
+Compare one arm's cell against a stored baseline cell, instance by instance.
+
+options:
+  -h, --help           show this help message and exit
+  --baseline BASELINE
+  --arm ARM
+  --json JSON          write the comparison here

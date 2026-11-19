@@ -243,6 +243,25 @@ pub fn round_decimal(value: f64, precision: usize) -> f64 {
     format!("{value:.precision$}").parse().unwrap()
 }
 
+// Python's float sum retains low-order terms across additions of different magnitudes.
+pub(crate) fn sum_floats(values: impl IntoIterator<Item = f64>) -> f64 {
+    let (mut total, mut correction) = (0.0_f64, 0.0);
+    for value in values {
+        let next = total + value;
+        correction += if total.abs() >= value.abs() {
+            (total - next) + value
+        } else {
+            (value - next) + total
+        };
+        total = next;
+    }
+    if correction.is_finite() {
+        total + correction
+    } else {
+        total
+    }
+}
+
 pub fn count(value: &Value, field: &str) -> Result<f64, String> {
     integer(value).ok_or_else(|| format!("invalid {field} count"))
 }

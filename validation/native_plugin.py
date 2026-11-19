@@ -129,6 +129,9 @@ def native_package_module(loader, module):
     elif str(loader.path) == str(ROOT / "reference/upstream/experiments/scripts/aggregate.py"):
         from native_aggregate import install
         install(module)
+    elif str(loader.path) == str(ROOT / "reference/upstream/experiments/scripts/compare_arms.py"):
+        from native_compare import install
+        install(module)
     elif module.__name__ == "te_bench.workloads" or str(loader.path) == str(ROOT / "reference/upstream/experiments/scripts/export_workloads.py"):
         from native_workloads import install
         install(module)

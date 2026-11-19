@@ -219,6 +219,16 @@ and block scalars. Explicit project names select individual projects. Matching
 files retain their modification times; `--check` reports all stale projects
 without writing. The authoritative YAML files stay in place.
 
+Compare a stored baseline cell with another arm using paired, complete tasks:
+
+```sh
+target/release/te-bench compare-arms --baseline /path/to/baseline/cell --arm /path/to/arm/cell --json comparison.json
+```
+
+The command runs without Python. It charges each task's mechanism overhead,
+reports unpaired and incomplete tasks, and includes prefix telemetry, saved
+environment facts and stream injection timing. `--json` writes the paired metrics.
+
 Use `--runner module:factory` for an external task runner. Python 3.10 or newer supplies
 standard-library I/O; `TE_BENCH_PYTHON` selects its interpreter. The runtime bundle
 carries the SDK and command, including the generic streamed-rollout controller

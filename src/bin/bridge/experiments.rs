@@ -6,7 +6,7 @@ use std::{
 };
 use tokeneconomizer::experiments::{
     adapters::{self, Adapter, Error},
-    aggregate, arms,
+    aggregate, arms, compare,
     driver::parse_env,
     scaffolds,
     swebench::Failure,
@@ -44,6 +44,43 @@ fn response(result: Result<Value, Error>) -> Value {
     }
 }
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
+    if let Some(method) = op.strip_prefix("experiment.compare.") {
+        let cwd = Path::new(args["process_cwd"].as_str().unwrap_or("."));
+        let result = match method {
+            "load_cell" => {
+                compare::load_cell(Path::new(args["cell"].as_str().ok_or("missing cell")?), cwd)
+                    .map(|cell| json!(cell))
+            }
+            "cost" => compare::cost(&args["r"]),
+            "describe" => {
+                let rows =
+                    serde_json::from_value(args["rows"].clone()).map_err(|e| e.to_string())?;
+                let configs =
+                    serde_json::from_value(args["cfgs"].clone()).map_err(|e| e.to_string())?;
+                compare::describe(
+                    &rows,
+                    &configs,
+                    args["label"].as_str().ok_or("missing label")?,
+                )
+                .map(|text| json!(text))
+            }
+            "main" => compare::command(
+                args["program"].as_str().ok_or("missing program")?,
+                &strings(args, "argv")?,
+                cwd,
+            )
+            .map(|output| json!(output)),
+            _ => return Ok(None),
+        };
+        return Ok(Some(result.unwrap_or_else(|mut error| {
+            let stdout = error.stdout.take();
+            let mut value = super::task_dispatch::failure(error);
+            if let Some(stdout) = stdout {
+                value["stdout"] = *stdout;
+            }
+            value
+        })));
+    }
     if let Some(method) = op.strip_prefix("experiment.sweep.") {
         let root = Path::new(args["root"].as_str().unwrap_or("."));
         let cwd = Path::new(args["process_cwd"].as_str().unwrap_or("."));

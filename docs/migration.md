@@ -3423,6 +3423,52 @@ complete while any runtime component delegates production behaviour to Python.
   unverified. YAML parsing, Python object operations and JSON value encoding
   remain SDK calls; their process and transport costs need performance coverage.
 
+- Paired cell comparison now runs entirely in Rust as `te-bench compare-arms`.
+  The loader sorts run paths, keeps the latest row per instance, and retains an
+  older valid run configuration when a newer row has no valid configuration.
+  The report excludes unpaired and usage-incomplete tasks, charges the shared
+  model-weighted execution and mechanism costs, and preserves the original
+  console report and JSON metrics. It includes prefix groups, resolve flips,
+  saved fact lifecycles, the next rendered fact block, and the first stream
+  line with an injectable fact. Errors retain earlier console output and leave
+  an existing JSON report untouched until the final write.
+  Source comparisons exposed two numeric discrepancies: default JSON float
+  parsing changed one finite input by one floating-point step, and a rounded
+  sum followed by division differed from Python's exact mean. JSON parsing now
+  enables `float_roundtrip`; means use `num-rational` with exact integer and
+  binary-float inputs before one final conversion. The lockfile adds
+  `num-rational`, `num-bigint` and `num-integer`; `num-traits` is now also a direct
+  dependency. The 104-crate third-party notice set has been regenerated.
+  A separate source case found lost low-order terms in the shared ledger's
+  floating-point overhead sum. The ledger and report now use the same
+  compensated summation helper, preserving both the cancellation example
+  (101 effective tokens) and positive terms of different magnitudes.
+  The dedicated probe passes 89 source comparisons and three standalone checks
+  with Python unavailable, covering loader replacement/configuration retention,
+  wildcard paths, numeric instance keys, fractional and large token counts,
+  strict resolve booleans, prefix groups, saved facts, stream line numbering,
+  malformed metadata, exceptions and exact console/JSON output. Aggregation
+  retains 155 source comparisons after the shared numeric fixes.
+  The full unchanged original suite passes with 1,561 passed and 30 skipped
+  (83.07 seconds), including installed opencode against its local model fixture.
+  All 27 Rust checks, debug/release builds, Clippy, formatting and the unchanged
+  256-file reference check pass. The full-suite log and counted calls are
+  `validation/results/compare-full.log` and
+  `validation/results/compare-full-calls.json`. Both static Linux helpers were
+  rebuilt against the updated lockfile and parser; their backreference tests
+  pass and both architectures pass 26 scratch-container checks without Python,
+  a shell or network. The relocated runtime bundle passes 248 checks with
+  20 SDK files, 39 manifest hashes and 40 physical files.
+  Original tests remain unmodified; their suite has no direct comparison-tool
+  test, so a dedicated source oracle supplies that coverage. The remaining
+  experiment launch scripts and supporting-tool audit precede the three
+  simplification passes, three performance passes and final test conversion.
+  Windows, non-finite or wider-than-native JSON numeric values, mixed wide
+  integer/float sums through the shared f64 ledger API, remaining CLI
+  spellings and malformed saved-state edge cases remain outside this corpus.
+  Whole-file stream decoding can prioritise a later UTF-8 error over an earlier
+  malformed JSON line. Exact-rational arithmetic still needs performance coverage.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -3669,6 +3715,7 @@ jbang validation/SweepProbe.java
 jbang validation/DatasetExportProbe.java
 jbang validation/WebExportProbe.java
 jbang validation/YamlMirrorProbe.java
+jbang validation/CompareProbe.java
 jbang validation/StandaloneBenchProbe.java
 jbang validation/StandaloneTransportProbe.java
 jbang validation/HermesGatewayProbe.java

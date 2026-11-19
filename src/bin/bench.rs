@@ -1,5 +1,5 @@
 use std::{env, error::Error, process::Command};
-use tokeneconomizer::experiments::{aggregate, datasets, sdk, sweep, workloads};
+use tokeneconomizer::experiments::{aggregate, compare, datasets, sdk, sweep, workloads};
 
 fn run() -> Result<i32, Box<dyn Error>> {
     if let Some(command) = env::args_os().nth(1).filter(|arg| {
@@ -9,6 +9,7 @@ fn run() -> Result<i32, Box<dyn Error>> {
             || arg == "export-swebench"
             || arg == "export-webbench"
             || arg == "webbench-from-yaml"
+            || arg == "compare-arms"
     }) {
         let args = env::args_os()
             .skip(2)
@@ -59,6 +60,16 @@ fn run() -> Result<i32, Box<dyn Error>> {
                 )
                 .map_err(|e| e.message)?,
             )
+        } else if command == "compare-arms" {
+            match compare::command("te-bench compare-arms", &args, &env::current_dir()?) {
+                Ok(output) => Some(output),
+                Err(error) => {
+                    if let Some(stdout) = error.stdout {
+                        print!("{}", stdout.as_str().unwrap_or(""));
+                    }
+                    return Err(error.message.into());
+                }
+            }
         } else if command == "webbench-from-yaml" {
             datasets::yaml::parse("te-bench webbench-from-yaml", &args).err()
         } else {
