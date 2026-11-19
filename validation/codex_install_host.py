@@ -5,31 +5,51 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import signal
 import sys
 import types
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
-from te_harness import codex as module
-if "--native" in sys.argv:
-    from native_codex_install import install
-    install()
+if "--sdk" in sys.argv:
+    import atexit
+    original_import=builtins.__import__
+    def guarded(name,*args,**kwargs):
+        if name.split(".")[0] in ("tokeneconomizer","te_bench","te_harness","native_plugin"):
+            raise AssertionError("Codex installation SDK imported reference/test code: "+name)
+        return original_import(name,*args,**kwargs)
+    builtins.__import__=guarded
+    sys.path.insert(0,str(ROOT / "src/experiments/sdk"))
+    from te_runtime.codex_install import bind
+    from te_runtime.transport import Bridge
+    bridge=Bridge(ROOT / "target/debug/te-bridge")
+    atexit.register(bridge.close)
+    module=bind(bridge)
+else:
+    sys.path[:0] = [str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments")]
+    from te_harness import codex as module
+    if "--native" in sys.argv:
+        from native_codex_install import install
+        install()
 
 for line in sys.stdin:
     request = json.loads(line)
     mode = request.get("mode","codex_bin")
     kwargs = dict(request.get("kwargs",{}))
-    calls,counts = [],{}
+    if request.get("path_binary"): kwargs["binary"]=Path(kwargs["binary"])
+    calls,counts,callback_errors = [],{},[]
     saved = {name:getattr(module,name) for name in ("os","shutil","subprocess","time","tempfile","__file__")}
+    saved_term=signal.getsignal(signal.SIGTERM)
     def record(name,args=None):
         calls.append([name,args])
         counts[name] = counts.get(name,0)+1
         if request.get("fail") == name and counts[name] <= request.get("fail_count",1):
             error = request.get("error","RuntimeError")
-            if error == "TimeoutExpired": raise subprocess.TimeoutExpired("fixture",2)
-            if error == "ShadowOSError": raise type("OSError",(Exception,),{})("fixture failure")
-            raise getattr(builtins,error)("fixture failure")
+            if error == "TimeoutExpired": failure=subprocess.TimeoutExpired("fixture",2)
+            elif error == "ShadowOSError": failure=type("OSError",(Exception,),{})("fixture failure")
+            else: failure=getattr(builtins,error)("fixture failure")
+            callback_errors.append(failure)
+            raise failure
     class Environment(dict):
         def get(self,*args): record("env.get",list(args));return super().get(*args)
     class Process:
@@ -74,6 +94,9 @@ for line in sys.stdin:
         if args[0] not in entries: raise FileNotFoundError("fixture directory missing")
         return entries[args[0]]
     try:
+        if request.get("interrupt") == "term":
+            def interrupted(number,frame): raise SystemExit(17)
+            signal.signal(signal.SIGTERM,interrupted)
         if request.get("real"):
             # A deterministic temporary path keeps subprocess error messages comparable.
             def real_temp(*,dir):
@@ -97,7 +120,9 @@ for line in sys.stdin:
         response = {"value":value}
     except BaseException as error:
         response = {"raised":type(error).__name__,"message":str(error)}
+        if callback_errors: response["original_exception"]=error is callback_errors[-1]
     finally:
+        signal.signal(signal.SIGTERM,saved_term)
         for name,value in saved.items(): setattr(module,name,value)
     response["calls"] = calls
     print(json.dumps(response,sort_keys=True,separators=(",",":"),ensure_ascii=False),flush=True)

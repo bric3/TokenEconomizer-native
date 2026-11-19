@@ -22,6 +22,10 @@ pub(super) const FILES: &[(&str, &[u8])] = &[
         "sdk/te_runtime/nudge_guard.py",
         include_bytes!("sdk/te_runtime/nudge_guard.py"),
     ),
+    (
+        "sdk/te_runtime/codex_install.py",
+        include_bytes!("sdk/te_runtime/codex_install.py"),
+    ),
 ];
 
 /// Resolve the SDK bootstrap and the caller's configuration root.

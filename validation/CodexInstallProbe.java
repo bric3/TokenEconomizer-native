@@ -16,6 +16,22 @@ class CodexInstallProbe {
     cases++;
   }
   static String mode(String name) {return "\"mode\":"+q(name);}
+  static String interrupted(AdapterProbe.Client client,String request,Path root,String signal)throws Exception {
+    Files.deleteIfExists(root.resolve("child.pid"));
+    client.input.println(request);client.input.flush();
+    long deadline=System.nanoTime()+10_000_000_000L;
+    while(!Files.exists(root.resolve("child.pid"))) {
+      if(!client.process.isAlive()||System.nanoTime()>=deadline)throw new AssertionError("Offline probe did not become ready");
+      Thread.sleep(5);
+    }
+    var kill=new ProcessBuilder("/bin/kill",signal.equals("term")?"-TERM":"-INT",String.valueOf(client.process.pid())).start();
+    if(kill.waitFor()!=0)throw new AssertionError("Could not interrupt the owned probe client");
+    while(!client.output.ready()) {
+      if(!client.process.isAlive()||System.nanoTime()>=deadline)throw new AssertionError("Interrupted probe did not complete cleanup");
+      Thread.sleep(5);
+    }
+    return client.output.readLine();
+  }
   static void real(AdapterProbe.Client nativeCode,AdapterProbe.Client source) throws Exception {
     var root=Files.createTempDirectory("te-codex-install-");
     try {
@@ -47,13 +63,16 @@ class CodexInstallProbe {
       var shim=root.resolve("codex");
       Files.writeString(shim,"#!/bin/sh\nexec '"+System.getProperty("java.home")+"/bin/java' -cp '"+root+"' Fixture \"$@\"\n");
       shim.toFile().setExecutable(true);
-      for(var scenario:List.of("skills","invalid","hang")) {
+      for(var scenario:List.of("skills","invalid","hang","int","term")) {
+        boolean interrupt=scenario.equals("int")||scenario.equals("term");
         var operation=scenario.equals("skills")?"bundled_system_skills":"validate_config";
-        var request="{\"real\":true,"+mode(operation)+",\"kwargs\":{\"binary\":"+q(shim)+",\"home\":"+q(root)+",\"timeout\":"+(scenario.equals("skills")?5:1)+(scenario.equals("skills")?"":",\"text\":"+q(scenario))+"}}";
+        var request="{\"real\":true,"+mode(operation)+",\"interrupt\":"+q(scenario)+",\"kwargs\":{\"binary\":"+q(shim)+",\"home\":"+q(root)+",\"timeout\":"+(scenario.equals("skills")||interrupt?5:1)+(scenario.equals("skills")?"":",\"text\":"+q(interrupt?"hang":scenario))+"}}";
         String expected=null;
         for(var client:List.of(source,nativeCode)) {
-          var output=client.call(request);
-          if(output.contains("\"raised\""))throw new AssertionError("Real probe failed: "+output);
+          var output=interrupt?interrupted(client,request,root,scenario):client.call(request);
+          if(interrupt) {
+            if(!output.contains("\"raised\":\""+(scenario.equals("term")?"SystemExit":"KeyboardInterrupt")+"\""))throw new AssertionError("Interrupted probe returned another result: "+output);
+          } else if(output.contains("\"raised\""))throw new AssertionError("Real probe failed: "+output);
           if(expected==null)expected=output;
           else if(!expected.equals(output))throw new AssertionError("Real probe differs\nNative: "+output+"\nSource: "+expected);
           if(Files.exists(root.resolve("work")))throw new AssertionError("The probe left its temporary home");
@@ -79,6 +98,7 @@ class CodexInstallProbe {
       var linked=root.resolve("codex-linked");
       Files.createSymbolicLink(linked,packageRoot.resolve("bin/codex.js"));
       compare(nativeCode,source,"\"real\":true,"+mode("codex_vendor")+",\"kwargs\":{\"binary\":"+q(linked)+"}");
+      compare(nativeCode,source,"\"real\":true,\"path_binary\":true,"+mode("codex_vendor")+",\"kwargs\":{\"binary\":"+q(linked)+"}");
       for(var version:List.of("codex-cli 0.153.1","9.9.9",""))
         compare(nativeCode,source,"\"real\":true,"+mode("base_prompt_for")+",\"kwargs\":{\"cli_version\":"+q(version)+"}");
     } finally {
@@ -86,7 +106,8 @@ class CodexInstallProbe {
     }
   }
   public static void main(String[] args) throws Exception {
-    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"codex_install_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"codex_install_host.py")) {
+    boolean standalone=args.length==1&&args[0].equals("--sdk");
+    try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"codex_install_host.py",standalone?new String[]{"--sdk"}:new String[0]);var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"codex_install_host.py")) {
       for(var env:List.of("{}","{\"TE_CODEX_BIN\":\"\"}","{\"TE_CODEX_BIN\":\"/é/bin/codex\"}"))for(var which:List.of("null","\"/fixture/bin/codex\""))
         compare(nativeCode,source,"\"env\":"+env+",\"which\":"+which);
       for(var error:List.of("OSError","RuntimeError","KeyboardInterrupt"))compare(nativeCode,source,"\"fail\":\"which\",\"error\":"+q(error));
@@ -124,6 +145,6 @@ class CodexInstallProbe {
         compare(nativeCode,source,mode(operation)+",\"env\":"+env+",\"kwargs\":{"+(operation.equals("validate_config")?"\"text\":\"config\"":"")+"}");
       real(nativeCode,source);
     }
-    System.out.println("Codex installation matches the source in "+cases+" comparisons, including real skills discovery, config validation, timeout and child-process cleanup");
+    System.out.println((standalone?"Standalone SDK (reference imports forbidden): ":"")+"Codex installation matches the source in "+cases+" comparisons, including real skills discovery, config validation, timeout and child-process cleanup");
   }
 }

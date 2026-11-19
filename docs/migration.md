@@ -757,6 +757,7 @@ complete while any runtime component delegates production behaviour to Python.
   Messages and Responses optimizer policy is native; HTTP I/O retains SDK bindings.
   Codex installation discovery, captured-prompt loading and offline probes are
   native. Codex captures and the WebBench preload use native runtime asset paths.
+  Codex installation and configuration probe SDK bindings are packaged too.
   Built-in harness bindings still need to replace their validation bindings.
   Process and SDK calls retain Python I/O bindings.
 - Benchmark driver runner and dataset selection, workload and task filtering,
@@ -2811,6 +2812,33 @@ complete while any runtime component delegates production behaviour to Python.
   Formal simplification and performance passes remain at 0/3 each; final test
   conversion is pending.
 
+- Codex installation discovery and configuration probes now have a production
+  SDK binding. Rust owns binary/vendor selection, captured prompt selection,
+  bundled-skill discovery, configuration diagnostics, polling, timeouts and
+  cleanup ordering. The binding supplies filesystem, environment, process and
+  clock operations and retains process objects across native callbacks.
+  It defers signals between protocol frames, keeps SDK callbacks interruptible
+  and retains callback exception objects when native cleanup propagates them.
+  The original test adapter now delegates to the production binding while
+  preserving its callable metadata and caller-owned SDK namespace.
+  The ordinary and standalone probes each pass 220 source comparisons. The
+  standalone mode forbids reference-package and `native_plugin` imports. Real
+  offline fixtures verify skill discovery, configuration errors, timeouts,
+  SIGINT/SIGTERM propagation, temporary-home removal and process-group cleanup.
+  Path objects and callback exception identity are covered too. Runner
+  constructors pass 483 comparisons; the transport passes 87 checks.
+  The runtime bundle contains seven SDK files and 26 payload hashes. Its 141
+  checks include relocated captured prompt loading through the new binding,
+  controller callbacks, archive bytes and execution with an empty PATH.
+  The unchanged upstream suite passes with 1,561 passed and 30 skipped
+  (68.55 seconds), including installed-opencode tests against the loopback model
+  fixture. All 24 Rust checks, debug/release builds, Clippy and the 256-file
+  reference check pass. IDE inspections remain unavailable because this checkout
+  is not open in the IDE. Windows, other Python versions and live agents remain
+  unverified. Built-in harness SDK bindings and remaining parity audits stay open.
+  Formal simplification and performance passes remain at 0/3 each; final test
+  conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2963,6 +2991,8 @@ jbang validation/GraderProbe.java
 jbang validation/SettingsProbe.java
 jbang validation/ContainerProbe.java
 jbang validation/CodexConfigProbe.java
+jbang validation/CodexInstallProbe.java
+jbang validation/CodexInstallProbe.java --sdk
 jbang validation/RunnerWrapperProbe.java
 jbang validation/NetGuardProbe.java
 jbang validation/GuardInstallProbe.java --docker

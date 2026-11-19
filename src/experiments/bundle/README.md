@@ -23,6 +23,8 @@ checkout. The loader uses this directory's `.env`, or its parent's when the loca
 
 The SDK includes the generic streamed-rollout controller and Codex policy, state,
 resume-guard and envelope-tracker objects. Their state transitions execute in Rust.
+The Codex installation binding covers binary and vendor discovery, version
+reporting, captured prompts, bundled skill discovery and configuration validation.
 Bindings for the built-in SWE-bench and WebBench harnesses remain pending.
 External agents, the official grader SDK, aider and Node remain caller-provided
 dependencies where the selected experiment uses them.

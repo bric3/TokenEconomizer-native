@@ -32,7 +32,7 @@ class ExperimentBundleProbe {
       var hash=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(bundle.resolve(matches.group(1)))));
       require(hash.equals(matches.group(2)),"manifest hash differs: "+matches.group(1));count++;
     }
-    require(count==25,"manifest omitted files: "+count);
+    require(count==26,"manifest omitted files: "+count);
   }
   static void engine(Path bundle)throws Exception {
     try(var client=new ContextProbe.Client(bundle.resolve("bin/te-bridge"),"experiment.swebench")) {
@@ -90,6 +90,8 @@ class ExperimentBundleProbe {
           sys.path.insert(0,sys.argv[1])
           from te_runtime.transport import Bridge
           from te_runtime.nudge_guard import bind
+          from te_runtime.codex_install import bind as install_bindings
+          from pathlib import Path
           with Bridge(sys.argv[2]) as bridge:
               sdk=bind(bridge.request)
               calls=[]
@@ -101,10 +103,14 @@ class ExperimentBundleProbe {
               guard._stop('nudge','offline fixture')
               assert guard.continuation('task') == 'task:fixture redirect'
               assert guard.segment == 1 and guard.nudge_writer_tokens == 4 and len(calls) == 1
-          print('packaged controller passed')
+              codex=install_bindings(bridge)
+              capture=Path(sys.argv[1]).parent/'assets/codex_base_prompt/0.153.1.md'
+              assert codex.base_prompt_for('codex-cli 0.153.1') == capture.read_text(encoding='utf-8')
+              assert codex.base_prompt_for('unknown') is None
+          print('packaged SDK bindings passed')
           """,moved.resolve("sdk").toString(),moved.resolve("bin/te-bridge").toString()));
-      require(controller.code()==0&&controller.out().equals("packaged controller passed\n"),"relocated controller binding failed: "+controller);
-      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==26,"benchmark command changed the runtime payload");}
+      require(controller.code()==0&&controller.out().equals("packaged SDK bindings passed\n"),"relocated SDK binding failed: "+controller);
+      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==27,"benchmark command changed the runtime payload");}
       var bootstrap=moved.resolve("sdk/bench.py");var bootstrapBytes=Files.readAllBytes(bootstrap);Files.delete(bootstrap);
       var absent=NativeCliProbe.process(root,Map.of("PATH","","TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString()),List.of(moved.resolve("bin/te-bench").toString(),"--help"));
       require(absent.code()!=0&&absent.err().contains("SDK binding is missing"),"missing bundled SDK selected development files: "+absent);Files.write(bootstrap,bootstrapBytes);

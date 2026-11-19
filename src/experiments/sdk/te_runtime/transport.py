@@ -1,12 +1,23 @@
 """Own a JSON-lines engine connection and send each request once."""
 import contextlib
 import builtins
+import dataclasses
 import json
 import os
 from pathlib import Path
 import signal
 import subprocess
 import threading
+
+
+def data(value):
+    if isinstance(value,bytes): return {"bytes":list(value)}
+    if dataclasses.is_dataclass(value): return dataclasses.asdict(value)
+    if isinstance(value,os.PathLike): return os.fspath(value)
+    if isinstance(value,dict): return {key:data(item) for key,item in value.items()}
+    if isinstance(value,(list,tuple)): return [data(item) for item in value]
+    if callable(value): return True
+    return value
 
 
 def checked(value):
