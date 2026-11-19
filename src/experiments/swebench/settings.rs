@@ -1,4 +1,5 @@
 use super::{Failure, Result, Runtime, basename, dirname};
+use crate::value::python_space;
 use crate::{
     experiments::adapters::NETWORK_TOOLS,
     value::{decimal_integer, json_pretty, python_type, truthy},
@@ -12,7 +13,7 @@ fn setting<'a>(env: &'a Map<String, Value>, key: &str, default: &'a str) -> &'a 
     env.get(key).and_then(Value::as_str).unwrap_or(default)
 }
 fn strip(text: &str) -> &str {
-    text.trim_matches(|c: char| c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}'))
+    text.trim_matches(python_space)
 }
 fn sequence(value: &Value) -> Result<Vec<Value>> {
     match value {

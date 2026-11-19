@@ -1,7 +1,7 @@
 pub mod generator;
 
 use super::{context::LiveContext, hosts::session::Environment, process, sidecall};
-use crate::value::{json_pretty, round_decimal, scalar_text, truthy};
+use crate::value::{json_pretty, python_space, round_decimal, scalar_text, truthy};
 use regex::Regex;
 use serde_json::{Map, Value, json};
 use std::{
@@ -33,9 +33,6 @@ pub struct RepoMap<'a> {
     pub environment: &'a Environment,
     pub generator: &'a Path,
     pub interpreter: Option<&'a str>,
-}
-fn whitespace(c: char) -> bool {
-    c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c)
 }
 fn map_text(value: &Value) -> Result<&str, String> {
     if !truthy(value) {
@@ -119,7 +116,7 @@ impl RepoMap<'_> {
             )
             .ok()
             .filter(|out| out.code == 0)
-            .map(|out| out.stdout.trim_matches(whitespace).to_string())
+            .map(|out| out.stdout.trim_matches(python_space).to_string())
             .unwrap_or_default()
     }
     pub fn gen_env(&self) -> Map<String, Value> {
@@ -162,10 +159,10 @@ impl RepoMap<'_> {
             return Ok(None);
         }
         let first = String::from_utf8_lossy(&first);
-        let first = first.trim_matches(whitespace);
+        let first = first.trim_matches(python_space);
         let candidate = first
             .strip_prefix("#!")
-            .and_then(|s| s.split(whitespace).find(|s| !s.is_empty()));
+            .and_then(|s| s.split(python_space).find(|s| !s.is_empty()));
         Ok(candidate
             .filter(|p| {
                 Path::new(p).file_name() != Some(std::ffi::OsStr::new("env"))
@@ -228,7 +225,7 @@ impl RepoMap<'_> {
             Err(error) => return Ok(("".into(), error.to_string())),
         };
         if out.code != 0 {
-            let text = out.stderr.trim_matches(whitespace);
+            let text = out.stderr.trim_matches(python_space);
             let error = text
                 .chars()
                 .skip(text.chars().count().saturating_sub(300))
@@ -288,7 +285,7 @@ impl RepoMap<'_> {
     pub fn cached_block(&self) -> Result<String, String> {
         let state = self.read_state();
         let text = map_text(&state["map"])?;
-        Ok(if text.trim_matches(whitespace).is_empty() {
+        Ok(if text.trim_matches(python_space).is_empty() {
             String::new()
         } else {
             format!("{HEADER}{text}")
@@ -310,7 +307,7 @@ impl RepoMap<'_> {
                 self.ctx.config["repomap_timeout"].as_f64().unwrap_or(0.),
                 runtime,
             )?;
-            if !text.trim_matches(whitespace).is_empty() {
+            if !text.trim_matches(python_space).is_empty() {
                 return Ok((format!("{HEADER}{text}"), "prompt"));
             }
         }

@@ -1,4 +1,5 @@
 use super::{Failure, Result};
+use crate::value::python_space;
 use crate::{
     trace::{calls::trajectory_from_lines, jsonl::TextReader},
     value::{round_decimal, scalar_text, truthy},
@@ -11,7 +12,7 @@ use std::{
 };
 
 fn strip(text: &str) -> &str {
-    text.trim_matches(|c: char| c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}'))
+    text.trim_matches(python_space)
 }
 fn path(value: &Value, cwd: &Path) -> Result<Option<(PathBuf, PathBuf)>> {
     if !truthy(value) {
@@ -70,10 +71,7 @@ pub fn rtk_compliance(value: &Value, cwd: &Path) -> Result<Value> {
             continue;
         }
         total += 1;
-        let first = command
-            .split(|c: char| c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}'))
-            .next()
-            .unwrap();
+        let first = command.split(python_space).next().unwrap();
         if first == "rtk" || first.ends_with("/rtk") {
             prefixed += 1;
         }

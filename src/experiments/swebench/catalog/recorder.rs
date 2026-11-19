@@ -1,4 +1,5 @@
 //! Recorder state and HTTP forwarding decisions. Socket and TLS operations stay in the SDK.
+use crate::value::python_space;
 use crate::{
     python_json::{self, Node, Text},
     value::json_text,
@@ -44,10 +45,7 @@ impl Recorder {
                     } else {
                         return Err("description must be text".into());
                     };
-                    let space = |point: &u32| {
-                        char::from_u32(*point)
-                            .is_some_and(|c| c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}'))
-                    };
+                    let space = |point: &u32| char::from_u32(*point).is_some_and(python_space);
                     let start = points
                         .iter()
                         .position(|point| !space(point))

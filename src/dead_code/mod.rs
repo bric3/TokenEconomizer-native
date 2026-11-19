@@ -2,6 +2,7 @@
 mod ast;
 mod report;
 
+use crate::value::python_space;
 use ast::{Session, Tree};
 use indexmap::IndexMap;
 use regex::Regex;
@@ -137,9 +138,6 @@ fn tracked_files(root: &Path) -> Result<Vec<String>> {
         .filter(|path| !path.is_empty())
         .map(str::to_owned)
         .collect())
-}
-fn python_space(c: char) -> bool {
-    c.is_whitespace() || matches!(c, '\x1c'..='\x1f')
 }
 fn splitlines(text: &str) -> Vec<String> {
     let mut lines = Vec::new();

@@ -1,7 +1,7 @@
 mod capture;
 
 use super::{adapter, denylist, hosts::session::Environment, process, sidecall};
-use crate::value::{json_text, number, round_decimal, truthy};
+use crate::value::{json_text, number, python_space, round_decimal, truthy};
 use serde_json::{Map, Value, json};
 use std::{
     path::Path,
@@ -28,9 +28,6 @@ pub struct Checks {
     pub environment: Environment,
     pub windows: bool,
     pub help: Map<String, Value>,
-}
-fn whitespace(c: char) -> bool {
-    c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c)
 }
 fn line_break(c: char) -> bool {
     matches!(
@@ -306,7 +303,7 @@ impl Checks {
             } else {
                 &out.stdout
             };
-            let text: String = text.trim_matches(whitespace).chars().take(300).collect();
+            let text: String = text.trim_matches(python_space).chars().take(300).collect();
             return Err(format!(
                 "`claude -p` {what}: {}",
                 if text.is_empty() { "no output" } else { &text }
@@ -391,7 +388,7 @@ impl Checks {
         };
         let mut state = Map::new();
         for line in out.stdout.split(line_break) {
-            let parts: Vec<_> = line.split(whitespace).filter(|s| !s.is_empty()).collect();
+            let parts: Vec<_> = line.split(python_space).filter(|s| !s.is_empty()).collect();
             if parts.len() >= 2 && features.contains(&parts[0]) {
                 state.insert(parts[0].into(), json!(parts.last() == Some(&"true")));
             }
@@ -420,7 +417,7 @@ impl Checks {
             .ok()
             .and_then(|out| {
                 out.stdout
-                    .trim_matches(whitespace)
+                    .trim_matches(python_space)
                     .split(line_break)
                     .find(|s| !s.is_empty())
                     .map(|v| json!(v))

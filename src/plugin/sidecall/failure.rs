@@ -1,4 +1,5 @@
 use super::log;
+use crate::value::python_space;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -76,7 +77,7 @@ pub fn noted<T>(host: &str, root: &Path, result: Result<T, Failure>) -> Result<T
             Failure::Exit { returncode } => format!("no reply (exit {returncode})"),
             Failure::Exception { name, message } => {
                 let what: String = message
-                    .split(|c: char| c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c))
+                    .split(python_space)
                     .filter(|s| !s.is_empty())
                     .collect::<Vec<_>>()
                     .join(" ")

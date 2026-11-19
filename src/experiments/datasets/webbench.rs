@@ -1,5 +1,6 @@
 //! Export the driver task list in the registry's dependency order.
 use super::field;
+use crate::value::python_space;
 use crate::{
     experiments::{
         CommandOutput,
@@ -38,8 +39,7 @@ pub fn build(projects_root: &Path, cwd: &Path) -> Result<Vec<Value>> {
         let mut by_id = Map::new();
         // shortcut: whole-file decoding changes compound error order; stream if that fidelity is required.
         for line in official::load_text(&path, cwd)?.split('\n') {
-            let line =
-                line.trim_matches(|c: char| c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}'));
+            let line = line.trim_matches(python_space);
             if line.is_empty() {
                 continue;
             }

@@ -1,4 +1,5 @@
 use super::{Failure, Result, Runtime};
+use crate::value::python_space;
 use crate::value::{python_repr, scalar_text, truthy};
 use regex::Regex;
 use serde_json::{Value, json};
@@ -281,12 +282,10 @@ fn probe(input: &Value, skills: bool, rt: &mut dyn Runtime) -> Result<Value> {
             .any(|pattern| blob.contains(pattern))
             {
                 Ok(json!(
-                    blob.trim_matches(
-                        |c: char| c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}')
-                    )
-                    .chars()
-                    .take(800)
-                    .collect::<String>()
+                    blob.trim_matches(python_space)
+                        .chars()
+                        .take(800)
+                        .collect::<String>()
                 ))
             } else {
                 Ok(json!(""))
@@ -314,18 +313,16 @@ pub fn dispatch(method: &str, input: &Value, rt: &mut dyn Runtime) -> Result<Val
                     .or_else(|| output[1].as_str())
                     .unwrap_or("");
                 Ok(json!(
-                    text.trim_matches(
-                        |c: char| c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}')
-                    )
-                    .split([
-                        '\n', '\r', '\u{b}', '\u{c}', '\u{1c}', '\u{1d}', '\u{1e}', '\u{85}',
-                        '\u{2028}', '\u{2029}'
-                    ])
-                    .next()
-                    .unwrap_or("")
-                    .chars()
-                    .take(80)
-                    .collect::<String>()
+                    text.trim_matches(python_space)
+                        .split([
+                            '\n', '\r', '\u{b}', '\u{c}', '\u{1c}', '\u{1d}', '\u{1e}', '\u{85}',
+                            '\u{2028}', '\u{2029}'
+                        ])
+                        .next()
+                        .unwrap_or("")
+                        .chars()
+                        .take(80)
+                        .collect::<String>()
                 ))
             })();
             match result {

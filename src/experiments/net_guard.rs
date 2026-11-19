@@ -1,3 +1,4 @@
+use crate::value::python_space;
 use crate::value::truthy;
 use regex::Regex;
 use serde_json::{Value, json};
@@ -67,9 +68,7 @@ pub fn hook_command(payload: &Value) -> String {
     input::Node::from(payload).hook_command().lossy()
 }
 pub fn lifted(value: &str) -> bool {
-    ["1", "true", "yes"].contains(
-        &value.trim_matches(|c: char| c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}')),
-    )
+    ["1", "true", "yes"].contains(&value.trim_matches(python_space))
 }
 pub fn run(
     input: &mut dyn Read,

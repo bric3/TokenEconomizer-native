@@ -1,3 +1,4 @@
+use crate::value::python_space;
 use crate::{
     loopguard::{
         state::{SpiralState, completed_calls},
@@ -266,8 +267,7 @@ impl NudgeGuard {
                         python_type(text)
                     )
                 })?;
-                let text = text
-                    .trim_matches(|c: char| c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}'));
+                let text = text.trim_matches(python_space);
                 if !text.is_empty() {
                     if self.verbose {
                         messages.push(format!(

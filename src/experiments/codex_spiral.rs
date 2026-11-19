@@ -5,6 +5,7 @@ pub use state::State;
 
 // shortcut: integer counters and policy fields use i64, complete numeric parity before release.
 
+use crate::value::python_space;
 use crate::{
     loopguard::shell_edits,
     trace::codex,
@@ -75,9 +76,6 @@ fn insensitive(pattern: &str) -> Regex {
     Regex::new(&format!("(?i){pattern}")).unwrap()
 }
 
-fn space(c: char) -> bool {
-    c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}')
-}
 pub fn normalize(text: &str, limit: i64) -> String {
     static HEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"0x[0-9a-f]+").unwrap());
     static TMP: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"/tmp/[^\s\x1c-\x1f]+").unwrap());
@@ -88,7 +86,7 @@ pub fn normalize(text: &str, limit: i64) -> String {
     let text = TMP.replace_all(&text, "/tmp/<tmp>");
     let text = DIGITS.replace_all(&text, "<n>");
     let text = SPACES.replace_all(&text, " ");
-    let text = text.trim_matches(space);
+    let text = text.trim_matches(python_space);
     let length = text.chars().count() as i64;
     text.chars()
         .take(if limit < 0 {
@@ -174,7 +172,7 @@ pub fn failure_signatures(output: &str) -> BTreeSet<String> {
                 ])
                 .filter(|line| FAILURE_LINE.is_match(line))
                 .take(2)
-                .map(|line| normalize(line.trim_matches(space), 180)),
+                .map(|line| normalize(line.trim_matches(python_space), 180)),
         );
     }
     found.into_iter().filter(|s| !s.is_empty()).collect()

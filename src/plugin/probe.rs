@@ -2,6 +2,7 @@ use super::{
     cli::{Error, Result},
     hosts::session::{self, Environment},
 };
+use crate::value::python_space;
 use crate::{
     store::Store,
     trace::copilot,
@@ -24,9 +25,6 @@ fn text(value: &Value) -> Result<&str> {
     value
         .as_str()
         .ok_or_else(|| Error::new("TypeError", "expected text"))
-}
-fn space(c: char) -> bool {
-    c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}')
 }
 fn lines(text: &str) -> impl DoubleEndedIterator<Item = &str> {
     text.split([
@@ -218,7 +216,9 @@ pub fn run_session(
     let output = runtime.call("process", json!([command, repo, env, timeout]))?;
     let stdout = output["stdout"].as_str().unwrap_or("");
     let stderr = output["stderr"].as_str().unwrap_or("");
-    let error = lines(stderr.trim_matches(space)).next_back().unwrap_or("");
+    let error = lines(stderr.trim_matches(python_space))
+        .next_back()
+        .unwrap_or("");
     let mut sid = Value::Null;
     let mut answer = Value::String(String::new());
     for line in lines(stdout) {
@@ -231,7 +231,11 @@ pub fn run_session(
             answer = event["data"]["content"].clone();
         }
     }
-    Ok(json!([sid, text(&answer)?.trim_matches(space), error]))
+    Ok(json!([
+        sid,
+        text(&answer)?.trim_matches(python_space),
+        error
+    ]))
 }
 pub fn inspect_session(
     sid: &str,

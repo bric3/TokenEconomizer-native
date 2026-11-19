@@ -1,4 +1,5 @@
-use super::{Error, Result, Runtime, field, text, whitespace, words};
+use super::{Error, Result, Runtime, field, text, words};
+use crate::value::python_space;
 use crate::{
     lifecycle::NO_RECORD,
     microskills::{observe::Vocabulary, stage},
@@ -10,7 +11,7 @@ use serde_json::{Value, json};
 
 pub fn short(value: &Value, n: i64) -> String {
     let text = text(value)
-        .split(whitespace)
+        .split(python_space)
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join(" ");
@@ -63,7 +64,7 @@ pub fn facts(args: &Value, runtime: &mut dyn Runtime) -> Result<i32> {
     } else {
         rendered.as_str().ok_or("rendered facts must be text")?
     };
-    let rendered = rendered.trim_end_matches(whitespace);
+    let rendered = rendered.trim_end_matches(python_space);
     runtime.say(if rendered.is_empty() {
         "(nothing injected yet: no fact has cleared its firing gate)"
     } else {

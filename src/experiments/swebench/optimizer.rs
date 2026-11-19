@@ -3,6 +3,7 @@ use super::{
     codex_config::integer_with_limit,
     providers::{boolean, copy, literal, read_json, trim},
 };
+use crate::value::python_space;
 use crate::{
     python_json::{self, Node, Text},
     value::truthy,
@@ -61,10 +62,10 @@ fn suffix(mut value: Text, suffix: &str) -> Text {
     value
 }
 fn blank(value: &Text) -> bool {
-    value.0.iter().all(|point| {
-        char::from_u32(*point)
-            .is_some_and(|c| c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}'))
-    })
+    value
+        .0
+        .iter()
+        .all(|point| char::from_u32(*point).is_some_and(python_space))
 }
 fn get<'a>(value: &'a Node, key: &str) -> Result<Option<&'a Node>> {
     if !matches!(value, Node::Dict(_)) {

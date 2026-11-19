@@ -3,6 +3,7 @@ pub mod recorder;
 
 use super::{Failure, Result, Runtime, codex_config::integer};
 use crate::python_json::{self, Node};
+use crate::value::python_space;
 use crate::value::{json_text, python_repr, python_type, scalar_text, truthy};
 use serde_json::{Map, Value, json};
 use std::collections::BTreeSet;
@@ -10,10 +11,6 @@ use std::collections::BTreeSet;
 pub const INSTANCE: &str = "pydata__xarray-6461";
 pub const RECORDER: &str = include_str!("catalog/recorder_io.py");
 const NAME: &str = "te-catalog-capture";
-
-fn space(c: char) -> bool {
-    c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}')
-}
 
 pub fn report(catalog: &Value) -> Result<Value> {
     let catalog = catalog
@@ -120,7 +117,7 @@ fn captured(rt: &mut dyn Runtime) -> Result<Value> {
         120,
     )?;
     let raw = text(&value["stdout"], "strip")?;
-    let raw = raw.trim_matches(|c: char| c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}'));
+    let raw = raw.trim_matches(python_space);
     if raw.is_empty() {
         Ok(json!({}))
     } else {
@@ -329,7 +326,7 @@ pub fn capture(args: &Value, rt: &mut dyn Runtime) -> Result<Value> {
                 ]),
                 120,
             )?;
-            if text(&status["stdout"], "strip")?.trim_matches(space) != "7" {
+            if text(&status["stdout"], "strip")?.trim_matches(python_space) != "7" {
                 break;
             }
             rt.call("sleep", json!(1))?;

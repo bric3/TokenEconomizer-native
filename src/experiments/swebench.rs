@@ -1,3 +1,4 @@
+use crate::value::python_space;
 use crate::{
     microskills::observe::posix_normpath,
     pricing,
@@ -176,10 +177,7 @@ pub fn build_prompt(task: &Value, injected: &Value) -> Result<String> {
             "injected prefix has no attribute 'rstrip'",
         )
     })?;
-    Ok(format!(
-        "{}\n\n{body}",
-        text.trim_end_matches(|c: char| c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}'))
-    ))
+    Ok(format!("{}\n\n{body}", text.trim_end_matches(python_space)))
 }
 
 fn basename(path: &str) -> &str {

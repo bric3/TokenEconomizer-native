@@ -1,3 +1,4 @@
+use crate::value::python_space;
 use crate::{
     loopguard::state::state_from_trajectory,
     microskills::observe::Vocabulary,
@@ -71,9 +72,6 @@ fn invalid(kind: &'static str, message: impl Into<String>) -> Error {
 fn text_file(path: &Path) -> Result<String> {
     String::from_utf8(fs::read(path).map_err(Error::Io)?).map_err(Error::Utf8)
 }
-fn space(c: char) -> bool {
-    c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}')
-}
 fn statement(value: Option<&Value>) -> Result<String> {
     let Some(value) = value.filter(|v| truthy(v)) else {
         return Ok(String::new());
@@ -84,7 +82,7 @@ fn statement(value: Option<&Value>) -> Result<String> {
             "problem statement has no attribute 'strip'",
         )
     })?;
-    Ok(redact_gold_pointers(text.trim_matches(space)).0)
+    Ok(redact_gold_pointers(text.trim_matches(python_space)).0)
 }
 pub fn redact_gold_pointers(text: &str) -> (String, usize) {
     // Python's case-insensitive i also matches dotted/dotless I; its word class excludes marks.
@@ -276,7 +274,7 @@ impl Adapter {
                 let text = text_file(&self.tasks_path()?)?;
                 for line in text
                     .split(['\r', '\n'])
-                    .map(|s| s.trim_matches(space))
+                    .map(|s| s.trim_matches(python_space))
                     .filter(|s| !s.is_empty())
                 {
                     let item: Value = serde_json::from_str(line).map_err(Error::Json)?;

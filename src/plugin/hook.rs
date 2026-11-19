@@ -3,6 +3,7 @@ use super::{
     hosts::{self, session::Environment, state},
     paths,
 };
+use crate::value::python_space;
 use crate::value::{json_text, scalar_text, truthy};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -162,15 +163,11 @@ pub fn run<R: Runtime + ?Sized>(
 pub fn enabled_flag(value: &Value) -> bool {
     matches!(
         scalar_text(if truthy(value) { value } else { &Value::Null })
-            .trim_matches(whitespace)
+            .trim_matches(python_space)
             .to_lowercase()
             .as_str(),
         "1" | "true" | "yes" | "on"
     )
-}
-
-fn whitespace(c: char) -> bool {
-    c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}')
 }
 
 pub fn record_error(environment: &Environment, error: &str, pid: u32) {
@@ -215,7 +212,7 @@ pub fn main<R: Runtime + ?Sized>(
         {
             return Ok(json!({}));
         }
-        let mut payload: Value = if raw.trim_matches(whitespace).is_empty() {
+        let mut payload: Value = if raw.trim_matches(python_space).is_empty() {
             json!({})
         } else {
             // shortcut: serde_json limits numbers and nesting, reconcile them in the production parity audit.

@@ -4,6 +4,7 @@ use super::{
     providers::{boolean, capture, copy, literal},
 };
 use crate::python_json::{self, Node, Text};
+use crate::value::python_space;
 use serde_json::{Value, json};
 
 const HINT: &str = "\n  install:  curl -fsSL https://gh.io/copilot-install | bash\n  sign in:  copilot   (then /login), or export COPILOT_GITHUB_TOKEN\n  override: COPILOT_HOST_BIN / COPILOT_HOST_CACHE / COPILOT_HOME";
@@ -60,10 +61,7 @@ fn version(rt: &mut dyn Runtime) -> Result<Value> {
             }
         }
         if let Some(text) = string(rt, "stream")? {
-            let whitespace = |point: &u32| {
-                char::from_u32(*point)
-                    .is_some_and(|c| c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}'))
-            };
+            let whitespace = |point: &u32| char::from_u32(*point).is_some_and(python_space);
             let start = text
                 .0
                 .iter()

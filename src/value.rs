@@ -6,6 +6,10 @@ use serde_json::ser::Formatter;
 use std::io::{self, Write};
 use std::sync::LazyLock;
 
+pub(crate) fn python_space(c: char) -> bool {
+    c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}')
+}
+
 pub(crate) fn normalize_decimal_digits(text: &str) -> String {
     static DIGITS: LazyLock<ClassUnicode> = LazyLock::new(|| {
         let hir = regex_syntax::Parser::new().parse(r"\d").unwrap();

@@ -1,4 +1,5 @@
 use super::{Failure, Result, Runtime, settings::field};
+use crate::value::python_space;
 use crate::{
     toolprune::codex::CONFIG_CAPABILITIES,
     value::{base64, decimal_integer, json_text, python_repr, scalar_text, truthy},
@@ -92,9 +93,6 @@ pub(super) fn constants() -> Value {
         "DEFAULT_SYSTEM_SKILLS":SKILLS})
 }
 
-fn space(c: char) -> bool {
-    c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}')
-}
 pub(super) use crate::value::python_type as kind;
 pub(super) fn sequence(value: &Value) -> Result<Vec<Value>> {
     match value {
@@ -286,13 +284,17 @@ pub fn lean_instructions(base: &Value, caps: &Value) -> Result<Value> {
     let mut dropped = false;
     for pair in starts.windows(2) {
         let section = &base[pair[0]..pair[1]];
-        let header = section.split('\n').next().unwrap_or("").trim_matches(space);
+        let header = section
+            .split('\n')
+            .next()
+            .unwrap_or("")
+            .trim_matches(python_space);
         if drop.contains(header) {
             dropped = true;
             let kept: Vec<_> = section
                 .split("\n\n")
                 .filter(|p| KEEP.is_match(p))
-                .map(|p| p.trim_matches(space))
+                .map(|p| p.trim_matches(python_space))
                 .collect();
             if !kept.is_empty() {
                 out.push_str(&kept.join("\n\n"));
@@ -303,7 +305,7 @@ pub fn lean_instructions(base: &Value, caps: &Value) -> Result<Value> {
         }
     }
     Ok(if dropped {
-        json!(format!("{}\n", out.trim_end_matches(space)))
+        json!(format!("{}\n", out.trim_end_matches(python_space)))
     } else {
         Value::Null
     })

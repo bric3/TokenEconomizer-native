@@ -1,4 +1,5 @@
 use super::{Failure, Result, Runtime};
+use crate::value::python_space;
 use crate::{
     python_json::{self, Node, Text},
     value::{scalar_text, truthy},
@@ -104,7 +105,7 @@ pub(super) fn trim(rt: &mut dyn Runtime, slot: &str, slash: bool) -> Result<()> 
         let trimmed = if slash {
             text.trim_end_matches('/')
         } else {
-            text.trim_matches(|c: char| c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}'))
+            text.trim_matches(python_space)
         };
         if trimmed != text {
             literal(rt, slot, json!(trimmed))?;

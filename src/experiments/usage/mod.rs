@@ -5,6 +5,7 @@ pub mod copilot;
 #[cfg(test)]
 mod tests;
 
+use crate::value::python_space;
 use crate::value::{decimal_integer, number, python_repr, python_type, truthy};
 use serde_json::{Map, Value, json};
 use std::sync::LazyLock;
@@ -132,7 +133,7 @@ fn lines(text: &str) -> impl Iterator<Item = &str> {
         '\n', '\r', '\u{b}', '\u{c}', '\u{1c}', '\u{1d}', '\u{1e}', '\u{85}', '\u{2028}',
         '\u{2029}',
     ])
-    .map(|line| line.trim_matches(|c: char| c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}')))
+    .map(|line| line.trim_matches(python_space))
     .filter(|line| !line.is_empty())
 }
 fn unhashable(value: &Value, operation: &str) -> String {

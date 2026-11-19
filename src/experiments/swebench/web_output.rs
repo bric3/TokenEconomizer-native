@@ -4,6 +4,7 @@ use super::{
     providers::{boolean, copy, literal},
     runner_calls::{invoke, member},
 };
+use crate::value::python_space;
 use crate::{python_json::Text, value::truthy};
 use regex::Regex;
 use serde_json::{Value, json};
@@ -32,10 +33,7 @@ fn field(rt: &mut dyn Runtime, name: &str, slot: &str) -> Result<()> {
 }
 pub(super) fn strip(rt: &mut dyn Runtime, end_only: bool, target: &str) -> Result<()> {
     if let Some(text) = string(rt, "line")? {
-        let whitespace = |point: &u32| {
-            char::from_u32(*point)
-                .is_some_and(|c| c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}'))
-        };
+        let whitespace = |point: &u32| char::from_u32(*point).is_some_and(python_space);
         let start = if end_only {
             0
         } else {

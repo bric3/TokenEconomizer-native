@@ -1,4 +1,5 @@
 use super::{Failure, Result, Runtime, log};
+use crate::value::python_space;
 use crate::value::{number, scalar_text, truthy};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -26,7 +27,7 @@ pub struct ExecFailure {
 }
 
 fn strip(text: &str) -> &str {
-    text.trim_matches(|c: char| c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}'))
+    text.trim_matches(python_space)
 }
 fn text(value: &Value) -> Result<&str> {
     value

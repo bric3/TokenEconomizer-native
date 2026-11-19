@@ -16,6 +16,7 @@ pub use repositories::{print_moves, repositories};
 pub use tools::{toolprune, toolprune_show, wait_and_apply};
 
 use super::{config, context::LiveContext, denylist, fold, hosts, paths, repos};
+use crate::value::python_space;
 use crate::{
     envelope,
     value::{json_pretty, json_text, python_repr, scalar_text, truthy},
@@ -96,9 +97,6 @@ pub trait Runtime {
     fn say(&mut self, text: &str) -> Result<()>;
 }
 
-fn whitespace(c: char) -> bool {
-    c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}')
-}
 fn text(value: &Value) -> String {
     scalar_text(value)
 }
@@ -334,7 +332,7 @@ pub fn config_command(args: &Value, runtime: &mut dyn Runtime) -> Result<i32> {
                 path,
                 pairs
                     .iter()
-                    .map(|s| s.trim_matches(whitespace))
+                    .map(|s| s.trim_matches(python_space))
                     .collect::<Vec<_>>()
             ]),
         )
@@ -348,8 +346,8 @@ pub fn config_command(args: &Value, runtime: &mut dyn Runtime) -> Result<i32> {
                 return Ok(2);
             };
             updates.insert(
-                key.trim_matches(whitespace).into(),
-                json!(value.trim_matches(whitespace)),
+                key.trim_matches(python_space).into(),
+                json!(value.trim_matches(python_space)),
             );
         }
         if updates.is_empty() {

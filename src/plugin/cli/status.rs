@@ -1,4 +1,5 @@
 use super::{Result, Runtime, field, text, words};
+use crate::value::python_space;
 use crate::{
     accounting,
     envelope::{self, EnvelopeTracker},
@@ -14,7 +15,7 @@ fn count(value: &Value, key: &str) -> Result<i64> {
     if let Some(n) = value.as_i64().or_else(|| {
         value
             .as_str()
-            .and_then(|s| s.trim_matches(super::whitespace).parse().ok())
+            .and_then(|s| s.trim_matches(python_space).parse().ok())
     }) {
         return Ok(n);
     }

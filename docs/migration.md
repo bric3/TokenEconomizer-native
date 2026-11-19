@@ -30,10 +30,10 @@ complete while any runtime component delegates production behaviour to Python.
 
 ## Status
 
-- Current phase: simplification pass 2 of 3 is complete. The unchanged original
+- Current phase: all three simplification passes are complete. The unchanged original
   suite passes; the remaining parity and platform audits below stay open through
-  final verification. Performance passes and original-test conversion follow
-  the three simplification passes.
+  final verification. Three measured performance passes precede original-test
+  conversion.
 - Git initialised on `main`.
 - Upstream archived at the revision recorded in `reference/revision.txt`.
 - Python test environment: `.venv`, pytest 9.2.0.
@@ -730,9 +730,9 @@ complete while any runtime component delegates production behaviour to Python.
   including non-finite numbers and custom numeric or string conversion methods.
 - Include CLI and ledger counts beyond i64 in the numeric parity audit.
   Mixed ledger sums, paired-report totals and session accounting now retain
-  integer or float results through aggregation. Integer outputs within i64/u64
-  keep their type. Extend numeric JSON results beyond that range and session
-  counters beyond i64 with the remaining numeric codecs.
+  integer or float results through aggregation. Shared integer sums retain exact
+  JSON results through i128. Audit bounded arithmetic in other consumers and
+  session counters beyond i64 with the remaining numeric codecs.
 - Include `probe --sessions` integers outside i64 in that audit.
 - Include displayed tool counters in that audit, and audit CLI errors for malformed
   saved state and invalid encodings.
@@ -829,7 +829,7 @@ complete while any runtime component delegates production behaviour to Python.
   coordination and the offline stub runner are native. The standalone benchmark
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
-- Simplification passes: 2 of 3. Performance passes: 0 of 3.
+- Simplification passes: 3 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
 
 ## Verified milestones
@@ -4170,6 +4170,26 @@ complete while any runtime component delegates production behaviour to Python.
   `validation/results/simplification-2-*`.
   Simplification passes are now 2/3; performance passes remain 0/3. Original
   tests remain unchanged and their final conversion is pending.
+
+- Simplification pass 3 moves Python's whitespace predicate to
+  `value::python_space`. Twelve local character predicates and repeated inline
+  closures now share that rule. Hooks, CLI, repository maps, tool checks, the
+  scanner and experiment parsers retain Python's four extra control separators.
+  UTF-32 adapters preserve their handling of surrogate code points. JavaScript's
+  separate whitespace rule stays with the JavaScript binding. Production code
+  loses 19 lines across 31 files, with one implementation of the Python rule.
+  All 40 Rust tests, formatting, Clippy and debug/release builds pass. The
+  unchanged original suite passes with 1,561 passed and 30 skipped
+  (82.97 seconds). Environment parsing passes 294 source comparisons, catalogue
+  recording passes 166 and runner settings pass 198. Native CLI command, fold,
+  diagnostic and spawn-spec checks pass, including six exact status comparisons.
+  Both Linux builds pass 33 library tests and all 28 scratch-container checks.
+  Relocated experiment bundles pass 272 checks. All 256 archived source files
+  and all 104 dependency notices remain verified. Logs are under
+  `validation/results/simplification-3-*`.
+  Simplification passes are complete at 3/3. Performance passes remain 0/3 and
+  original-test conversion is pending. The remaining parity and platform audits
+  stay open through final verification.
 
 ## Dependencies
 

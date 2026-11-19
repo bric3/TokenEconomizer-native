@@ -4,14 +4,12 @@ use super::{
     codex_config::{integer, sequence},
     settings::field,
 };
+use crate::value::python_space;
 use crate::value::{base64, python_repr, python_type, scalar_text, truthy};
 use serde_json::{Value, json};
 
 mod native;
 
-fn space(c: char) -> bool {
-    c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}')
-}
 fn output<'a>(value: &'a Value, method: &str) -> Result<&'a str> {
     if !truthy(value) {
         return Ok("");
@@ -90,7 +88,7 @@ pub fn install_hosts(name: &Value, rt: &mut dyn Runtime) -> Result<Value> {
                 "grep -q {marker} /etc/hosts || echo {blob} | base64 -d >> /etc/hosts; grep -c {marker} /etc/hosts"
             ),
         )?;
-        let stdout = output(&result["stdout"], "strip")?.trim_matches(space);
+        let stdout = output(&result["stdout"], "strip")?.trim_matches(python_space);
         if stdout
             .split(|c| {
                 matches!(
@@ -120,7 +118,7 @@ pub fn install_hosts(name: &Value, rt: &mut dyn Runtime) -> Result<Value> {
                 "RuntimeError",
                 format!(
                     "hosts stanza written but github.com still resolves to {} -- this container's resolver is not reading /etc/hosts, so nothing is blocked",
-                    python_repr(&json!(stdout.trim_matches(space)))
+                    python_repr(&json!(stdout.trim_matches(python_space)))
                 ),
             ));
         }
@@ -164,7 +162,7 @@ pub fn verify(name: &Value, python: &Value, rt: &mut dyn Runtime) -> Result<Valu
             "RuntimeError",
             format!(
                 "guard installed but did NOT refuse its probe (expected rc=2, got {}) -- it would block nothing",
-                python_repr(&json!(tail(stdout.trim_matches(space), 80)))
+                python_repr(&json!(tail(stdout.trim_matches(python_space), 80)))
             ),
         ));
     }
@@ -183,9 +181,9 @@ pub fn blocks(name: &Value, int_max_digits: usize, rt: &mut dyn Runtime) -> Resu
         } else {
             json!("0")
         };
-        let text = output(&stdout, "strip")?.trim_matches(space);
+        let text = output(&stdout, "strip")?.trim_matches(python_space);
         let first = text
-            .split(space)
+            .split(python_space)
             .find(|v| !v.is_empty())
             .ok_or_else(|| Failure::new("IndexError", "list index out of range"))?;
         let value = integer(&json!(first))?;

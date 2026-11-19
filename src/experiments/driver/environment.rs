@@ -3,10 +3,11 @@ use super::{
     invoke, json, literal, method, returned, truthy,
 };
 use crate::python_json::Node;
+use crate::value::python_space;
 use indexmap::IndexMap;
 
 fn whitespace(point: &u32) -> bool {
-    matches!(*point, 0x1c..=0x1f) || char::from_u32(*point).is_some_and(char::is_whitespace)
+    char::from_u32(*point).is_some_and(python_space)
 }
 fn trim_start(points: &[u32]) -> &[u32] {
     &points[points

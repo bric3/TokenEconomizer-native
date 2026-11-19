@@ -1,4 +1,5 @@
 use super::{Failure, Result, Runtime, official, settings::field};
+use crate::value::python_space;
 use crate::value::{
     decimal_integer, json_pretty, number, python_repr, python_type, scalar_text, truthy,
 };
@@ -17,11 +18,8 @@ fn run(rt: &mut dyn Runtime, cmd: Value, timeout: Value) -> Result<Value> {
 fn log(rt: &mut dyn Runtime, message: String) -> Result<()> {
     rt.call("log", json!([message])).map(|_| ())
 }
-fn space(c: char) -> bool {
-    c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}')
-}
 fn strip(text: &str) -> &str {
-    text.trim_matches(space)
+    text.trim_matches(python_space)
 }
 fn mapping<'a>(value: &'a Value, method: &str) -> Result<&'a Map<String, Value>> {
     value.as_object().ok_or_else(|| {
@@ -174,7 +172,7 @@ pub fn reap(name: &Value, rt: &mut dyn Runtime) -> Result<Value> {
                 ),
             )
         })?;
-        for stale in stdout.split(space).filter(|s| !s.is_empty()) {
+        for stale in stdout.split(python_space).filter(|s| !s.is_empty()) {
             if stale != name_text {
                 run(rt, json!(["docker", "rm", "-f", stale]), json!(60))?;
             }
@@ -243,7 +241,7 @@ pub fn activate(name: &Value, rt: &mut dyn Runtime) -> Result<Value> {
                 json!(120),
             )?;
             let parts: Vec<_> = output(&check["stdout"], "split")?
-                .split(space)
+                .split(python_space)
                 .filter(|s| !s.is_empty())
                 .collect();
             let python = parts.first().map(|s| json!(s)).unwrap_or(Value::Null);
