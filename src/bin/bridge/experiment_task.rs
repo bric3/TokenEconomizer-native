@@ -31,6 +31,19 @@ pub(super) fn failure(error: Failure) -> Value {
 
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
     if let Some(method) = op.strip_prefix("experiment.datasets.") {
+        if method == "yaml_root" {
+            let env = args["env"].as_object().ok_or("missing YAML environment")?;
+            return Ok(Some(
+                datasets::yaml::projects_root(&args["explicit"], env).unwrap_or_else(failure),
+            ));
+        }
+        if method == "yaml_next_project" {
+            return Ok(Some(datasets::yaml::next_project(
+                Path::new(args["root"].as_str().ok_or("missing YAML root")?),
+                args["start"].as_u64().unwrap_or(0) as usize,
+                Path::new(args["process_cwd"].as_str().unwrap_or(".")),
+            )));
+        }
         if method == "web_constants" {
             return Ok(Some(datasets::webbench::constants()));
         }
@@ -74,7 +87,10 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
             )
             .map(Some);
         }
-        if !matches!(method, "build" | "swebench_main") {
+        if !matches!(
+            method,
+            "build" | "swebench_main" | "yaml_render" | "yaml_main"
+        ) {
             return Ok(None);
         }
         let method = method.to_owned();
@@ -85,6 +101,30 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
                     .map_err(|e| Failure::new("TypeError", e.to_string()))
                     .and_then(|wanted| datasets::build(&mut Transport(channel), &wanted))
                     .map(|value| json!(value))
+            } else if method == "yaml_render" {
+                datasets::yaml::render(
+                    &mut Transport(channel),
+                    Path::new(args["path"].as_str().unwrap_or("")),
+                )
+                .map(|text| json!(text))
+            } else if method == "yaml_main" {
+                let argv = serde_json::from_value::<Vec<String>>(args["argv"].clone());
+                argv.map_err(|e| Failure::new("TypeError", e.to_string()))
+                    .and_then(|argv| {
+                        let env = args["env"]
+                            .as_object()
+                            .ok_or_else(|| Failure::new("TypeError", "missing YAML environment"))?;
+                        datasets::yaml::command(
+                            &mut Transport(channel),
+                            args["program"]
+                                .as_str()
+                                .unwrap_or("webbench_tasks_from_yaml.py"),
+                            &argv,
+                            env,
+                            Path::new(args["process_cwd"].as_str().unwrap_or(".")),
+                        )
+                    })
+                    .map(|output| json!(output))
             } else {
                 serde_json::from_value::<Vec<String>>(args["argv"].clone())
                     .map_err(|e| Failure::new("TypeError", e.to_string()))

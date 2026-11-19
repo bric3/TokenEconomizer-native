@@ -205,6 +205,20 @@ default paths. The command runs entirely in Rust, reads each project's
 `tasks.jsonl` and preserves the workload's task order. `--check` exits with status
 1 when the output is missing or stale and leaves the file untouched.
 
+Mirror YAML task files before exporting projects that ship `tasks.yml`:
+
+```sh
+TE_BENCH_PYTHON=/path/to/python target/release/te-bench webbench-from-yaml --projects-root /path/to/projects --all
+TE_BENCH_PYTHON=/path/to/python target/release/te-bench webbench-from-yaml --projects-root /path/to/projects --all --check
+```
+
+The selected interpreter needs [PyYAML](https://pyyaml.org/wiki/PyYAMLDocumentation).
+Rust selects swept projects, projects their four task fields and checks or writes
+`tasks.jsonl`. The SDK loads YAML and encodes its Python values, including dates
+and block scalars. Explicit project names select individual projects. Matching
+files retain their modification times; `--check` reports all stale projects
+without writing. The authoritative YAML files stay in place.
+
 Use `--runner module:factory` for an external task runner. Python 3.10 or newer supplies
 standard-library I/O; `TE_BENCH_PYTHON` selects its interpreter. The runtime bundle
 carries the SDK and command, including the generic streamed-rollout controller

@@ -3382,6 +3382,47 @@ complete while any runtime component delegates production behaviour to Python.
   complete file before parsing its lines, so compound malformed-JSON/late-UTF-8
   failures can occur in a different order from the source's buffered reader.
 
+- The WebBench YAML mirror now uses Rust for project selection, field projection,
+  conversion decisions, JSONL record assembly, stale-file checks and writes.
+  `te-bench webbench-from-yaml` accepts explicit project names or `--all`, which
+  selects swept projects with a `tasks.yml` in registry order. Its iterator API
+  checks each project when consumed, preserving changes made between yields.
+  The existing dataset SDK binding calls PyYAML `safe_load`, retains its objects
+  and performs requested value operations and JSON encoding. Dates, aliases,
+  non-finite numbers, large integers and dependency exceptions therefore retain
+  their Python behaviour. Rust completes all four field conversions before
+  requesting JSON encoding, preserving failure order. Missing fields become
+  empty strings; dates become strings and descriptions are stripped.
+  The native command preserves matching files, checks all selected stale files
+  without writing, and retains earlier writes and console lines when a later
+  project fails. YAML files remain authoritative and unchanged. Help and
+  argument errors run before Python startup.
+  The dedicated probe passes 103 source comparisons and seven standalone checks,
+  covering actual PyYAML 6.0.3 objects, malformed documents,
+  block scalars, merge aliases, cyclic values, conversion/encoding error order,
+  lazy project selection, environment precedence, partial writes, missing SDK
+  dependencies and callback exception identity. Standalone and relocated-bundle
+  checks reject reference/test-package imports and compare reference file bytes.
+  The relocated bundle passes 245 checks and retains 20 SDK files, 39 manifest
+  hashes and 40 physical files. The SWE-bench exporter retains 57 source
+  comparisons. The full unchanged original suite passes with 1,561 passed and
+  30 skipped (72.04 seconds), including installed opencode against its local
+  model fixture. All 27 Rust checks, debug/release builds, Clippy, formatting and
+  the unchanged 256-file reference check pass. Full-suite evidence is in
+  `validation/results/yaml-mirror-full.log` and
+  `validation/results/yaml-mirror-full-calls.json`. The original workload suite
+  contains no direct YAML-mirror test; the dedicated probe supplies that coverage.
+  PyYAML was added only to the ignored validation virtual environment; the
+  runtime interpreter needs that existing upstream dependency, documented by
+  [PyYAML's API reference](https://pyyaml.org/wiki/PyYAMLDocumentation).
+  No Rust dependency or Linux guard-helper behaviour changed. Original tests
+  remain unmodified. The experiment inventory still includes `compare_arms.py`
+  and five unported launch shell scripts. Those and the supporting-tool audit remain
+  pending before the three simplification passes, three performance passes and
+  final test conversion. Windows and remaining CLI/Unicode edge audits remain
+  unverified. YAML parsing, Python object operations and JSON value encoding
+  remain SDK calls; their process and transport costs need performance coverage.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -3627,6 +3668,7 @@ jbang validation/WorkloadProbe.java
 jbang validation/SweepProbe.java
 jbang validation/DatasetExportProbe.java
 jbang validation/WebExportProbe.java
+jbang validation/YamlMirrorProbe.java
 jbang validation/StandaloneBenchProbe.java
 jbang validation/StandaloneTransportProbe.java
 jbang validation/HermesGatewayProbe.java

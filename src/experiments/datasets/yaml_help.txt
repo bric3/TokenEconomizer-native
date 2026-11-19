@@ -1,0 +1,29 @@
+
+Derive `projects/<name>/tasks.jsonl` from a Web-Bench project's `tasks.yml`.
+
+Some Web-Bench projects ship only `tasks.yml`. Two readers on our side take `tasks.jsonl`
+and nothing else -- `te_harness.webbench.WebBenchStream._tasks` and
+`te_bench.adapters.webbench.WebBenchAdapter.tasks_path` -- so those projects need a
+derived jsonl before they can be run or judged.
+
+The yml is left in place ON PURPOSE. Web-Bench's own evaluator prefers it when both exist
+(`tools/evaluator/src/settings/bench.ts`), so deleting it would move the evaluator onto our
+derived file, and editing one without the other would silently desync the graded task order
+from the driver's. The yml stays authoritative; this writes its faithful mirror.
+
+    python scripts/webbench_tasks_from_yaml.py zustand            # write the jsonl
+    python scripts/webbench_tasks_from_yaml.py --all              # every swept yml project
+    python scripts/webbench_tasks_from_yaml.py --check --all      # verify, exit 1 if stale
+
+`--check` is what `tests/test_workloads.py` calls: drift between the two files fails the
+suite instead of surfacing as a mislabelled cell after a paid lane.
+
+positional arguments:
+  project               project name(s); omit with --all
+
+options:
+  -h, --help            show this help message and exit
+  --all                 every SWEPT project that ships a tasks.yml
+  --check               verify the jsonl matches the yml; write nothing, exit
+                        1 if stale
+  --projects-root PROJECTS_ROOT

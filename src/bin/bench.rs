@@ -8,6 +8,7 @@ fn run() -> Result<i32, Box<dyn Error>> {
             || arg == "sweep-plan"
             || arg == "export-swebench"
             || arg == "export-webbench"
+            || arg == "webbench-from-yaml"
     }) {
         let args = env::args_os()
             .skip(2)
@@ -58,6 +59,8 @@ fn run() -> Result<i32, Box<dyn Error>> {
                 )
                 .map_err(|e| e.message)?,
             )
+        } else if command == "webbench-from-yaml" {
+            datasets::yaml::parse("te-bench webbench-from-yaml", &args).err()
         } else {
             datasets::parse_swebench("te-bench export-swebench", &args).err()
         };

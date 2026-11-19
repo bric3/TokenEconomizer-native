@@ -1,5 +1,6 @@
 //! Dataset selection and the files consumed by the benchmark harness.
 pub mod webbench;
+pub mod yaml;
 use super::{
     CommandOutput,
     swebench::{Failure, Result, Runtime},
@@ -32,7 +33,7 @@ pub const GRADING_FIELDS: &[&str] = &[
 ];
 
 pub fn constants() -> Value {
-    json!({"splits":SPLITS,"grading_fields":GRADING_FIELDS})
+    json!({"splits":SPLITS,"grading_fields":GRADING_FIELDS,"yaml_fields":yaml::FIELDS,"projects_env":webbench::PROJECTS_ENV})
 }
 
 fn field<'a>(row: &'a Value, key: &str) -> Result<&'a Value> {

@@ -141,6 +141,9 @@ def native_package_module(loader, module):
     elif str(loader.path) == str(ROOT / "reference/upstream/experiments/scripts/export_webbench_tasks.py"):
         from native_web_export import install
         install(module)
+    elif str(loader.path) == str(ROOT / "reference/upstream/experiments/scripts/webbench_tasks_from_yaml.py"):
+        from native_yaml_mirror import install
+        install(module)
     elif module.__name__ == "te_bench.arms":
         from native_experiment_arms import install
         install(module)

@@ -1,5 +1,6 @@
 """Dataset SDK and iterator I/O; task selection and file generation execute in Rust."""
 import os
+import json
 import sys
 
 from .transport import checked
@@ -18,7 +19,44 @@ class Exporter:
             try:
                 with self.bridge.callback_scope():
                     self.bridge.deliver_signals()
-                    if method == "dataset_splits":
+                    if method == "yaml_load":
+                        try:
+                            import yaml
+                        except ImportError:
+                            raise SystemExit("PyYAML is required: pip install pyyaml")
+                        with open(args, encoding="utf-8") as stream:
+                            tasks = yaml.safe_load(stream)
+                        value = bool(tasks)
+                    elif method == "yaml_iter":
+                        current = iter(tasks)
+                        value = None
+                    elif method == "yaml_next":
+                        try:
+                            task = next(current)
+                        except StopIteration:
+                            value = False
+                        else:
+                            value = True
+                            items = {}
+                    elif method == "yaml_get":
+                        field = args
+                        items[field] = task.get(field)
+                        value = items[field] is None
+                    elif method == "yaml_set":
+                        items[field] = args
+                        value = None
+                    elif method == "yaml_str":
+                        items[field] = str(items[field])
+                        value = None
+                    elif method == "yaml_strip":
+                        items[field] = items[field].strip()
+                        value = None
+                    elif method == "yaml_json":
+                        value = json.dumps(items[args], ensure_ascii=False, separators=(",", ":"))
+                    elif method == "write_stdout":
+                        print(args, end="")
+                        value = None
+                    elif method == "dataset_splits":
                         from datasets import load_dataset
                         split = args["split"]
                         streams = (load_dataset(path, split=split) for path in args["paths"])
@@ -58,7 +96,17 @@ class Exporter:
         return tuple(self._drive("build", {"wanted": list(wanted)}, rows_by_split))
 
     def main(self, program=None, argv=None):
-        value = self._drive("swebench_main", {"program": program or os.path.basename(sys.argv[0]),
+        return self._main("swebench_main", program, argv)
+
+    def render(self, yml_path):
+        return self._drive("yaml_render", {"path": os.fspath(yml_path)})
+
+    def yaml_main(self, program=None, argv=None):
+        return self._main("yaml_main", program, argv)
+
+    def _main(self, operation, program, argv):
+        value = self._drive(operation, {"program": program or os.path.basename(sys.argv[0]),
+            "env": {key: os.environ[key] for key in (self.constants["projects_env"],) if key in os.environ},
             "argv": sys.argv[1:] if argv is None else argv, "process_cwd": os.getcwd()})
         print(value["stdout"], end="")
         print(value["stderr"], end="", file=sys.stderr)
