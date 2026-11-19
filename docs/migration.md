@@ -831,7 +831,7 @@ complete while any runtime component delegates production behaviour to Python.
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
 - Final test conversion: 20 of 67 pytest modules are complete and live-core is
-  partly converted, covering 509 of 1,591 original cases. See
+  partly converted, covering 518 of 1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
 
@@ -4417,6 +4417,17 @@ complete while any runtime component delegates production behaviour to Python.
   held-file test remains excluded. Logs use `validation/results/test-conversion-6-*`.
   The other 21 live-core functions, remaining modules, smoke tests and final
   parity and platform audits stay open.
+
+- The seventh test-conversion batch adds nine live-core CLI and session-I/O
+  cases. It checks npm shim targets and rejected batch files, Codex and Copilot
+  headless detection, opencode export retries and preserved copies, corrupt hook
+  records and the native `te status` output for a recent Codex repository.
+  All nine new tests, formatting and all-target Clippy pass. The preceding full
+  suite passed 256 tests; this batch adds nine tests without changing production.
+  Logs use `validation/results/test-conversion-7-*`. Live-core now covers 87 of
+  99 functions and 262 of 274 cases; total conversion covers 518 original cases.
+  Its other 12 functions, remaining modules, smoke tests and final parity and
+  platform audits stay open. Windows launch branches use fixtures on macOS.
 
 ## Dependencies
 

@@ -119,8 +119,16 @@ prefixes, hook progress lines and provider model selection. Claude's persistence
 flag is checked through its help lookup. Process results and judge jobs remain
 local fixtures; the native parsers, guard and hook entry point process them.
 
-Live-core now has 78 of 99 functions converted, covering 253 of its 274 cases.
-The remaining 21 functions cover process callbacks, side calls and probing.
+The seventh batch adds nine functions in `live_core_process.rs`. It retains npm's
+script, executable and older shim formats, missing targets and unsupported batch
+files. It checks Codex rollout metadata and Copilot ancestor arguments, opencode
+export retries and preserved copies, and malformed hook records. Inspection
+uses the real session-settling path. The plain-terminal test invokes the native
+`te` binary and checks that its status names the recent Codex host. Windows
+launch decisions use fixtures on macOS; native Windows execution remains open.
+
+Live-core now has 87 of 99 functions converted, covering 262 of its 274 cases.
+The remaining 12 functions cover side calls and the probe repository.
 
 Run the native suite and the conversion inventory from the checkout root:
 
@@ -138,7 +146,7 @@ behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
 Conversion remains in progress: 20 pytest modules are complete and live-core is
-partly converted, covering 509 of 1,591 original cases, including the conditional
-Windows case. The other 1,082 cases and standalone executable smoke tests
+partly converted, covering 518 of 1,591 original cases, including the conditional
+Windows case. The other 1,073 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.
