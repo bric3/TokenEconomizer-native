@@ -166,6 +166,14 @@ The tests call the native observer and distiller; their command strings remain
 data. They preserve the preference for a working form that keeps the shell's
 directory unchanged even when another form has more observations.
 
+The eleventh batch converts all 22 functions in `test_envfacts.py`. It preserves
+promotion and retirement, prevented waste, empty history probes, refused hosts,
+fact and token caps, merged claims, assignment-dependent forms, per-session
+evidence counts and loss of a working form. Persistence and Claude/Codex schema
+tests retain their fixtures. Prefix-stage wiring checks zero optimiser cost;
+the classifier checks every original RTK prefix and bare command. Transcript
+commands and URLs remain data and trigger no model or network calls.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -181,8 +189,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 25 pytest modules are complete, covering 611 of
-1,591 original cases, including the conditional Windows case. The other 980
+Conversion remains in progress: 26 pytest modules are complete, covering 633 of
+1,591 original cases, including the conditional Windows case. The other 958
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

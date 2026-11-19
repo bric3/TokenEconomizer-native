@@ -830,7 +830,7 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 25 of 67 pytest modules are complete, covering 611 of
+- Final test conversion: 26 of 67 pytest modules are complete, covering 633 of
   1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
@@ -4465,6 +4465,15 @@ complete while any runtime component delegates production behaviour to Python.
   and all-target Clippy pass. Production code is unchanged. Logs use
   `validation/results/test-conversion-10-*`. Total conversion covers 611 cases
   across 25 complete modules; remaining conversion and parity audits stay open.
+
+- The eleventh test-conversion batch completes the environment-fact suite's 22
+  functions. It preserves promotion, firing, retirement, history and network
+  boundaries, rendering caps, merged claims, working-form selection, per-session
+  evidence, persistence, Claude/Codex schemas, prefix-stage wiring and RTK
+  prefixes. Commands and URLs remain fixture data. All 22 new tests, formatting
+  and all-target Clippy pass; production is unchanged. Total conversion covers
+  633 cases across 26 complete modules. Remaining conversion and parity audits
+  stay open. Logs use `validation/results/test-conversion-11-*`.
 
 ## Dependencies
 
