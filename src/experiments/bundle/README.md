@@ -47,5 +47,20 @@ also packaged. Cleanup uses a separate native engine connection.
 External agents, the official grader SDK, aider and Node remain caller-provided
 dependencies where the selected experiment uses them.
 
+Capture Claude's loaded tool descriptions with:
+
+```sh
+TE_CATALOG_OUT=/path/to/claude_tool_catalog.json bin/te-bench capture-catalog
+```
+
+This runs real Claude calls in a SWE-bench container and bills the Anthropic API.
+Export `ANTHROPIC_API_KEY`; `TE_CLAUDE_BIN` selects the host Claude executable.
+`TE_CATALOG_INSTANCE`, `TE_CATALOG_PORT` and `TE_CATALOG_DESC_CHARS` select the task,
+recorder port and description limit. Capture retains the longest description for
+each tool and merges it with an existing snapshot. Rust owns capture, forwarding
+and merge policy; the container's Python supplies HTTP/TLS I/O.
+In a development checkout, the default output is `src/trace/claude_tool_catalog.json`.
+Rebuild the native executables after updating that source snapshot to embed it.
+
 This port retains the Apache-2.0 licence. See `LICENSE` and
 `THIRD-PARTY-NOTICES.txt` for attribution and dependency licences.

@@ -1,6 +1,6 @@
 //JAVA 25
 //SOURCES NativeCliProbe.java CliProbe.java ContextProbe.java ParserProbe.java ContainerProbe.java AdapterProbe.java ExtractProposerPrompts.java
-//SOURCES DatasetExportProbe.java WebExportProbe.java YamlMirrorProbe.java CompareProbe.java LaunchProbe.java MainSweepProbe.java CodexSweepProbe.java
+//SOURCES DatasetExportProbe.java WebExportProbe.java YamlMirrorProbe.java CompareProbe.java LaunchProbe.java MainSweepProbe.java CodexSweepProbe.java CatalogCliProbe.java
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,7 +33,7 @@ class ExperimentBundleProbe {
       var hash=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(bundle.resolve(matches.group(1)))));
       require(hash.equals(matches.group(2)),"manifest hash differs: "+matches.group(1));count++;
     }
-    require(count==39,"manifest omitted files: "+count);
+    require(count==40,"manifest omitted files: "+count);
   }
   static void engine(Path bundle)throws Exception {
     try(var client=new ContextProbe.Client(bundle.resolve("bin/te-bridge"),"experiment.swebench")) {
@@ -125,6 +125,7 @@ class ExperimentBundleProbe {
       LaunchProbe.standalone(checkout,root.resolve("fleet"),moved.resolve("bin/te-bench"));checks+=3;
       MainSweepProbe.standalone(checkout,root.resolve("main-sweep"),moved.resolve("bin/te-bench"));checks+=4;
       CodexSweepProbe.standalone(checkout,root.resolve("codex-sweep"),moved.resolve("bin/te-bench"));checks+=3;
+      CatalogCliProbe.standalone(checkout,root.resolve("catalog-capture"),moved.resolve("bin/te-bench"));checks+=5;
       var foreignEnv=moved.resolve(".env");Files.writeString(foreignEnv,"TE_EFFORT_LEVEL=from_wrong_root\n");
       try {
         for(var command:List.of("main-sweep","codex-ab")) {
@@ -344,7 +345,7 @@ class ExperimentBundleProbe {
           print('packaged SDK bindings passed')
           """,moved.resolve("sdk").toString(),moved.resolve("bin/te-bridge").toString()));
       require(controller.code()==0&&controller.out().equals("packaged SDK bindings passed\n"),"relocated SDK binding failed: "+controller);
-      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==40,"benchmark command changed the runtime payload");}
+      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==41,"benchmark command changed the runtime payload");}
       var bootstrap=moved.resolve("sdk/bench.py");var bootstrapBytes=Files.readAllBytes(bootstrap);Files.delete(bootstrap);
       var absent=NativeCliProbe.process(root,Map.of("PATH","","TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString()),List.of(moved.resolve("bin/te-bench").toString(),"--help"));
       require(absent.code()!=0&&absent.err().contains("SDK binding is missing"),"missing bundled SDK selected development files: "+absent);Files.write(bootstrap,bootstrapBytes);

@@ -3,8 +3,8 @@ use serde_json::{Value, json};
 use std::path::Path;
 use tokeneconomizer::experiments::datasets;
 use tokeneconomizer::experiments::swebench::{
-    self, Failure, Runtime, Task, codex_config, codex_install, codex_trace, containers, controls,
-    grading, guard_install, official, providers, settings, setup, wrappers,
+    self, Failure, Runtime, Task, catalog, codex_config, codex_install, codex_trace, containers,
+    controls, grading, guard_install, official, providers, settings, setup, wrappers,
 };
 
 struct Transport(Channel);
@@ -152,6 +152,35 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
             args["job"].as_u64().ok_or("missing task job")?,
             args.get("reply").cloned(),
         )
+        .map(Some);
+    }
+    if method == "catalog.system_tools" {
+        return Ok(Some(
+            catalog::system_tools(&args["stream_json_text"]).unwrap_or_else(failure),
+        ));
+    }
+    if method == "catalog.report" {
+        return Ok(Some(
+            catalog::report(&args["catalog"]).unwrap_or_else(failure),
+        ));
+    }
+    if method == "catalog.constants" {
+        return Ok(Some(
+            json!({"instance":catalog::INSTANCE,"recorder":catalog::RECORDER}),
+        ));
+    }
+    if matches!(method, "catalog.capture" | "catalog.install") {
+        let args = args.clone();
+        let install = method == "catalog.install";
+        return job::start("catalog_capture", move |channel| {
+            let rt = &mut Transport(channel);
+            let result = if install {
+                catalog::install(&args, rt)
+            } else {
+                catalog::capture(&args, rt)
+            };
+            result.unwrap_or_else(failure)
+        })
         .map(Some);
     }
     if method == "answer_key_attempts" {

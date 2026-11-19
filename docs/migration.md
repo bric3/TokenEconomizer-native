@@ -762,9 +762,11 @@ complete while any runtime component delegates production behaviour to Python.
   The workload registry, manifest exporter, sweep planner, both task exporters,
   YAML mirror, paired comparison reports, shared launch helpers, fleet CPU
   controls, main sweep and Codex A/B launcher have native implementations.
-  Audit the remaining reporting, capture and development tools for
-  production entry points that lack coverage. Preserve the archived smoke test
-  until final test conversion. Original Codex launcher tests now invoke the
+  The production-entry-point inventory also found the standalone catalogue
+  capture tool; it now runs through `te-bench capture-catalog`, with native capture
+  and recorder policy. `te_harness.webbench_smoke` and `launch/smoke_test.sh` are
+  executable tests and remain archived until final test conversion.
+  Original Codex launcher tests now invoke the
   native command with the archive as their fixture working directory. Parent
   bridge counters do not cover child processes; dedicated main/Codex oracles
   check native launch execution, driver arguments and results with no upstream
@@ -3859,13 +3861,49 @@ complete while any runtime component delegates production behaviour to Python.
   checks, and the relocated experiment bundle passes all 261 checks.
   Logs are under `validation/results/`: `path-before.log`, `path-probe.log`,
   `path-environment.log`, `path-full.log`, `path-full-calls.json`,
-  `path-rust-tests.log`, `path-clippy.log`, `path-debug.log`, `path-release.log`
+  `path-rust-tests.log`, `path-clippy.log`, `path-debug.log`, `path-release.log`,
   `path-reference.log`, `path-container-build.log`, `path-container-probe.log`
   and `path-bundle.log`.
   Windows-specific Rust regression cases are included but cannot run on this Mac;
   native Windows execution and OS paths outside UTF-8 remain unverified. Formal
   simplification and performance passes remain at 0/3 each; original-test conversion
   is pending.
+
+- The production-entry-point inventory found `te_harness.capture_catalog`, which
+  had no original tests. Its replacement is `te-bench capture-catalog`. Rust owns
+  option selection, container setup and cleanup, first-party and recorded probes,
+  deferred ToolSearch requests, longest-description merging, truncation and console
+  output. The container recorder uses `te-net-guard --catalog-recorder` for snapshot
+  state, request/response header filtering, credential replacement and error replies.
+  A standard-library Python binding supplies threaded HTTP, TLS and process I/O.
+  The shared static-helper installer selects and verifies the container architecture.
+  Existing snapshots retain longer descriptions; malformed prior JSON falls back
+  to an empty snapshot. Description limits larger than the native integer range
+  retain Python's slicing result. No Cargo dependencies were added.
+  New source comparisons cover 133 capture cases, including command arguments,
+  readiness retries, deferred tools, existing snapshots, Unicode, malformed streams,
+  errors and exception identity through cleanup. The recorder passes 166 comparisons
+  over real loopback HTTP, including streaming, header filtering, HTTP errors,
+  connection failures, UTF-8/16/32 bodies, non-finite metadata, surrogate text,
+  failed snapshot writes and concurrent requests. The standalone CLI matches source
+  console output and snapshot bytes with a Java Docker fixture. Both commands also
+  remove their container fixture after an actual Ctrl-C and return the same status.
+  All 31 Rust tests, formatting, Clippy and debug/release builds pass. The final
+  unchanged original suite passes with 1,561 passed and 30 skipped (88.65 seconds).
+  Both Linux helper builds pass 30 library tests and all 28 scratch-container checks.
+  The relocated bundle passes 270 checks, including capture and interruption with
+  its own helper files and no upstream import path. Its manifest covers 40 payload
+  files; the bundle contains 41 files including the manifest. All 256 archived
+  source, test and asset files still match the pinned tree.
+  Logs are under `validation/results/`: `catalog-probe.log`, `catalog-recorder.log`,
+  `catalog-cli-probe.log`, `catalog-full.log`, `catalog-full-calls.json`,
+  `catalog-rust-tests.log`, `catalog-clippy.log`, `catalog-debug.log`,
+  `catalog-release.log`, `catalog-container-build.log`, `catalog-container-probe.log`,
+  `catalog-bundle.log` and `catalog-reference.log`.
+  Paid agent execution and native Windows execution were not run. Tool names and
+  descriptions outside their string schemas remain in the JSON/schema audits.
+  Formal simplification and performance passes remain at 0/3 each; original-test
+  conversion is pending.
 
 ## Dependencies
 
@@ -4123,6 +4161,9 @@ jbang validation/TeaserProbe.java --animations
 jbang validation/TeaserFailureProbe.java --encoder
 jbang validation/TimestampProbe.java
 jbang validation/PathExpansionProbe.java
+jbang validation/CatalogProbe.java
+jbang validation/CatalogRecorderProbe.java
+jbang validation/CatalogCliProbe.java
 jbang validation/StandaloneBenchProbe.java
 jbang validation/StandaloneTransportProbe.java
 jbang validation/HermesGatewayProbe.java

@@ -47,6 +47,8 @@ class ContainerHelperProbe {
           var build=command(root,List.of("docker","build","--network","none","--platform","linux/"+architecture,"-t",image,context.toString()),null);
           if(build.code()!=0)throw new AssertionError("scratch image build failed: "+build.error());
           var data=Files.createDirectory(context.resolve("data"));
+          var recorded=run(root,data,image,List.of("--catalog-recorder","/data/tools.json","https://api.fixture///"),"{\"op\":\"request\",\"method\":\"POST\",\"path\":\"/v1/messages\",\"document\":\"{\\\"tools\\\":[{\\\"name\\\":\\\"Write\\\",\\\"description\\\":\\\" write é😀 \\\"}]}\",\"headers\":[[\"authorization\",\"dummy\"]]}\n");
+          if(recorded.code()!=0||!recorded.out().contains("https://api.fixture/v1/messages")||recorded.out().contains("dummy")||!Files.readString(data.resolve("tools.json")).equals("{\"Write\": \"write \\u00e9\\ud83d\\ude00\"}"))throw new AssertionError("catalogue recorder policy failed in scratch: "+recorded);checks++;
           Files.writeString(data.resolve("settings.json"),"{\"keep\":1,\"nested\":{\"old\":1}}");Files.writeString(data.resolve("patch.json"),"{\"nested\":{\"added\":2}}");
           var merged=run(root,data,image,List.of("--merge-json","/data/settings.json","/data/patch.json"),null);
           if(merged.code()!=0||!merged.out().equals("merged\n"))throw new AssertionError("merge failed: "+merged);

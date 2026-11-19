@@ -14,6 +14,24 @@ fn main() {
         .filter(|n| *n == 0 || *n >= 640)
         .unwrap_or(4300);
     let args = env::args_os().skip(1).collect::<Vec<_>>();
+    if args.first().is_some_and(|arg| arg == "--catalog-recorder") {
+        if args.len() != 3 {
+            eprintln!("usage: te-net-guard --catalog-recorder <path> <upstream>");
+            std::process::exit(2);
+        }
+        let result = tokeneconomizer::experiments::swebench::catalog::recorder::serve(
+            io::stdin().lock(),
+            io::stdout().lock(),
+            &PathBuf::from(&args[1]),
+            &args[2].to_string_lossy(),
+            &env::var("REAL_ANTHROPIC_KEY").unwrap_or_default(),
+        );
+        if let Err(error) = result {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+        return;
+    }
     if args.first().is_some_and(|arg| arg == "--install-entry") {
         if args.len() != 3 {
             eprintln!("usage: te-net-guard --install-entry <event> <path> < entry.json");
