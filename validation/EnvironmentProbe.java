@@ -38,6 +38,10 @@ class EnvironmentProbe {
       compare(nativeCode,source,"\"operation\":\"load\",\"path\":"+q(experiments));
       for(var names:List.of("[]","[\"A\"]","[\"A\",\"B\",\"A\"]","[17]","[[]]"))for(var env:List.of("{}","{\"A\":\"exported\",\"B\":\"\"}"))
         compare(nativeCode,source,"\"operation\":\"require\",\"names\":"+names+",\"env\":"+env);
+      for(var pathRules:List.of(false,true))
+        for(var repo:List.of("", "/", "//server/share/experiments", "C:\\work\\experiments", "C:experiments", "\\\\server\\share\\experiments", "relative/experiments", "é😀/experiments/"))
+          for(var existing:List.of(List.<String>of(), List.of(".env"), List.of("C:\\work\\.env"), List.of("C:\\work\\experiments\\.env")))
+            compare(nativeCode,source,"\"operation\":\"path\",\"root\":"+q(repo)+",\"windows\":"+pathRules+",\"existing\":"+ParserProbe.array(existing));
       for(var failure:List.of("open","enter","read","exit","get","set"))for(var error:List.of("FileNotFoundError","OSError","RuntimeError","KeyboardInterrupt"))for(boolean suppress:List.of(false,true))
         compare(nativeCode,source,"\"operation\":\"load\",\"path\":\"fixture\",\"file_fixture\":true,\"document\":\"A=value\",\"fail\":"+q(failure)+",\"error\":"+q(error)+",\"suppress\":"+suppress);
       for(var document:List.of("A=one\nB=two\nA=three\nA=\nEMPTY=\"\"", "GOOD=value\nBAD\u0000KEY=value\nAFTER=skip", "GOOD=value\nBAD=zero\u0000byte\nAFTER=skip", "A='$HOME $(echo literal)'\nUNICODE_é=😀"))for(boolean override:List.of(false,true))

@@ -305,7 +305,7 @@ pub fn expand_user(
                 ptr,
             };
             let _ = environment;
-            let name = CString::new(user).map_err(|e| e.to_string())?;
+            let name = CString::new(user).map_err(|_| "embedded null byte".to_string())?;
             let mut buffer = vec![0u8; 4096];
             loop {
                 let mut record = MaybeUninit::<libc::passwd>::uninit();
@@ -349,12 +349,17 @@ pub fn expand_user(
         }
         #[cfg(windows)]
         {
-            let current = env(environment, "USERNAME").unwrap_or("");
-            if user != current {
-                if base.file_name().and_then(|s| s.to_str()) != Some(current) {
+            let current = environment.get("USERNAME").and_then(Value::as_str);
+            if Some(user) != current {
+                let base_name = if base.to_string_lossy().ends_with(['/', '\\']) {
+                    ""
+                } else {
+                    base.file_name().and_then(|s| s.to_str()).unwrap_or("")
+                };
+                if Some(base_name) != current {
                     return Ok(path.into());
                 }
-                base = base.parent().unwrap_or(Path::new("")).join(user);
+                base = base.parent().unwrap_or(&base).join(user);
             }
         }
         #[cfg(not(any(unix, windows)))]
@@ -363,16 +368,70 @@ pub fn expand_user(
             return Ok(path.into());
         }
     }
-    let expanded = format!(
-        "{}{}",
-        base.to_string_lossy().trim_end_matches(separator),
-        &path[end..]
-    );
-    Ok(if expanded.is_empty() {
-        std::path::MAIN_SEPARATOR_STR.into()
-    } else {
-        expanded.into()
-    })
+    #[cfg(windows)]
+    {
+        Ok(format!("{}{}", base.to_string_lossy(), &path[end..]).into())
+    }
+    #[cfg(not(windows))]
+    {
+        let expanded = format!(
+            "{}{}",
+            base.to_string_lossy().trim_end_matches(separator),
+            &path[end..]
+        );
+        Ok(if expanded.is_empty() {
+            std::path::MAIN_SEPARATOR_STR.into()
+        } else {
+            expanded.into()
+        })
+    }
+}
+
+#[cfg(all(test, windows))]
+mod expansion_tests {
+    use super::*;
+
+    #[test]
+    fn windows_profiles_preserve_separators_and_require_a_matching_username() {
+        for (home, username, path, expected) in [
+            (
+                "C:\\Users\\alice",
+                Some("alice"),
+                "~bob/x",
+                "C:\\Users\\bob/x",
+            ),
+            ("C:/Users/alice/", Some("alice"), "~bob/x", "~bob/x"),
+            (
+                "C:/Users/alice/",
+                Some("alice"),
+                "~alice/x",
+                "C:/Users/alice//x",
+            ),
+            (
+                "C:/Users/alice/",
+                Some("alice"),
+                "~\\x",
+                "C:/Users/alice/\\x",
+            ),
+            ("C:/Users/alice/", None, "~bob/x", "~bob/x"),
+            ("", Some(""), "~bob", "bob"),
+            ("C:\\", Some(""), "~bob", "C:\\bob"),
+            ("", None, "~bob", "~bob"),
+            ("", None, "~", ""),
+        ] {
+            let mut environment = Map::new();
+            if let Some(username) = username {
+                environment.insert("USERNAME".into(), json!(username));
+            }
+            assert_eq!(
+                expand_user(path, Path::new(home), &environment)
+                    .unwrap()
+                    .as_os_str(),
+                expected,
+                "home={home:?}, username={username:?}, path={path:?}"
+            );
+        }
+    }
 }
 
 pub fn is_git_entry(dot: &Path) -> Result<bool, String> {

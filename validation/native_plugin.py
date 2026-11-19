@@ -2114,7 +2114,7 @@ def host_session_call(operation, arguments):
     if "env" in arguments:
         arguments["env"] = dict(os.environ if arguments["env"] is None else arguments["env"])
     if "extra_dirs" in arguments:
-        arguments["extra_dirs"] = [os.fspath(path) for path in arguments["extra_dirs"] or ()]
+        arguments["extra_dirs"] = [str(path) for path in arguments["extra_dirs"] or ()]
     if "turn_lines" in arguments:
         arguments["turn_lines"] = list(arguments["turn_lines"])
     for name, value in list(arguments.items()):

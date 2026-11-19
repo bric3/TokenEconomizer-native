@@ -706,9 +706,10 @@ complete while any runtime component delegates production behaviour to Python.
   Configuration numeric coercion still needs Unicode decimal digits and integers
   outside the current i64 range. Audit path-normalisation edge cases and typed I/O
   errors from repository identity too.
-- Complete named-user and Windows tilde expansion for extra history directories
-  in the path parity audit.
-  Include the project environment helpers, which currently use POSIX path rules.
+- Verify tilde expansion on a native Windows host, including home-directory
+  fallback through `USERPROFILE`, `HOMEDRIVE` and `HOMEPATH`. Claude history now
+  uses the shared expansion helper. Environment-file selection calls the supplied
+  platform path functions and has source comparisons with POSIX and Windows rules.
 - Include native OS arguments, environment values and paths outside UTF-8 in
   that audit. The CLI currently rejects them with a diagnostic.
 - Include history, folding, controller, host replay and experiment counters beyond
@@ -3836,6 +3837,36 @@ complete while any runtime component delegates production behaviour to Python.
   audits. Formal simplification and performance passes remain at 0/3 each;
   original-test conversion is pending.
 
+- Claude history now uses the same tilde expansion helper as side-call CLI and
+  Pi extension paths. The removed local shortcut skipped named users. The shared
+  helper also reports the original `embedded null byte` error for NUL-containing
+  Unix usernames. Its Windows branch retains trailing profile separators and
+  distinguishes an absent `USERNAME` from an empty value, following
+  [Python's path expansion contract](https://docs.python.org/3/library/os.path.html#os.path.expanduser).
+  The history test adapter now uses `str()` for extra directories, matching the
+  source's conversion of path objects and other values.
+  The new path probe initially found 92 differences in 450 comparisons; all 450
+  now pass. Cases cover known/unknown users, empty/root/trailing-slash homes,
+  Unicode and NUL bytes, actual named-user history discovery, symlinks, duplicate
+  directories, `projects` fallback and non-string extra directories. The environment
+  probe passes 294 comparisons, including injected POSIX and Windows `join` and
+  `dirname` functions with local/parent-file existence branches. The loader already
+  used those functions, so its production code did not change.
+  All 31 Rust tests, formatting, Clippy and debug/release builds pass. The unchanged
+  original suite passes with 1,561 passed and 30 skipped (92.67 seconds), with 32
+  calls to native history. All 256 archived files still match the pinned tree.
+  Both Linux helper builds pass 30 library tests. The helpers pass 26 scratch-container
+  checks, and the relocated experiment bundle passes all 261 checks.
+  Logs are under `validation/results/`: `path-before.log`, `path-probe.log`,
+  `path-environment.log`, `path-full.log`, `path-full-calls.json`,
+  `path-rust-tests.log`, `path-clippy.log`, `path-debug.log`, `path-release.log`
+  `path-reference.log`, `path-container-build.log`, `path-container-probe.log`
+  and `path-bundle.log`.
+  Windows-specific Rust regression cases are included but cannot run on this Mac;
+  native Windows execution and OS paths outside UTF-8 remain unverified. Formal
+  simplification and performance passes remain at 0/3 each; original-test conversion
+  is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -4091,6 +4122,7 @@ jbang validation/FiguresProbe.java
 jbang validation/TeaserProbe.java --animations
 jbang validation/TeaserFailureProbe.java --encoder
 jbang validation/TimestampProbe.java
+jbang validation/PathExpansionProbe.java
 jbang validation/StandaloneBenchProbe.java
 jbang validation/StandaloneTransportProbe.java
 jbang validation/HermesGatewayProbe.java

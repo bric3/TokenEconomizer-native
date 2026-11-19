@@ -467,14 +467,7 @@ pub fn history(
     }
     let mut dirs = vec![claude::projects_dir(&json!(env), &environment.home)];
     for dir in extra {
-        // shortcut: expand the current user's tilde, cover named users and Windows forms in the path parity audit.
-        let path = if dir == "~" {
-            environment.home.clone()
-        } else if let Some(rest) = dir.strip_prefix("~/") {
-            environment.home.join(rest)
-        } else {
-            PathBuf::from(dir)
-        };
+        let path = paths::expand_user(dir, &environment.home, &environment.env)?;
         dirs.push(if environment.path(&path.join("projects")).is_dir() {
             path.join("projects")
         } else {

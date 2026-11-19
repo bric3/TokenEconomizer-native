@@ -63,6 +63,7 @@ fn paths_dispatch(op: &str, args: &Value) -> Result<Value, String> {
     let home = Path::new(text(args, "home"));
     let path = |key| Path::new(text(args, key));
     Ok(match op {
+        "paths.expand_user" => json!(paths::expand_user(text(args, "path"), home, &environment)?),
         "paths.state_root" => json!(paths::state_root(&environment, home)?),
         "paths.secure_root" => {
             paths::secure_root(&environment, home)?;

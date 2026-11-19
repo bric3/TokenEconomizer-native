@@ -1,6 +1,7 @@
 """Environment, path and file bindings for native environment-loader comparisons."""
 import builtins
 import json
+import ntpath
 import os
 from pathlib import Path
 import sys
@@ -33,7 +34,9 @@ for line in sys.stdin:
         os.environ.update(request.get("env",{}))
         environment=os.environ
     else: environment=Environment(request.get("env",{}))
-    def exists(path): record("exists",path);return os.path.exists(path)
+    def exists(path):
+        record("exists",path)
+        return path in request["existing"] if "existing" in request else os.path.exists(path)
     class Input:
         def __enter__(self): record("enter");return self
         def read(self): record("read");return request.get("document","")
@@ -42,7 +45,8 @@ for line in sys.stdin:
             return request.get("suppress",False)
     def opener(path,**kwargs): record("open",[path,kwargs]);return Input()
     try:
-        module.os=types.SimpleNamespace(environ=environment,path=types.SimpleNamespace(join=os.path.join,dirname=os.path.dirname,exists=exists))
+        paths = ntpath if request.get("windows") else os.path
+        module.os=types.SimpleNamespace(environ=environment,path=types.SimpleNamespace(join=paths.join,dirname=paths.dirname,exists=exists))
         module._REPO_ROOT=request.get("root","/fixture/experiments")
         if request.get("file_fixture"): module.open=opener
         operation=request.get("operation","parse")
