@@ -724,6 +724,10 @@ complete while any runtime component delegates production behaviour to Python.
   Include Codex probe timeouts and version objects outside the tested JSON schemas,
   including non-finite numbers and custom numeric or string conversion methods.
 - Include CLI and ledger counts beyond i64 in the numeric parity audit.
+  Mixed ledger sums and paired-report totals now preserve integer prefixes and
+  follow CPython's float-summation transitions. Ledger results still use f64;
+  retain all-integer result types and audit execution/overhead totals across
+  session records with the remaining numeric codecs.
 - Include `probe --sessions` integers outside i64 in that audit.
 - Include displayed tool counters in that audit, and audit CLI errors for malformed
   saved state and invalid encodings.
@@ -4022,6 +4026,39 @@ complete while any runtime component delegates production behaviour to Python.
   simplification and performance passes remain at 0/3 each; original-test
   conversion is pending.
 
+- Mixed numeric ledger overheads and pooled report totals now share
+  `value::sum_numbers`. It keeps the integer prefix exact, adds the first float
+  in source order and follows CPython's compensated or ordinary addition path
+  after the integer loop. The implementation follows
+  [CPython 3.15.2's builtin_sum_impl](https://github.com/python/cpython/blob/v3.15.2/Python/bltinmodule.c#L2712).
+  Native C `long` and pointer widths determine its overflow transitions.
+  The first probe found 524 differences in 3,152 mixed numeric comparisons.
+  All 3,152 now pass through ledger and live-accounting overhead APIs, covering
+  cancellation, integer prefixes, booleans, ignored fields and overflow
+  transitions. The paired-report probe also exposed a pooled total of `3` where
+  the source reports `4`; sharing the iterator fixes that path too. All 95
+  paired-report comparisons and three standalone checks pass. Aggregation passes
+  155 comparisons, including exact CSV bytes with the new cancellation fixtures.
+  All 34 Rust tests, formatting, Clippy and debug/release builds pass. The
+  unchanged original suite passes with 1,561 passed and 30 skipped (78.02 seconds).
+  Both Linux builds pass 33 library tests and 28 scratch-container checks.
+  Relocated experiment bundles pass all 270 checks. All 256 archived files still
+  match the pinned tree, and all 104 locked crate legal texts are verified. The bundle's
+  existing CPython notice now includes the summation source and implementation.
+  Logs are under `validation/results/`: `ledger-sum-before.log`,
+  `ledger-sum-pooled-before.log`, `ledger-sum-probe.log`,
+  `ledger-sum-aggregate.log`, `ledger-sum-compare.log`,
+  `ledger-sum-rust-tests.log`, `ledger-sum-clippy.log`,
+  `ledger-sum-debug.log`, `ledger-sum-release.log`, `ledger-sum-full.log`,
+  `ledger-sum-full-calls.json`, `ledger-sum-reference.log`,
+  `ledger-sum-notices.log`, `ledger-sum-notices-check.log`,
+  `ledger-sum-container-build.log`, `ledger-sum-container-probe.log` and
+  `ledger-sum-bundle.log`.
+  All-integer result types, wider numeric codecs and session-level totals remain
+  in the production-parity audit. Native Windows execution remains unverified.
+  This shared iterator is part of the correctness port. Formal simplification
+  and performance passes remain at 0/3 each; original-test conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -4249,6 +4286,7 @@ jbang validation/HermesRedirectProbe.java
 jbang validation/SidecallFailureProbe.java
 jbang validation/CleanupProbe.java
 jbang validation/ConfigNumberProbe.java
+jbang validation/LedgerSumProbe.java
 jbang validation/RunnerProbe.java
 jbang validation/ToolcheckProbe.java
 jbang validation/DiscoveryProbe.java

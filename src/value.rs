@@ -278,6 +278,36 @@ pub(crate) fn sum_floats(values: impl IntoIterator<Item = f64>) -> f64 {
     }
 }
 
+// Sum numeric JSON values on a floating-point output boundary; other values contribute zero.
+pub(crate) fn sum_numbers<'a>(values: impl IntoIterator<Item = &'a Value>) -> f64 {
+    let mut values = values.into_iter();
+    let (mut integer, mut fast) = (0i128, true);
+    while let Some(value) = values.next() {
+        if let Some(value) = value.as_number().filter(|n| n.is_f64()) {
+            // Python adds the first float normally, then compensates only its fast sum.
+            let first = integer as f64 + value.as_f64().unwrap();
+            let rest = values.map(|value| number(value).unwrap_or(0.0));
+            return if fast {
+                sum_floats(std::iter::once(first).chain(rest))
+            } else {
+                rest.fold(first, |total, value| total + value)
+            };
+        }
+        let next = match value {
+            Value::Bool(value) => i128::from(*value),
+            value => value
+                .as_i64()
+                .map(i128::from)
+                .or_else(|| value.as_u64().map(i128::from))
+                .unwrap_or(0),
+        };
+        // Python leaves its fast integer loop after C-integer overflow, even if a later sum fits.
+        fast &= libc::c_long::try_from(next).is_ok() && isize::try_from(integer + next).is_ok();
+        integer += next;
+    }
+    integer as f64
+}
+
 pub fn count(value: &Value, field: &str) -> Result<f64, String> {
     integer(value).ok_or_else(|| format!("invalid {field} count"))
 }

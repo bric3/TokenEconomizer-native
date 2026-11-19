@@ -64,6 +64,8 @@ class AggregateProbe {
       row(root, "repomap", "pydata__xarray_s1", "20260103T000000Z__unreached", ",\"resolved\":false,\"webbench_attempts\":0,\"resolved_p1\":null,\"resolved_p2\":null");
       row(root, "repomap", "pydata__xarray_s2", "20260103T000000Z__spent", ",\"resolved\":false,\"input_tokens\":3");
       row(root, "baseline", "large_s0", "20260103T000000Z__legacy", ",\"tokens_total\":10000000000000000001,\"optimizer_tokens\":9007199254740993");
+      row(root, "baseline", "mixed-prefix_s0", "20260103T000000Z__legacy", ",\"tokens_total\":0.0,\"optimizer_tokens\":9007199254740993,\"untool_classify_tokens\":-9007199254740992,\"untool_judge_tokens\":0.0");
+      row(root, "baseline", "mixed-overflow_s0", "20260103T000000Z__legacy", ",\"tokens_total\":0.0,\"optimizer_tokens\":18446744073709551615,\"untool_classify_tokens\":-9223372036854775808,\"untool_judge_tokens\":-9223372036854775808,\"codex_untool_adapt_tokens\":0.0,\"spiral_judge_tokens\":2");
       row(root, "baseline", ".hidden_s0", "20260101T000000Z__ignored", ",\"resolved\":true");
       row(root, ".explicit-hidden-arm", "sympy_s0", "20260101T000000Z__visible", ",\"resolved\":true");
       Files.createDirectories(root.resolve("empty"));

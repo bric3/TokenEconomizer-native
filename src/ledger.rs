@@ -1,9 +1,6 @@
 use serde_json::Value;
 
-use crate::{
-    pricing,
-    value::{number, sum_floats},
-};
+use crate::{pricing, value::sum_numbers};
 
 pub const OVERHEAD_KEYS: [&str; 6] = [
     "optimizer_tokens",
@@ -15,12 +12,8 @@ pub const OVERHEAD_KEYS: [&str; 6] = [
 ];
 
 pub fn overhead(row: &Value) -> f64 {
-    // shortcut: mixed wide integers are rounded before summing; retain integer prefixes in the numeric parity audit.
-    sum_floats(
-        OVERHEAD_KEYS
-            .iter()
-            .map(|key| number(&row[*key]).unwrap_or(0.0)),
-    )
+    // shortcut: results use f64, retain integer result types during the numeric JSON-codec audit.
+    sum_numbers(OVERHEAD_KEYS.iter().map(|key| &row[*key]))
 }
 
 pub fn effective_exec(row: &Value) -> Result<f64, pricing::PricingError> {

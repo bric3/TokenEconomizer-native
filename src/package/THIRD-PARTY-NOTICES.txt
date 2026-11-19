@@ -2,10 +2,10 @@ Third-party notices for TokenEconomizer native
 
 Cargo.lock SHA-256: 8b843da9070861cda6bfa2cdfee76b2ecc66ff9d5dc3e755516777467880bec8
 
-These texts cover bundled Unicode data, CPython-derived parsing and cleanup code,
-and every registry crate in the lockfile, including build and platform dependencies.
-Some crates may not be linked into a particular binary. Crate texts are copied
-from the corresponding published crate.
+These texts cover bundled Unicode data, CPython-derived parsing, cleanup and
+summation code, and every registry crate in the lockfile, including build and
+platform dependencies. Some crates may not be linked into a particular binary.
+Crate texts are copied from the corresponding published crate.
 
 ===============================================================================
 Unicode 16 and 17 data corrections
@@ -52,15 +52,18 @@ dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
 
 ===============================================================================
-CPython 3.15.2 datetime parsing and temporary-directory cleanup
+CPython 3.15.2 datetime parsing, temporary-directory cleanup and summation
 Sources:
 https://github.com/python/cpython/blob/v3.15.2/Modules/_datetimemodule.c
 https://github.com/python/cpython/blob/v3.15.2/Lib/tempfile.py
+https://github.com/python/cpython/blob/v3.15.2/Python/bltinmodule.c
 
 ISO parsing and local-time mapping are adapted to Rust in src/trace/time.rs.
 The exposed helper returns epoch seconds or no value for an invalid timestamp.
 TemporaryDirectory permission repair is implemented in src/plugin/temporary.rs
 with descriptor-relative Unix traversal and native filesystem operations.
+Mixed integer/float summation in src/value.rs follows builtin_sum_impl.
+The iterator is shared by ledger overhead and paired-report totals.
 
 A. HISTORY OF THE SOFTWARE
 ==========================

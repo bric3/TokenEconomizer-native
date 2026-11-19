@@ -8,7 +8,7 @@ use crate::{
     microskills::envfacts::EnvFactsDistiller,
     pricing,
     python_json::Node,
-    value::{number, python_repr, python_type, sum_floats, truthy},
+    value::{number, python_repr, python_type, sum_floats, sum_numbers, truthy},
 };
 use num_rational::BigRational;
 use num_traits::ToPrimitive;
@@ -221,9 +221,10 @@ fn sum(values: &[Value]) -> Result<Value> {
     if let Some(values) = values.iter().map(integer).collect::<Option<Vec<_>>>() {
         return int_value(values.into_iter().sum());
     }
-    Ok(json!(sum_floats(
-        values.iter().map(numeric).collect::<Result<Vec<_>>>()?
-    )))
+    for value in values {
+        numeric(value)?;
+    }
+    Ok(json!(sum_numbers(values)))
 }
 fn mean(values: &[Value]) -> Result<Value> {
     if let Some(integers) = values.iter().map(integer).collect::<Option<Vec<_>>>() {

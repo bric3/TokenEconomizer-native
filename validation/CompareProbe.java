@@ -52,6 +52,20 @@ class CompareProbe {
       compare(nativeCode, source, request("main", base, ""));
       compare(nativeCode, source, request("cost", base, "\"row\":{\"tokens_total\":100,\"optimizer_tokens\":1e16,\"untool_classify_tokens\":1.0,\"untool_judge_tokens\":-1e16}"));
       compare(nativeCode, source, request("cost", base, "\"row\":{\"tokens_total\":0,\"optimizer_tokens\":1e16,\"untool_classify_tokens\":1.0,\"untool_judge_tokens\":1.0}"));
+      for (var extra : List.of(
+          "\"optimizer_tokens\":9007199254740993,\"untool_classify_tokens\":-9007199254740992,\"untool_judge_tokens\":0.0",
+          "\"optimizer_tokens\":18446744073709551615,\"untool_classify_tokens\":-9223372036854775808,\"untool_judge_tokens\":-9223372036854775808,\"codex_untool_adapt_tokens\":0.0,\"spiral_judge_tokens\":2")) {
+        compare(nativeCode, source, request("cost", base, "\"row\":{\"tokens_total\":0.0,"+extra+"}"));
+        compare(nativeCode, source, request("main", base, "\"baseline\":["+row("mixed", "0.0", "\"optimizer_tokens\":1.0")+"],\"arm\":["+row("mixed", "0.0", extra)+"]"));
+      }
+      for (var values : List.of(
+          List.of("9007199254740993", "-9007199254740992", "0.0", "3"),
+          List.of("18446744073709551615", "-9223372036854775808", "-9223372036854775808", "0.0", "3"))) {
+        var rows = new java.util.ArrayList<String>();
+        for (int i=0;i<values.size();i++) rows.add(row("mixed-"+i, values.get(i), ""));
+        var data = "["+String.join(",",rows)+"]";
+        compare(nativeCode, source, request("main", base, "\"baseline\":"+data+",\"arm\":"+data));
+      }
       for (var row : List.of("{}", "{\"tokens_total\":10}", "{\"tokens_total\":10.0}", "{\"tokens_total\":true,\"optimizer_tokens\":4}", "{\"tokens_total\":100,\"optimizer_tokens\":3.5}", "{\"input_tokens\":10,\"output_tokens\":4,\"model\":\"claude-sonnet-4-5\"}", "{\"input_tokens\":\"bad\"}", "{\"model\":\"unknown-model\",\"input_tokens\":1}"))
         compare(nativeCode, source, request("cost", base, "\"row\":" + row));
       for (var rows : List.of("[]", "[{}]", "[null]", "[1]", "[{\"_raw\":\"{\"}]", "[" + row("x", "1", "\"_config\":{\"version\":1}") + "," + row("x", "2", "\"_config\":null") + "]", "[" + row("x", "1", "\"_config\":{\"version\":1}") + "," + row("x", "2", "\"_config\":\"{\"") + "]"))
