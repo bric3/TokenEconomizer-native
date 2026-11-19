@@ -148,8 +148,9 @@ target/release/te-bench --arm baseline --tasks-file /path/to/tasks.json --result
 
 Use `--runner module:factory` for an external task runner. Python 3.10 or newer supplies
 standard-library I/O; `TE_BENCH_PYTHON` selects its interpreter. The runtime bundle
-carries the SDK and command, including Codex policy, state, resume-guard and
-envelope-tracker bindings. Their state transitions execute in Rust. Built-in
+carries the SDK and command, including the generic streamed-rollout controller
+and Codex policy, state, resume-guard and envelope-tracker bindings. Their state
+transitions execute in Rust. Built-in
 SWE-bench and WebBench harness bindings remain pending.
 
 SWE-bench controller selection, constructor parameters, continuation dispatch and

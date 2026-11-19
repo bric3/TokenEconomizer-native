@@ -21,9 +21,9 @@ runner's dependencies. The SDK and engine run independently of the original
 checkout. The loader uses this directory's `.env`, or its parent's when the local file is absent;
 `TOKENECONOMIZER_ENV_FILE` selects an explicit file.
 
-The SDK includes Codex policy, state, resume-guard and envelope-tracker objects;
-their state transitions execute in Rust. Bindings for the built-in SWE-bench and
-WebBench harnesses remain pending.
+The SDK includes the generic streamed-rollout controller and Codex policy, state,
+resume-guard and envelope-tracker objects. Their state transitions execute in Rust.
+Bindings for the built-in SWE-bench and WebBench harnesses remain pending.
 External agents, the official grader SDK, aider and Node remain caller-provided
 dependencies where the selected experiment uses them.
 

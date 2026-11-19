@@ -744,8 +744,9 @@ complete while any runtime component delegates production behaviour to Python.
   select native guard executables. The runtime bundle ships executables and
   assets. The standalone benchmark command and its SDK are packaged. Bindings
   for the built-in SWE-bench and WebBench harnesses remain open.
-  Codex controller SDK bindings are packaged and used by the driver and original
-  controller tests; their state transitions remain native.
+  Generic and Codex controller SDK bindings are packaged and used by the original
+  controller tests. The driver uses the Codex policy binding too; state transitions
+  remain native.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
@@ -2785,6 +2786,31 @@ complete while any runtime component delegates production behaviour to Python.
   Formal simplification and performance passes remain at 0/3 each; final test
   conversion is pending.
 
+- The generic streamed-rollout controller now has a production SDK binding.
+  Rust owns state folding, decisions, judge sampling, callback costs, continuation
+  resets and telemetry. The binding retains judge/writer callables and exposes
+  the controller's attributes and slotted state object. State fields, default
+  thresholds and the resume header come from Rust. Its state methods also use
+  the native fold, snapshot, digest and derived-signal operations.
+  The original test adapter delegates to this binding and retains the original
+  class references used by harness callers. Both its ordinary probe and its
+  standalone mode pass 92 source comparisons. The standalone mode forbids
+  reference-package and `native_plugin` imports. The cases cover callback
+  failures, sampling backoff, costs, continuation resets, batched events,
+  cumulative backstops and direct state methods. Runner controls pass 196
+  comparisons, including constructor signatures, continuation and telemetry.
+  The runtime bundle now contains six SDK files and 25 payload hashes. Its
+  137 checks include a relocated controller with a real writer callback,
+  an empty PATH and reference-package imports forbidden.
+  The unchanged upstream suite passes with 1,561 passed and 30 skipped
+  (66.07 seconds), including installed-opencode tests against the loopback model
+  fixture. All 24 Rust checks, debug/release builds, Clippy and the 256-file
+  reference check pass. IDE inspections remain unavailable because this checkout
+  is not open in the IDE. Windows, other Python versions and live agents remain
+  unverified. Built-in harness SDK bindings and remaining parity audits stay open.
+  Formal simplification and performance passes remain at 0/3 each; final test
+  conversion is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2908,6 +2934,7 @@ jbang validation/AdapterProbe.java
 jbang validation/SpiralProbe.java
 jbang validation/SpiralProbe.java --sdk
 jbang validation/NudgeProbe.java
+jbang validation/NudgeProbe.java --sdk
 jbang validation/FacadeProbe.java
 jbang validation/UsageProbe.java
 jbang validation/TaskProbe.java

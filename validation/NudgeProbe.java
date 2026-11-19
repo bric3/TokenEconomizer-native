@@ -35,10 +35,11 @@ class NudgeProbe {
     if (!Files.readString(path).equals(text)) throw new AssertionError("Native resume header differs");
   }
   public static void main(String[] args) throws Exception {
+    boolean standalone=args.length==1&&args[0].equals("--sdk");
     header(args.length == 1 && args[0].equals("--write"));
-    if (args.length > 0) { System.out.println("Verified native generic resume header"); return; }
+    if (args.length > 0&&!standalone) { System.out.println("Verified native generic resume header"); return; }
     var checkout = Path.of("").toAbsolutePath();
-    try (var nativeCode = new AdapterProbe.Client(checkout, true, "nudge_host.py");
+    try (var nativeCode = new AdapterProbe.Client(checkout, true, "nudge_host.py",standalone?new String[]{"--sdk"}:new String[0]);
          var source = new AdapterProbe.Client(checkout, false, "nudge_host.py")) {
       var body = op("_nudge_body", "");
       var resume = op("continuation", "\"base_prompt\":\"Fix the task.\"");
@@ -84,7 +85,8 @@ class NudgeProbe {
       for (var value : List.of("{\"text\":23,\"_tokens\":1}", "{\"text\":false,\"_tokens\":2}", "{\"text\":[],\"_tokens\":true}"))
         compare(nativeCode, source, request("\"writer\":[" + value + "]", List.of(stop, resume, body)));
       compare(nativeCode, source, request("\"arguments\":{\"thr\":{}}", List.of(op("_sampled_judge", "\"digest\":\"unused\""), body)));
-      System.out.println("Generic nudge controller matches the pinned implementation in " + cases + " cases; header, sampling, costs, continuation, batched streams and hard backstops passed without model calls");
+      for(int n:List.of(-1,0,1,24))compare(nativeCode,source,"{\"kind\":\"state\",\"n\":"+n+"}");
+      System.out.println((standalone?"Standalone SDK (reference imports forbidden): ":"")+"Generic nudge controller matches the pinned implementation in " + cases + " cases; header, sampling, costs, continuation, batched streams and hard backstops passed without model calls");
     }
   }
 }
