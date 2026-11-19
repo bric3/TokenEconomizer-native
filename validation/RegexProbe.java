@@ -23,6 +23,8 @@ class RegexProbe {
   public static void main(String[] args)throws Exception {
     try(var nativeCode=new AdapterProbe.Client(Path.of("").toAbsolutePath(),true,"regex_host.py");var source=new AdapterProbe.Client(Path.of("").toAbsolutePath(),false,"regex_host.py")) {
       var texts=List.of("","A","a","Z","z","K","k","S","s","İ","ı","ſ","K","é","É","中","😀","0","٩","_"," ","\t","\n","\r","\u001c","\u0085","\u00a0","\u2003","éA","Aé","A_","__","aa","aA","aé","éÉ","éé","\nA\n");
+      for(var pattern:List.of("\\w", "\\W", "\\d", "\\D", "\\b.\\b", "(?i)\\U00016EA0", "(?i)[\\U00016EA0-\\U00016EB8]", "(?P<"+new String(Character.toChars(0x16ea0))+">a)"))
+        compare(nativeCode,source,pattern,List.of("a",new String(Character.toChars(0x11de0)),new String(Character.toChars(0x16ea0)),new String(Character.toChars(0x16ebb))));
       for(var name:List.of("SNOWMAN", "snowman", "LATIN CAPITAL LETTER A", "LATIN SMALL LETTER E WITH ACUTE", "GRINNING FACE", "NULL", "LINE FEED", "LATIN CAPITAL LETTER GHA", "HANGUL SYLLABLE GA", "CJK UNIFIED IDEOGRAPH-4E00", "TANGUT IDEOGRAPH-17000", "CJK UNIFIED IDEOGRAPH-323B0", "SHARADA VOWEL SIGN PRISHTHAMATRA E", "snow man", "SNOW_MAN", " LATIN CAPITAL LETTER A", "LATIN CAPITAL LETTER A ", "LATIN  CAPITAL LETTER A", "LATIN-CAPITAL LETTER A", "KEYCAP DIGIT ONE", "UNKNOWN CHARACTER", ""))
         compare(nativeCode,source,"\\N{"+name+"}",List.of("", "☃", "A", "a", "é", "É", "😀", "\u0000", "\n", "Ǣ", "가", "一", new String(Character.toChars(0x17000)), new String(Character.toChars(0x323b0)), new String(Character.toChars(0x11b60))));
       compare(nativeCode,source,"(?a)\\w",texts);

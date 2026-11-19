@@ -43,7 +43,8 @@ class ThirdPartyNotices {
     List<Path> registries;
     try(var directories=Files.list(cache)){registries=directories.filter(Files::isDirectory).sorted().toList();}
     var hash=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(lock)));
-    var text=new StringBuilder("Third-party notices for TokenEconomizer native\n\nCargo.lock SHA-256: "+hash+"\n\nThese texts cover every registry crate in the lockfile, including build and\nplatform dependencies. Some crates may not be linked into a particular binary.\nEach text below is copied from the corresponding published crate.\n");
+    var text=new StringBuilder("Third-party notices for TokenEconomizer native\n\nCargo.lock SHA-256: "+hash+"\n\nThese texts cover bundled Unicode data and every registry crate in the lockfile,\nincluding build and platform dependencies. Some crates may not be linked into a\nparticular binary. Crate texts are copied from the corresponding published crate.\n");
+    text.append("\n===============================================================================\nUnicode 16 and 17 data corrections\nSource: https://www.unicode.org/Public/17.0.0/ucd/\n\n").append(Files.readString(root.resolve("src/microskills/distiller/data/LICENSE-UNICODE-V3")));
     var packages=Pattern.compile("(?ms)^\\[\\[package\\]\\]\\n(.*?)(?=^\\[\\[package\\]\\]|\\z)").matcher(Files.readString(lock));
     int count=0;
     while(packages.find()) {

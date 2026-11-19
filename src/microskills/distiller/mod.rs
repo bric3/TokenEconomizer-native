@@ -2,6 +2,7 @@ mod detector;
 mod digest;
 mod prompt;
 mod regex;
+mod unicode17;
 
 pub use detector::*;
 pub use digest::*;

@@ -668,7 +668,8 @@ complete while any runtime component delegates production behaviour to Python.
 - Audit regular-expression compatibility with Python in the production parity
   pass, including word boundaries, whitespace classes and syntax. Detector and
   extractor patterns now support Python's global and scoped ASCII flags through
-  the native compiler. Named-character escapes use Unicode 17 names and aliases.
+  the native compiler. Character classes, boundaries, literal case folding,
+  named-character escapes and group identifiers use Unicode 17 data.
   Patterns combining ASCII and Unicode caseless backreferences remain unsupported.
   Include Unicode backreference case folding, syntax errors and engine runtime
   errors in the audit.
@@ -3152,6 +3153,35 @@ complete while any runtime component delegates production behaviour to Python.
   because this checkout is not open in the IDE. Windows and other Python versions
   remain unverified.
 
+- Detector and extractor Unicode character classes now include all 4,657 word
+  characters and ten decimal digits added in Unicode 17. Literal and range
+  matching also includes its 28 changed simple-fold groups. Group-name validation
+  uses the already-locked Unicode 17 identifier library directly. The pinned
+  regex-syntax tables remain the Unicode 16 base; generated corrections supply
+  the additions before classes and boundaries are compiled into PCRE2 patterns.
+  ASCII mode retains its ASCII classes and folding rules.
+  The Unicode probe passes 4,560 source comparisons. Its anchored positive and
+  negative class checks cover 3,336,192 memberships: every Unicode scalar for
+  each of word, digit and whitespace. It also checks every simple-fold group,
+  all valid identifier code points with positive source assertions, invalid
+  identifier boundaries and case-insensitive ranges. The existing regex corpus
+  passes 2,264 comparisons, including the reproduced Tolong Siki and Beria Erfe
+  failures. The unchanged upstream suite passes with 1,561 passed and 30 skipped
+  (72.49 seconds), including installed opencode tests against their local stand-in
+  model. All 24 Rust checks, debug/release builds, Clippy, formatting and the
+  256-file reference check pass.
+  Both rebuilt static Linux helpers pass 26 scratch-container checks without
+  Python, a shell or network. The relocated bundle passes 203 checks, including
+  Unicode 17 word/digit classes, literal folding and group identifiers.
+  The generator verifies five SHA-256-pinned official Unicode inputs and
+  reproduces the committed tables byte for byte. The distribution notices now
+  include the official Unicode data licence alongside all 101 locked crates.
+  Unicode backreference folding, mixed ASCII/Unicode caseless backreferences,
+  other production patterns and the remaining syntax/error audits stay open.
+  Formal simplification and performance passes remain at 0/3 each; final test
+  conversion is pending. IDE inspections remain unavailable because this checkout
+  is not open in the IDE. Windows and other Python versions remain unverified.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2. Validation uses
@@ -3174,6 +3204,12 @@ atoms. `.cargo/config.toml` selects static PCRE2 linking for host builds; the
 dependency selects static linking for the Linux musl helpers too. `regex-syntax`
 was already locked transitively and now supplies character ranges and UTF-8
 encoding directly. The notice generator includes embedded C licence headers.
+Generated Unicode 17 corrections extend regex-syntax's Unicode 16 classes and
+simple folds. Reproduce them with `jbang scripts/UnicodeRegexTables.java`; add
+`--check` to verify the committed data. The script caches five versioned official
+inputs under `validation/results/unicode-ucd` and checks their SHA-256 hashes on
+every run. `unicode-ident` 1.0.24 was already locked and now supplies Unicode 17
+group-name properties directly.
 `unicode_names2` 4.0.0 supplies compressed Unicode 17 character names. The compiler
 checks canonical spellings and the official alias table to preserve Python's
 spaces and hyphens. It derives Tangut names for the two ranges omitted by the

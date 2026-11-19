@@ -6,6 +6,8 @@ use regex_syntax::{
 };
 use std::{collections::BTreeMap, sync::LazyLock};
 
+use super::unicode17::{CASE_FOLD_ADDED, DIGIT_ADDED, WORD_ADDED};
+
 pub struct Pattern {
     source: String,
     compiled: Engine,
@@ -128,6 +130,13 @@ impl<'a> Compiler<'a> {
                 let turkish = ['I', 'i', 'İ', 'ı']
                     .into_iter()
                     .any(|c| first <= c && c <= last);
+                for &group in CASE_FOLD_ADDED {
+                    if group.iter().any(|&c| first <= c && c <= last) {
+                        for &c in group {
+                            class.push(ClassUnicodeRange::new(c, c));
+                        }
+                    }
+                }
                 class.case_fold_simple();
                 if turkish {
                     for c in ['I', 'i', 'İ', 'ı'] {
@@ -307,10 +316,13 @@ impl<'a> Compiler<'a> {
         let header = if rest.starts_with("?P<") {
             let end = self.source[self.position..].find('>')? + self.position + 1;
             let name = &self.source[self.position + 3..end - 1];
-            static NAME: LazyLock<regex::Regex> = LazyLock::new(|| {
-                regex::Regex::new(r"\A[_\p{XID_Start}]\p{XID_Continue}*\z").unwrap()
-            });
-            if !NAME.is_match(name) || self.names.contains_key(name) {
+            let mut characters = name.chars();
+            if characters
+                .next()
+                .is_none_or(|c| c != '_' && !unicode_ident::is_xid_start(c))
+                || !characters.all(unicode_ident::is_xid_continue)
+                || self.names.contains_key(name)
+            {
                 return None;
             }
             self.captures += 1;
@@ -522,9 +534,19 @@ fn parsed_class(pattern: &str) -> ClassUnicode {
     };
     class.clone()
 }
+fn updated_class(pattern: &str, added: &[(char, char)]) -> ClassUnicode {
+    let mut class = parsed_class(pattern);
+    class.union(&ClassUnicode::new(
+        added
+            .iter()
+            .map(|&(first, last)| ClassUnicodeRange::new(first, last)),
+    ));
+    class
+}
 fn category(c: char, ascii: bool) -> ClassUnicode {
-    static WORD: LazyLock<ClassUnicode> = LazyLock::new(|| parsed_class(r"[\p{L}\p{N}_]"));
-    static DIGIT: LazyLock<ClassUnicode> = LazyLock::new(|| parsed_class(r"\d"));
+    static WORD: LazyLock<ClassUnicode> =
+        LazyLock::new(|| updated_class(r"[\p{L}\p{N}_]", WORD_ADDED));
+    static DIGIT: LazyLock<ClassUnicode> = LazyLock::new(|| updated_class(r"\d", DIGIT_ADDED));
     static SPACE: LazyLock<ClassUnicode> = LazyLock::new(|| parsed_class(r"[\s\x1c-\x1f]"));
     let mut class = match (c.to_ascii_lowercase(), ascii) {
         ('w', true) => parsed_class(r"[A-Za-z0-9_]"),
