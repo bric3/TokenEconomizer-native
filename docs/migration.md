@@ -831,7 +831,7 @@ complete while any runtime component delegates production behaviour to Python.
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
 - Final test conversion: 20 of 67 pytest modules are complete and live-core is
-  partly converted, covering 463 of 1,591 original cases. See
+  partly converted, covering 495 of 1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
 
@@ -4392,6 +4392,18 @@ complete while any runtime component delegates production behaviour to Python.
   Conversion now covers 463 original cases across 20 complete modules and one
   partial module. The other 67 live-core functions, remaining modules, smoke
   tests and final parity and platform audits stay open.
+
+- The fifth test-conversion batch adds 32 live-core identity, storage, usage,
+  host-protocol and session-format cases. They exercise nested locks, worktrees,
+  repeated Claude usage, subagents, notices, Codex capability evidence, captured
+  host payloads, Pi branches and opencode export variants through the native
+  APIs. The shared flat opencode fixture retains the pinned source values.
+  Live-core now covers 64 of 99 functions and 239 of 274 cases. Total conversion
+  covers 495 original cases across 20 complete modules and live-core in progress.
+  All 242 native tests on macOS, formatting and Clippy pass; the Windows-only
+  held-file test remains excluded. Logs use `validation/results/test-conversion-5-*`.
+  Its other 35 functions, remaining modules, smoke tests and the final parity
+  and platform audits stay open.
 
 ## Dependencies
 

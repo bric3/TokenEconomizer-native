@@ -99,7 +99,21 @@ All 18 parameter tables are copied into `tests/fixtures/live_core_shell.json`.
 checks the file against the pinned source. Java selects the tables and records
 the source SHA-256. Python's standard-library AST decoder reads literal data
 without executing the test module. Native test runs read the checked JSON and
-require no Python interpreter. The other 67 live-core functions remain pending.
+require no Python interpreter.
+
+The fifth batch adds 32 live-core functions in `live_core_data.rs`,
+`live_core_hosts.rs` and `live_core_sessions.rs`. It preserves repository and
+worktree metadata, configuration layers, nested locks, duplicate usage entries,
+subagents, synthetic notices, Codex rollout wrappers and capability evidence.
+Host tests retain the captured payload shapes, context placement, notice
+merging, mode detection and streaming replies. Session tests preserve Pi's
+active and abandoned branches and opencode's nested, list and flat exports,
+including synthetic-text filtering and token/cost accounting. Pi's optional
+header fields stay unchanged when its test rewrites a tool command.
+
+Live-core now has 64 of 99 functions converted, covering 239 of its 274 cases.
+The remaining 35 functions cover process callbacks, side calls, probing and
+background judge workflows.
 
 Run the native suite and the conversion inventory from the checkout root:
 
@@ -117,7 +131,7 @@ behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
 Conversion remains in progress: 20 pytest modules are complete and live-core is
-partly converted, covering 463 of 1,591 original cases, including the conditional
-Windows case. The other 1,128 cases and standalone executable smoke tests
+partly converted, covering 495 of 1,591 original cases, including the conditional
+Windows case. The other 1,096 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

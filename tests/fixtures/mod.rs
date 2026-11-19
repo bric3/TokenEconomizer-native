@@ -1,3 +1,4 @@
+// Synthetic transcript writers from reference/upstream/tests/fixtures/__init__.py.
 use serde_json::{Value, json};
 use std::{
     fs,
@@ -33,4 +34,19 @@ pub fn write_codex_transcript(path: &Path, items: &[Value]) -> PathBuf {
         .collect();
     fs::write(path, lines.join("\n")).unwrap();
     path.into()
+}
+
+pub fn opencode_session_export(sid: &str) -> Value {
+    let tokens = json!({"input":18348,"output":68,"reasoning":2,"cache":{"read":896,"write":0}});
+    let messages = vec![
+        json!({"id":"msg_u","time":{},"type":"user","text":"Run the tests","files":[]}),
+        json!({"id":"msg_a","time":{},"type":"assistant","agent":"build","model":{"id":"gpt-5.6-sol","providerID":"openai"},
+            "content":[{"type":"text","text":"I'll run them."},
+            {"type":"tool","id":"c1","name":"bash","executed":true,"state":{"status":"error","input":{"command":"pytest -q"},
+                "error":{"message":"bash: pytest: command not found"}}},
+            {"type":"tool","id":"c2","name":"bash","executed":true,"state":{"status":"completed","input":{"command":"python -m pytest -q"},
+                "content":[{"type":"text","text":"1 passed in 0.1s"}]}}],"cost":0.0056,"tokens":tokens}),
+        json!({"id":"msg_i","time":{},"type":"idle","outcome":"completed"}),
+    ];
+    json!({"info":{"id":sid,"projectID":"p","cost":0.0056},"messages":messages})
 }
