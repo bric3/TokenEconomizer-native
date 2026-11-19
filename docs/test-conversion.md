@@ -174,6 +174,15 @@ tests retain their fixtures. Prefix-stage wiring checks zero optimiser cost;
 the classifier checks every original RTK prefix and bare command. Transcript
 commands and URLs remain data and trigger no model or network calls.
 
+The twelfth batch converts all 24 functions and 37 cases in
+`test_generic_microskills.py`. It retains build and checker repairs, absent-tool
+retirement, launcher identity, edited files across languages, relative digests,
+vocabulary selection, saved proposer windows and existing claims. Proposer tests
+use the recording runner and the original cadence. Forgotten-fact tests retain
+restatement checks, evidence windows, candidate limits and legacy saved entries.
+The output extractor reads every saved output line. Python vocabulary identity
+checks compare the complete native vocabulary values.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -189,8 +198,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 26 pytest modules are complete, covering 633 of
-1,591 original cases, including the conditional Windows case. The other 958
+Conversion remains in progress: 27 pytest modules are complete, covering 670 of
+1,591 original cases, including the conditional Windows case. The other 921
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

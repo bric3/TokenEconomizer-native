@@ -830,7 +830,7 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 26 of 67 pytest modules are complete, covering 633 of
+- Final test conversion: 27 of 67 pytest modules are complete, covering 670 of
   1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
@@ -4474,6 +4474,21 @@ complete while any runtime component delegates production behaviour to Python.
   and all-target Clippy pass; production is unchanged. Total conversion covers
   633 cases across 26 complete modules. Remaining conversion and parity audits
   stay open. Logs use `validation/results/test-conversion-11-*`.
+
+- The expanded native suite through conversion batch eleven passes all 348
+  tests on macOS. This includes the signed probe fixture and Unix fleet tests;
+  the Windows-only held-file test remains excluded. Its full-suite log is
+  `validation/results/test-conversion-11-all.log`.
+
+- The twelfth test-conversion batch completes generic micro-skills: 24 functions
+  cover 37 original cases. It retains checker and launcher identity, absent-tool
+  retirement, generic digests, saved proposer windows, existing claims, prompt
+  content, forgotten-fact evidence and candidate limits, and output extractors.
+  Native vocabulary values replace Python identity checks. The recording runner
+  retains the original payloads and cadence. All 24 new tests, formatting and
+  all-target Clippy pass; production is unchanged. Logs use
+  `validation/results/test-conversion-12-*`. Total conversion covers 670 cases
+  across 27 complete modules. Remaining conversion and parity audits stay open.
 
 ## Dependencies
 
