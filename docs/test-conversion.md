@@ -222,6 +222,15 @@ waits five seconds, replacing the original Python child scripts. The real probe
 reads its pipes and terminates it at init or deadline; the original four-second
 limits remain. The validation child is excluded from packaged executables.
 
+The seventeenth batch converts all 19 functions in `test_droid.py`. It retains
+session headers and timestamps, hidden prompts, tool mapping, adjacent settings
+usage, fallback pricing, host detection and explicit side-call opt-in. The side
+call fixture checks its read-tool restriction and private working directory.
+Real native history imports skip subagents, recent and other-repository logs,
+then learn facts and price five sessions. The native session-start hook returns
+the learned fact. Packaging checks the native Droid bundle; the original Python
+library-presence assertion checks the native hook executable instead.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -237,8 +246,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 32 pytest modules are complete, covering 759 of
-1,591 original cases, including the conditional Windows case. The other 832
+Conversion remains in progress: 33 pytest modules are complete, covering 778 of
+1,591 original cases, including the conditional Windows case. The other 813
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

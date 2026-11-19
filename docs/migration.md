@@ -830,7 +830,7 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 32 of 67 pytest modules are complete, covering 759 of
+- Final test conversion: 33 of 67 pytest modules are complete, covering 778 of
   1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
@@ -4540,6 +4540,17 @@ complete while any runtime component delegates production behaviour to Python.
   `validation/results/test-conversion-16-*`. Conversion covers
   759 cases across 32 complete modules; remaining conversion and parity audits
   stay open.
+
+- The seventeenth test-conversion batch completes Droid's 19 functions. It
+  preserves headers, epoch timestamps, prompt filtering, tool names, adjacent
+  usage, fallback pricing, detection and side-call opt-in. A recorded side call
+  keeps only the Read tool. Real native history imports exercise selection,
+  learning and pricing, and the session-start hook returns the learned fact.
+  Droid packaging checks native binaries in place of the Python library while
+  retaining manifest, command and hook assertions. All 19 new tests, formatting
+  and all-target Clippy pass. Production is unchanged. Logs use
+  `validation/results/test-conversion-17-*`. Conversion covers 778 cases across
+  33 complete modules; remaining conversion and parity audits stay open.
 
 ## Dependencies
 
