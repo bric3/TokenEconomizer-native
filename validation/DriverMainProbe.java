@@ -44,7 +44,7 @@ class DriverMainProbe {
       var free=compare(nativeCode,source,"\"agent\":\"codex\",\"arm\":\"codex-inject-envfacts\"");
       if(!free.contains("\"value\":null")||!free.contains("tasks=3 resolved=2"))throw new AssertionError("real envfacts run did not complete: "+free);
       var paid=compare(nativeCode,source,"\"arm\":\"inject-only\",\"count\":10");
-      if(!paid.contains("\"value\":null")||!paid.contains("tasks=10 resolved=6")||!paid.contains("\"optimizer_tokens\":40.0"))throw new AssertionError("stub optimizer overhead was not exercised: "+paid);
+      if(!paid.contains("\"value\":null")||!paid.contains("tasks=10 resolved=6")||!java.util.regex.Pattern.compile("\"optimizer_tokens\":40(?:\\.0)?[,}]").matcher(paid).find())throw new AssertionError("stub optimizer overhead was not exercised: "+paid);
       try(var client=new ContextProbe.Client(Path.of("target/debug/te-bridge").toAbsolutePath(),"experiment.swebench")) {
         var invalid=client.call("experiment.swebench.provider.driver.stub_missing","");
         if(!invalid.contains("\"raised\":\"ValueError\"")||invalid.contains("\"callback\""))throw new AssertionError("unknown stub operation requested I/O: "+invalid);

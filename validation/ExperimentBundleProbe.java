@@ -25,13 +25,14 @@ class ExperimentBundleProbe {
   }
   static void hashes(Path bundle)throws Exception {
     var manifest=Files.readString(bundle.resolve("manifest.json"));
+    require(manifest.contains("\"benchmark_entrypoint\": \"bin/te-bench\""),"manifest omitted benchmark entry point");
     var matches=Pattern.compile("\"([^\"]+)\": \"([0-9a-f]{64})\"").matcher(manifest);int count=0;
     while(matches.find()) {
       if(matches.group(1).equals("cargo_lock_sha256"))continue;
       var hash=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(bundle.resolve(matches.group(1)))));
       require(hash.equals(matches.group(2)),"manifest hash differs: "+matches.group(1));count++;
     }
-    require(count==18,"manifest omitted files: "+count);
+    require(count==23,"manifest omitted files: "+count);
   }
   static void engine(Path bundle)throws Exception {
     try(var client=new ContextProbe.Client(bundle.resolve("bin/te-bridge"),"experiment.swebench")) {
@@ -57,7 +58,7 @@ class ExperimentBundleProbe {
     var checkout=Path.of("").toAbsolutePath();var root=Files.createTempDirectory("te-experiment-bundle-").toAbsolutePath();boolean passed=false;
     try {
       var binaries=Files.createDirectories(root.resolve("inputs/bin"));
-      for(var name:List.of("te","te-hook","te-bridge","te-net-guard","te-repomap-gen","te-package"))copy(checkout.resolve("target/debug/"+name),binaries.resolve(name));
+      for(var name:List.of("te","te-hook","te-bridge","te-bench","te-net-guard","te-repomap-gen","te-package"))copy(checkout.resolve("target/debug/"+name),binaries.resolve(name));
       var helpers=Files.createDirectory(root.resolve("inputs/helpers"));
       for(var architecture:List.of("arm64","amd64"))for(var name:List.of("te-net-guard","manifest.json","toolchain.txt","THIRD-PARTY-NOTICES.txt"))copy(checkout.resolve("target/container-helpers").resolve(architecture).resolve(name),helpers.resolve(architecture).resolve(name));
       var tool=binaries.resolve("te-package");var bundle=root.resolve("runtime payload.v1");
@@ -75,6 +76,13 @@ class ExperimentBundleProbe {
       }
       require(run(root,tool,"--experiments","--container-helpers",helpers.toString(),"--out",bundle.toString()).code()!=0,"existing output was overwritten");hashes(bundle);
       var moved=root.resolve("relocated runtime's directory");Files.move(bundle,moved);engine(moved);
+      var tasks=root.resolve("tasks.json");Files.writeString(tasks,"[{\"instance_id\":\"pkg__0\",\"problem_statement\":\"Offline fixture\"}]");
+      var bench=NativeCliProbe.process(root,Map.of("PATH","","HOME",root.toString(),"TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString(),"TOKENECONOMIZER_ENV_FILE",root.resolve("absent.env").toString()),List.of(moved.resolve("bin/te-bench").toString(),"--arm","baseline","--tasks-file",tasks.toString(),"--results-root",root.resolve("bench-results").toString()));
+      require(bench.code()==0&&bench.out().contains("tasks=1 resolved=0"),"relocated standalone benchmark failed: "+bench);
+      try(var paths=Files.walk(moved)){require(paths.filter(Files::isRegularFile).count()==24,"benchmark command changed the runtime payload");}
+      var bootstrap=moved.resolve("sdk/bench.py");var bootstrapBytes=Files.readAllBytes(bootstrap);Files.delete(bootstrap);
+      var absent=NativeCliProbe.process(root,Map.of("PATH","","TE_BENCH_PYTHON",checkout.resolve(".venv/bin/python").toString()),List.of(moved.resolve("bin/te-bench").toString(),"--help"));
+      require(absent.code()!=0&&absent.err().contains("SDK binding is missing"),"missing bundled SDK selected development files: "+absent);Files.write(bootstrap,bootstrapBytes);
       require(run(root,moved.resolve("bin/te"),"--help").code()==0,"relocated native CLI failed");
       var patch=root.resolve("patch.json");Files.writeString(patch,"{\"keep\":1}");var settings=root.resolve("settings.json");
       require(run(root,moved.resolve("bin/te-net-guard"),"--merge-json",settings.toString(),patch.toString()).out().equals("merged\n"),"relocated native merge failed");

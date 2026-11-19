@@ -124,13 +124,12 @@ target/release/te-package --experiments --container-helpers target/container-hel
 ```
 
 This mode embeds the pinned Codex prompt, WebBench Node preload, licence and
-notices. It copies five native executables and both static Linux helpers, records
+notices. It copies six native executables and both static Linux helpers, records
 file hashes and preserves executable permissions. It requires a fresh output
 directory. Bundled Codex engines read captures from
 `assets/codex_base_prompt/<version>.md`; development engines use the embedded
 pinned capture. Repo-map scaffolds invoke the companion `te-repomap-gen` and pass
-their Python interpreter to its aider SDK binding. Standalone host bindings
-and a benchmark command remain pending. WebBench selects the bundled Node
+their Python interpreter to its aider SDK binding. WebBench selects the bundled Node
 preload; unbundled development engines use `src/experiments/assets` in the build
 checkout.
 
@@ -141,7 +140,16 @@ parsing, selection and application also use native policy. Factory imports,
 signature inspection, file I/O and OS environment access retain host bindings.
 The main stream loop and offline stub also run in Rust. The stub supplies
 synthetic transcripts, grades and optimizer answers for wiring checks.
-A standalone benchmark command and host bindings remain pending.
+The standalone command runs without importing the original checkout:
+
+```sh
+target/release/te-bench --arm baseline --tasks-file /path/to/tasks.json --results-root /path/to/results
+```
+
+Use `--runner module:factory` for an external task runner. Python 3 supplies
+standard-library I/O; `TE_BENCH_PYTHON` selects its interpreter. The runtime bundle
+carries the SDK and command. Built-in SWE-bench and WebBench harness bindings
+remain pending.
 
 SWE-bench controller selection, constructor parameters, continuation dispatch and
 telemetry fields run in Rust for all three agents. SDK bindings retain controller,

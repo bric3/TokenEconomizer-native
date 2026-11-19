@@ -8,6 +8,7 @@ pub mod facade;
 pub mod net_guard;
 pub mod nudge_guard;
 pub mod scaffolds;
+pub mod sdk;
 pub mod spiral_stage;
 pub mod swebench;
 pub mod usage;

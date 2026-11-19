@@ -742,7 +742,8 @@ complete while any runtime component delegates production behaviour to Python.
   SWE-bench guard deployment and registration use native helpers. Native
   scaffold merge helpers are deployed through harness callbacks. Both harnesses
   select native guard executables. The runtime bundle ships executables and
-  assets. Standalone host bindings and the benchmark entry point remain open.
+  assets. The standalone benchmark command and its SDK are packaged. Bindings
+  for the built-in SWE-bench and WebBench harnesses remain open.
   Stream start and session close coordination are native. Per-task container
   policy, grading orchestration, the official-grader wrapper, Codex config writing,
   scaffold result handling and Copilot/Codex SWE-bench task wrappers are native.
@@ -753,13 +754,14 @@ complete while any runtime component delegates production behaviour to Python.
   Messages and Responses optimizer policy is native; HTTP I/O retains SDK bindings.
   Codex installation discovery, captured-prompt loading and offline probes are
   native. Codex captures and the WebBench preload use native runtime asset paths.
-  Standalone host bindings still need to replace the validation bindings.
+  Built-in harness bindings still need to replace their validation bindings.
   Process and SDK calls retain Python I/O bindings.
 - Benchmark driver runner and dataset selection, workload and task filtering,
   group matching and overhead-field copying are native. The arm registry and
   environment-file parsing, selection and application are native too. Main stream
-  coordination and the offline stub runner are native. A standalone benchmark
-  command and host bindings remain open.
+  coordination and the offline stub runner are native. The standalone benchmark
+  command, core SDK and runtime packaging are implemented; built-in harness
+  bindings remain open.
 - Simplification passes: 0 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
 
@@ -2729,6 +2731,34 @@ complete while any runtime component delegates production behaviour to Python.
   stay open. Formal simplification and performance passes remain at 0/3 each;
   final test conversion is pending.
 
+- The standalone `te-bench` command now runs the native driver through a packaged
+  standard-library SDK binding. Rust owns the registry, environment policy,
+  adapters, facade state, stream loop and stub behaviour. The SDK holds Python
+  objects, invokes external runner callbacks and transports requests without
+  importing the reference checkout. Its native facade path uses all four typed
+  dataset adapters. External runners retain the `module:factory` interface.
+  The experiment bundle now carries six native executables and four SDK files,
+  with 23 payload hashes and an additive `benchmark_entrypoint` manifest field.
+  Missing bundled SDK files fail without selecting development files.
+  The relocated bundle passes 128 checks, including payload hashes, archive bytes,
+  empty-PATH execution and missing-SDK rejection.
+  The standalone probe passes 89 checks, including all 27 arms on three agents
+  over ten-task streams, CLI errors, external callbacks, Codex policy hooks and
+  interrupted stream cleanup. Row and stream comparisons normalise equivalent
+  JSON numbers (`0` and `0.0`); transcript comparisons retain exact bytes.
+  Another 87 transport checks exercise concurrent requests, malformed responses,
+  EOF, signal delivery during and between frames, interruptible callbacks,
+  restored signal handlers and owned-child cleanup without replaying requests.
+  The existing 198 driver and 87 facade checks pass. The unchanged upstream suite
+  passes with 1,561 passed and 30 skipped (110.61 seconds), including installed
+  opencode tests against the loopback model fixture. All 24 Rust checks,
+  debug/release builds, Clippy and the 256-file reference check pass.
+  Built-in SWE-bench and WebBench harness SDK bindings and the remaining parity
+  audits stay open. IDE inspections are unavailable because this checkout is
+  not open in the IDE. Windows and live agents remain unverified. Formal
+  simplification and performance passes remain at 0/3 each; final test conversion
+  is pending.
+
 ## Dependencies
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite. Validation uses
@@ -2912,6 +2942,8 @@ jbang validation/DriverTasksProbe.java
 jbang validation/ArmRegistryProbe.java
 jbang validation/EnvironmentProbe.java
 jbang validation/DriverMainProbe.java
+jbang validation/StandaloneBenchProbe.java
+jbang validation/StandaloneTransportProbe.java
 jbang validation/HermesGatewayProbe.java
 jbang validation/PiSdkProbe.java
 jbang validation/OpencodeSdkProbe.java

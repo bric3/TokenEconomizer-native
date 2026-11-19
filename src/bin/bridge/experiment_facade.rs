@@ -2,7 +2,10 @@ use super::{callback::CallbackTape, spiral_dispatch::failure, tooling_dispatch::
 use serde_json::{Value, json};
 use std::{cell::RefCell, path::Path, rc::Rc};
 use tokeneconomizer::{
-    experiments::facade::{DomainAdapter, Economizer, StreamOptions},
+    experiments::{
+        adapters::Adapter,
+        facade::{DomainAdapter, Economizer, StreamOptions},
+    },
     microskills::{distiller::ProposeContext, observe::Vocabulary},
     runner::{Runner, optimizer_method},
 };
@@ -76,8 +79,13 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
     };
     let mut messages = Vec::new();
     let result = (|| {
+        let adapter: Box<dyn DomainAdapter> = if let Some(value) = args.get("native_adapter") {
+            Box::new(decode::<Adapter>(value)?)
+        } else {
+            Box::new(AdapterTransport(tape.clone()))
+        };
         let mut econ = if matches!(method, "new" | "from_args") {
-            if args["adapter"] != true {
+            if args["adapter"] != true && args.get("native_adapter").is_none() {
                 tape.borrow_mut()
                     .call(json!({"callback":"default_adapter"}))?;
             }
@@ -103,7 +111,7 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
                     }) as Box<dyn Runner>
                 }))
             };
-            let adapter = Some(Box::new(AdapterTransport(tape.clone())) as Box<dyn DomainAdapter>);
+            let adapter = Some(adapter);
             let options: StreamOptions = decode(&args["options"])?;
             if method == "new" {
                 Economizer::new(
@@ -126,7 +134,7 @@ pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
             }
         } else {
             let mut econ: Economizer = decode(&args["self"])?;
-            econ.adapter = Box::new(AdapterTransport(tape.clone()));
+            econ.adapter = adapter;
             for (slot, runner) in [
                 ("injection", &mut econ.injection_runner),
                 ("tooling", &mut econ.tooling_runner),

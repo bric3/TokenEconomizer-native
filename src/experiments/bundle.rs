@@ -56,6 +56,7 @@ pub fn build(binaries: &Path, helpers: &Path, out: &Path) -> Result<PathBuf> {
         "te",
         "te-hook",
         "te-bridge",
+        "te-bench",
         "te-net-guard",
         "te-repomap-gen",
     ] {
@@ -97,6 +98,9 @@ pub fn build(binaries: &Path, helpers: &Path, out: &Path) -> Result<PathBuf> {
     for (name, bytes) in super::assets::FILES {
         files.push(Payload::embedded(name, bytes));
     }
+    for (name, bytes) in super::sdk::FILES {
+        files.push(Payload::embedded(name, bytes));
+    }
     files.push(Payload::embedded(
         "LICENSE",
         include_bytes!("../../LICENSE"),
@@ -118,7 +122,7 @@ pub fn build(binaries: &Path, helpers: &Path, out: &Path) -> Result<PathBuf> {
             )
         })
         .collect();
-    let manifest = json!({"format":1,"name":"tokeneconomizer-experiments","version":env!("CARGO_PKG_VERSION"),"upstream_commit":"583fff78bf504b59d542f953c31e87d01d02ab42","cargo_lock_sha256":lock_hash,"entrypoint":format!("bin/te-bridge{suffix}"),"files":hashes});
+    let manifest = json!({"format":1,"name":"tokeneconomizer-experiments","version":env!("CARGO_PKG_VERSION"),"upstream_commit":"583fff78bf504b59d542f953c31e87d01d02ab42","cargo_lock_sha256":lock_hash,"entrypoint":format!("bin/te-bridge{suffix}"),"benchmark_entrypoint":format!("bin/te-bench{suffix}"),"files":hashes});
     // Validate and snapshot every input before creating the output directory.
     fs::create_dir_all(out.parent().ok_or("missing experiment output parent")?)?;
     fs::create_dir(&out)?;

@@ -9,6 +9,7 @@ use tokeneconomizer::experiments::{
     arms,
     driver::parse_env,
 };
+use tokeneconomizer::{ledger, microskills::distiller};
 
 fn path(args: &Value, name: &str) -> Option<PathBuf> {
     args[name].as_str().map(PathBuf::from)
@@ -37,6 +38,11 @@ fn response(result: Result<Value, Error>) -> Value {
     }
 }
 pub fn dispatch(op: &str, args: &Value) -> Result<Option<Value>, String> {
+    if op == "experiment.driver.constants" {
+        return Ok(Some(
+            json!({"overhead_keys":ledger::OVERHEAD_KEYS,"propose_every":distiller::PROPOSE_EVERY,"description":"Run one TokenEconomizer arm over a task stream.\n\nUse --runner module:factory for a task harness. The default stub creates synthetic transcripts, grades and optimizer answers for wiring checks."}),
+        ));
+    }
     if op == "experiment.environment.parse" {
         return Ok(Some(json!(parse_env(
             args["text"].as_str().ok_or("expected environment text")?

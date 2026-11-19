@@ -8,6 +8,7 @@ import shutil
 import sys
 import time
 import types
+from driver_artifacts import numeric_values
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/"reference/upstream"),str(ROOT/"reference/upstream/experiments"),str(ROOT/"reference/upstream/experiments/scripts")]
@@ -57,5 +58,5 @@ for line in sys.stdin:
         if path.name == "row.json": files[str(path.relative_to(root))]=json.loads(text)
         elif path.parent.name == "_streams": files[str(path.relative_to(root))]=[json.loads(row) for row in text.splitlines()]
         elif path.name == "transcript.jsonl": files[str(path.relative_to(root))]=text
-    output.update(stdout=stdout.getvalue(),stderr=stderr.getvalue(),env=final_environment,files=files)
+    output.update(stdout=stdout.getvalue(),stderr=stderr.getvalue(),env=final_environment,files=numeric_values(files))
     print(json.dumps(output,sort_keys=True,separators=(",",":"),ensure_ascii=True),flush=True)
