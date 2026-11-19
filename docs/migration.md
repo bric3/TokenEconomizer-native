@@ -830,7 +830,7 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 23 of 67 pytest modules are complete, covering 572 of
+- Final test conversion: 25 of 67 pytest modules are complete, covering 611 of
   1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
@@ -4453,6 +4453,18 @@ complete while any runtime component delegates production behaviour to Python.
   and all-target Clippy pass; production code is unchanged. Logs use
   `validation/results/test-conversion-9-*`. Total conversion covers 572 cases
   across 23 complete modules. Remaining conversion and parity audits stay open.
+
+- The tenth test-conversion batch completes fleet-budget and learned-argument
+  suites: 33 functions cover 39 cases. Fleet tests use an isolated cgroup tree
+  and real permissions. The native Codex launcher runs an empty cell list and
+  exposes both CPU limits; this replaces the original source-text check without
+  running Docker or task workloads. Fleet fixtures are Unix-only.
+  Argument tests preserve label repairs, six-task streams, contradictions,
+  environment values, filtered output, worktrees, subdirectories and working
+  forms that keep the shell's directory unchanged. All 33 new tests, formatting
+  and all-target Clippy pass. Production code is unchanged. Logs use
+  `validation/results/test-conversion-10-*`. Total conversion covers 611 cases
+  across 25 complete modules; remaining conversion and parity audits stay open.
 
 ## Dependencies
 

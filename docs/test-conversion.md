@@ -152,6 +152,20 @@ through the native bridge, which owns that boundary; other parser inputs call
 Rust directly. Runner error strings and typed side-call failures replace the
 corresponding Python exceptions.
 
+The tenth batch converts `test_fleet_budget.py` and `test_envfacts_args.py`:
+33 functions cover 39 original cases. Fleet tests use an isolated cgroup tree
+and real file permissions. The Codex launcher test runs an empty cell list and
+checks the shared CPU quota and per-container limit in its output, replacing
+the original source-text checks. No Docker process or task workload runs.
+These fleet tests are Unix-only, matching their cgroup and UID fixtures.
+
+Argument facts retain all label-rewrite examples, six-task learning streams,
+contradictions, filtered output, requested environment values and working
+directories. Repository fixtures cover a `.git` directory and a worktree file.
+The tests call the native observer and distiller; their command strings remain
+data. They preserve the preference for a working form that keeps the shell's
+directory unchanged even when another form has more observations.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -167,8 +181,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 23 pytest modules are complete, covering 572 of
-1,591 original cases, including the conditional Windows case. The other 1,019
+Conversion remains in progress: 25 pytest modules are complete, covering 611 of
+1,591 original cases, including the conditional Windows case. The other 980
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.
