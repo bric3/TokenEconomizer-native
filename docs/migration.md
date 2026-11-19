@@ -30,7 +30,7 @@ complete while any runtime component delegates production behaviour to Python.
 
 ## Status
 
-- Current phase: simplification pass 1 of 3 is complete. The unchanged original
+- Current phase: simplification pass 2 of 3 is complete. The unchanged original
   suite passes; the remaining parity and platform audits below stay open through
   final verification. Performance passes and original-test conversion follow
   the three simplification passes.
@@ -829,7 +829,7 @@ complete while any runtime component delegates production behaviour to Python.
   coordination and the offline stub runner are native. The standalone benchmark
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
-- Simplification passes: 1 of 3. Performance passes: 0 of 3.
+- Simplification passes: 2 of 3. Performance passes: 0 of 3.
 - Final test conversion: pending until the preceding gates pass.
 
 ## Verified milestones
@@ -4157,6 +4157,19 @@ complete while any runtime component delegates production behaviour to Python.
   `validation/results/simplification-1-*`.
   Simplification passes are now 1/3; performance passes remain 0/3 and original
   test conversion is pending. The remaining parity and platform audits stay open.
+
+- Simplification pass 2 replaces six experiment-specific Python type-name
+  functions with `value::python_type`. Settings, containers, grading, nudge and
+  Codex errors, and harness usage now share the existing classification rule.
+  Wide integers retain the `int` label in malformed-input diagnostics. No new
+  helper or dependency was added. Production code loses 74 lines overall.
+  The unchanged original suite passes with 1,561 passed and 30 skipped
+  (82.68 seconds). All 40 Rust tests, formatting, Clippy and the debug build
+  pass. Runner settings pass 198 source comparisons and harness usage passes
+  478, including six added wide-integer error cases. Logs are under
+  `validation/results/simplification-2-*`.
+  Simplification passes are now 2/3; performance passes remain 0/3. Original
+  tests remain unchanged and their final conversion is pending.
 
 ## Dependencies
 

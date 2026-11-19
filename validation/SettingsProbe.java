@@ -44,7 +44,7 @@ class SettingsProbe {
         compare(nativeCode,source,setting("env_activation_enabled","","\"env\":{\"TE_ENV_ACTIVATION\":"+q(raw)+"}"));
         for(var domain:List.of("swebench","webbench"))compare(nativeCode,source,setting("network_tool_block","","\"domain\":"+q(domain)+",\"env\":{\"TE_ALLOW_NETWORK_TOOLS\":"+q(raw)+"}"));
       }
-      for(var bins:List.of("[]","null","false","0","\"\"","\"a\"","[null,\"\",false,0]","[\"/a/bin\"]","[\"/a/bin\",\"/b/bin\"]","[\"/a/bin\",\"/x/testbed/bin\"]","[\"/x/testbed/bin/\",\"/b/bin\"]","[\"/x/testbed/./bin\",\"/b/bin\"]","[1]","[{}]"))
+      for(var bins:List.of("[]","null","false","0","18446744073709551616","-9223372036854775809","\"\"","\"a\"","[null,\"\",false,0]","[\"/a/bin\"]","[\"/a/bin\",\"/b/bin\"]","[\"/a/bin\",\"/x/testbed/bin\"]","[\"/x/testbed/bin/\",\"/b/bin\"]","[\"/x/testbed/./bin\",\"/b/bin\"]","[1]","[{}]"))
         compare(nativeCode,source,setting("choose_project_env","\"env_bins\":"+bins,""));
       for(var bin:List.of("\"/x/envs/é😀/bin\"","\"relative/bin/\"","\"//\"","\"bin\"","\"\"","null","1"))for(var inherited:List.of("\"/usr/bin:/bin\"","\"\"","null","false","1"))
         compare(nativeCode,source,setting("activation_env","\"env_bin\":"+bin+",\"container_path\":"+inherited,""));

@@ -72,7 +72,7 @@ pub fn merge_usage(a: &Value, b: &Value) -> Result<Value, String> {
                 v.as_str().ok_or_else(|| {
                     format!(
                         "TypeError: sequence item {i}: expected str instance, {} found",
-                        kind(v)
+                        python_type(v)
                     )
                 })
             })

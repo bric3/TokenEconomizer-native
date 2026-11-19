@@ -4,34 +4,18 @@ use crate::{
         turn::TextCallback,
     },
     rules,
-    value::{number, python_repr, scalar_text, truthy},
+    value::{number, python_repr, python_type, scalar_text, truthy},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 pub const RESUME_HEADER: &str = include_str!("nudge_guard/resume-header.txt");
 
-fn type_name(value: &Value) -> &'static str {
-    match value {
-        Value::Null => "NoneType",
-        Value::Bool(_) => "bool",
-        Value::String(_) => "str",
-        Value::Array(_) => "list",
-        Value::Object(_) => "dict",
-        Value::Number(n) => {
-            if n.is_i64() || n.is_u64() {
-                "int"
-            } else {
-                "float"
-            }
-        }
-    }
-}
 fn object(value: &Value) -> Result<&Map<String, Value>, String> {
     value.as_object().ok_or_else(|| {
         format!(
             "AttributeError: '{}' object has no attribute 'get'",
-            type_name(value)
+            python_type(value)
         )
     })
 }
@@ -40,7 +24,7 @@ fn tokens(value: Option<&Value>) -> Result<f64, String> {
     let Some(value) = value.filter(|v| truthy(v)) else {
         return Ok(0.0);
     };
-    number(value).ok_or_else(|| format!("TypeError: invalid token total: {}", type_name(value)))
+    number(value).ok_or_else(|| format!("TypeError: invalid token total: {}", python_type(value)))
 }
 
 #[derive(Serialize, Deserialize)]
@@ -279,7 +263,7 @@ impl NudgeGuard {
                 let text = text.as_str().ok_or_else(|| {
                     format!(
                         "AttributeError: '{}' object has no attribute 'strip'",
-                        type_name(text)
+                        python_type(text)
                     )
                 })?;
                 let text = text

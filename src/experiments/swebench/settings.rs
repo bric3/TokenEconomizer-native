@@ -1,7 +1,7 @@
 use super::{Failure, Result, Runtime, basename, dirname};
 use crate::{
     experiments::adapters::NETWORK_TOOLS,
-    value::{decimal_integer, json_pretty, truthy},
+    value::{decimal_integer, json_pretty, python_type, truthy},
 };
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
@@ -14,22 +14,6 @@ fn setting<'a>(env: &'a Map<String, Value>, key: &str, default: &'a str) -> &'a 
 fn strip(text: &str) -> &str {
     text.trim_matches(|c: char| c.is_whitespace() || matches!(c, '\u{1c}'..='\u{1f}'))
 }
-fn kind(value: &Value) -> &'static str {
-    match value {
-        Value::Null => "NoneType",
-        Value::Bool(_) => "bool",
-        Value::String(_) => "str",
-        Value::Array(_) => "list",
-        Value::Object(_) => "dict",
-        Value::Number(n) => {
-            if n.is_i64() || n.is_u64() {
-                "int"
-            } else {
-                "float"
-            }
-        }
-    }
-}
 fn sequence(value: &Value) -> Result<Vec<Value>> {
     match value {
         Value::Array(values) => Ok(values.clone()),
@@ -37,7 +21,7 @@ fn sequence(value: &Value) -> Result<Vec<Value>> {
         Value::String(text) => Ok(text.chars().map(|c| json!(c.to_string())).collect()),
         _ => Err(Failure::new(
             "TypeError",
-            format!("'{}' object is not iterable", kind(value)),
+            format!("'{}' object is not iterable", python_type(value)),
         )),
     }
 }
@@ -48,7 +32,7 @@ fn length(value: &Value) -> Result<usize> {
         Value::Object(values) => Ok(values.len()),
         _ => Err(Failure::new(
             "TypeError",
-            format!("object of type '{}' has no len()", kind(value)),
+            format!("object of type '{}' has no len()", python_type(value)),
         )),
     }
 }
@@ -58,7 +42,7 @@ fn path(value: &Value) -> Result<&str> {
             "TypeError",
             format!(
                 "expected str, bytes or os.PathLike object, not {}",
-                kind(value)
+                python_type(value)
             ),
         )
     })
@@ -97,7 +81,7 @@ pub fn activation_env(env_bin: &Value, container_path: &Value) -> Result<Value> 
                 "TypeError",
                 format!(
                     "can only concatenate str (not \"{}\") to str",
-                    kind(container_path)
+                    python_type(container_path)
                 ),
             )
         })?;
@@ -110,7 +94,10 @@ pub fn image_for(instance_id: &Value) -> Result<String> {
     let id = instance_id.as_str().ok_or_else(|| {
         Failure::new(
             "AttributeError",
-            format!("'{}' object has no attribute 'replace'", kind(instance_id)),
+            format!(
+                "'{}' object has no attribute 'replace'",
+                python_type(instance_id)
+            ),
         )
     })?;
     Ok(format!(
@@ -237,7 +224,10 @@ pub fn write_run_config(input: &RunConfig, runtime: &mut dyn Runtime) -> Result<
     let task = input.task.as_object().ok_or_else(|| {
         Failure::new(
             "AttributeError",
-            format!("'{}' object has no attribute 'get'", kind(&input.task)),
+            format!(
+                "'{}' object has no attribute 'get'",
+                python_type(&input.task)
+            ),
         )
     })?;
     let mut config =
@@ -293,7 +283,7 @@ pub fn write_run_config(input: &RunConfig, runtime: &mut dyn Runtime) -> Result<
                 "AttributeError",
                 format!(
                     "'{}' object has no attribute 'encode'",
-                    kind(&input.injected)
+                    python_type(&input.injected)
                 ),
             )
         })?

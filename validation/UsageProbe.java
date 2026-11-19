@@ -39,6 +39,10 @@ class UsageProbe {
         compare(nativeCode,source,request("copilot","stream_output_tokens","\"stream_text\":" + q(stream)));
       }
       var counters = List.of("0", "1", "true", "false", "null", "-4", "1.75", "\"15\"", "\"١٢\"", "9007199254740993", "[]", "\"invalid\"");
+      for(var invalid:List.of("18446744073709551616","-9223372036854775809")) {
+        compare(nativeCode,source,request("claude","_row_from_result","\"result\":"+invalid));
+        compare(nativeCode,source,request("codex","row_usage","\"stream_text\":"+q("{\"type\":\"turn.completed\",\"usage\":"+invalid+"}")));
+      }
       for (var n : counters) {
         var usage = "{\"input_tokens\":" + n + ",\"cached_input_tokens\":3,\"cache_write_input_tokens\":2,\"output_tokens\":5,\"reasoning_output_tokens\":2}";
         var stream = "{\"type\":\"item.completed\",\"item\":{\"type\":\"command_execution\"}}\n{\"type\":\"turn.completed\",\"usage\":" + usage + "}";

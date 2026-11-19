@@ -1,7 +1,7 @@
 use super::{Failure, Result, Runtime};
 use crate::{
     plugin::paths,
-    value::{scalar_text, truthy},
+    value::{python_type, scalar_text, truthy},
 };
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
@@ -102,27 +102,11 @@ pub(in crate::experiments) fn load_text(path: &Path, cwd: &Path) -> Result<Strin
     Ok(text.replace("\r\n", "\n").replace('\r', "\n"))
 }
 
-fn kind(value: &Value) -> &'static str {
-    match value {
-        Value::Null => "NoneType",
-        Value::Bool(_) => "bool",
-        Value::String(_) => "str",
-        Value::Array(_) => "list",
-        Value::Object(_) => "dict",
-        Value::Number(n) => {
-            if n.is_i64() || n.is_u64() {
-                "int"
-            } else {
-                "float"
-            }
-        }
-    }
-}
 fn mapping(value: &Value) -> Result<&Map<String, Value>> {
     value.as_object().ok_or_else(|| {
         Failure::new(
             "AttributeError",
-            format!("'{}' object has no attribute 'get'", kind(value)),
+            format!("'{}' object has no attribute 'get'", python_type(value)),
         )
     })
 }
@@ -142,7 +126,7 @@ fn copy_row(row: &Value) -> Result<Map<String, Value>> {
         }
         return Err(Failure::new(
             "TypeError",
-            format!("'{}' object is not iterable", kind(row)),
+            format!("'{}' object is not iterable", python_type(row)),
         ));
     };
     let mut out = Map::new();

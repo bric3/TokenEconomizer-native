@@ -1,5 +1,7 @@
 use super::{Failure, Result, Runtime, official, settings::field};
-use crate::value::{decimal_integer, json_pretty, number, python_repr, scalar_text, truthy};
+use crate::value::{
+    decimal_integer, json_pretty, number, python_repr, python_type, scalar_text, truthy,
+};
 use serde_json::{Map, Value, json};
 use std::{fs, path::Path};
 
@@ -21,27 +23,14 @@ fn space(c: char) -> bool {
 fn strip(text: &str) -> &str {
     text.trim_matches(space)
 }
-fn kind(value: &Value) -> &'static str {
-    match value {
-        Value::Null => "NoneType",
-        Value::Bool(_) => "bool",
-        Value::Array(_) => "list",
-        Value::Object(_) => "dict",
-        Value::String(_) => "str",
-        Value::Number(n) => {
-            if n.is_i64() || n.is_u64() {
-                "int"
-            } else {
-                "float"
-            }
-        }
-    }
-}
 fn mapping<'a>(value: &'a Value, method: &str) -> Result<&'a Map<String, Value>> {
     value.as_object().ok_or_else(|| {
         Failure::new(
             "AttributeError",
-            format!("'{}' object has no attribute '{method}'", kind(value)),
+            format!(
+                "'{}' object has no attribute '{method}'",
+                python_type(value)
+            ),
         )
     })
 }
@@ -52,7 +41,10 @@ fn output<'a>(value: &'a Value, method: &str) -> Result<&'a str> {
     value.as_str().ok_or_else(|| {
         Failure::new(
             "AttributeError",
-            format!("'{}' object has no attribute '{method}'", kind(value)),
+            format!(
+                "'{}' object has no attribute '{method}'",
+                python_type(value)
+            ),
         )
     })
 }
@@ -60,7 +52,7 @@ fn suffix(value: &Value, length: usize) -> Result<String> {
     let text = value.as_str().ok_or_else(|| {
         Failure::new(
             "TypeError",
-            format!("'{}' object is not subscriptable", kind(value)),
+            format!("'{}' object is not subscriptable", python_type(value)),
         )
     })?;
     Ok(text
@@ -128,7 +120,7 @@ pub fn run_process(
                         "TypeError",
                         format!(
                             "sequence item {i}: expected str instance, {} found",
-                            kind(value)
+                            python_type(value)
                         ),
                     )
                 })
@@ -151,7 +143,7 @@ pub fn reap(name: &Value, rt: &mut dyn Runtime) -> Result<Value> {
     let name_text = name.as_str().ok_or_else(|| {
         Failure::new(
             "AttributeError",
-            format!("'{}' object has no attribute 'rsplit'", kind(name)),
+            format!("'{}' object has no attribute 'rsplit'", python_type(name)),
         )
     })?;
     let stem = name_text
@@ -176,7 +168,10 @@ pub fn reap(name: &Value, rt: &mut dyn Runtime) -> Result<Value> {
         let stdout = p["stdout"].as_str().ok_or_else(|| {
             Failure::new(
                 "AttributeError",
-                format!("'{}' object has no attribute 'split'", kind(&p["stdout"])),
+                format!(
+                    "'{}' object has no attribute 'split'",
+                    python_type(&p["stdout"])
+                ),
             )
         })?;
         for stale in stdout.split(space).filter(|s| !s.is_empty()) {
@@ -299,7 +294,7 @@ pub fn record_activation(
     let mut info = info.as_object().cloned().ok_or_else(|| {
         Failure::new(
             "TypeError",
-            format!("'{}' object is not iterable", kind(&info)),
+            format!("'{}' object is not iterable", python_type(&info)),
         )
     })?;
     info.remove("env");
@@ -318,7 +313,7 @@ pub fn record_activation(
                 } else {
                     format!(
                         "'{}' object does not support item assignment",
-                        kind(&config)
+                        python_type(&config)
                     )
                 },
             ));

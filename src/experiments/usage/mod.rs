@@ -5,23 +5,12 @@ pub mod copilot;
 #[cfg(test)]
 mod tests;
 
-use crate::value::{decimal_integer, number, python_repr, truthy};
+use crate::value::{decimal_integer, number, python_repr, python_type, truthy};
 use serde_json::{Map, Value, json};
 use std::sync::LazyLock;
 
 // shortcut: accounting integers must fit JSON's i64/u64 range; complete numeric parity before release.
 
-fn kind(value: &Value) -> &'static str {
-    match value {
-        Value::Null => "NoneType",
-        Value::Bool(_) => "bool",
-        Value::String(_) => "str",
-        Value::Array(_) => "list",
-        Value::Object(_) => "dict",
-        Value::Number(_) if is_int(value) => "int",
-        Value::Number(_) => "float",
-    }
-}
 fn is_int(value: &Value) -> bool {
     matches!(value, Value::Bool(_)) || value.as_i64().is_some() || value.as_u64().is_some()
 }
@@ -66,7 +55,7 @@ fn int(value: &Value) -> Result<Value, String> {
     }
     Err(format!(
         "TypeError: int() argument must be a string, a bytes-like object or a real number, not '{}'",
-        kind(value)
+        python_type(value)
     ))
 }
 fn arithmetic(a: &Value, b: &Value, subtract: bool) -> Result<Value, String> {
@@ -86,17 +75,17 @@ fn arithmetic(a: &Value, b: &Value, subtract: bool) -> Result<Value, String> {
         if a.is_string() || a.is_array() {
             return Err(format!(
                 "TypeError: can only concatenate {} (not \"{}\") to {}",
-                kind(a),
-                kind(b),
-                kind(a)
+                python_type(a),
+                python_type(b),
+                python_type(a)
             ));
         }
     }
     Err(format!(
         "TypeError: unsupported operand type(s) for {}: '{}' and '{}'",
         if subtract { "-" } else { "+" },
-        kind(a),
-        kind(b)
+        python_type(a),
+        python_type(b)
     ))
 }
 fn add(a: &Value, b: &Value) -> Result<Value, String> {
@@ -116,7 +105,7 @@ fn fields<'a>(value: &'a Value, operation: &str) -> Result<&'a Map<String, Value
     value.as_object().ok_or_else(|| {
         format!(
             "AttributeError: '{}' object has no attribute '{operation}'",
-            kind(value)
+            python_type(value)
         )
     })
 }
@@ -149,8 +138,8 @@ fn lines(text: &str) -> impl Iterator<Item = &str> {
 fn unhashable(value: &Value, operation: &str) -> String {
     format!(
         "TypeError: cannot use '{}' as a {operation} (unhashable type: '{}')",
-        kind(value),
-        kind(value)
+        python_type(value),
+        python_type(value)
     )
 }
 fn id_key(value: &Value) -> Result<String, String> {

@@ -8,7 +8,7 @@ pub use state::State;
 use crate::{
     loopguard::shell_edits,
     trace::codex,
-    value::{decimal_integer, int_value, number, truthy},
+    value::{decimal_integer, int_value, number, python_type, truthy},
 };
 use fancy_regex::Regex as FancyRegex;
 use regex::Regex;
@@ -234,26 +234,10 @@ fn string(value: &Value) -> Result<String, String> {
             .ok_or_else(|| "TypeError: expected text".into())
     }
 }
-fn type_name(value: &Value) -> &'static str {
-    match value {
-        Value::Null => "NoneType",
-        Value::Bool(_) => "bool",
-        Value::String(_) => "str",
-        Value::Array(_) => "list",
-        Value::Object(_) => "dict",
-        Value::Number(n) => {
-            if n.is_i64() || n.is_u64() {
-                "int"
-            } else {
-                "float"
-            }
-        }
-    }
-}
 fn missing_get(value: &Value) -> String {
     format!(
         "AttributeError: '{}' object has no attribute 'get'",
-        type_name(value)
+        python_type(value)
     )
 }
 pub fn parse_events(line: &str) -> Result<Vec<Event>, String> {
@@ -307,7 +291,7 @@ pub fn parse_events(line: &str) -> Result<Vec<Event>, String> {
             {
                 return Err(format!(
                     "TypeError: '{}' object is not iterable",
-                    type_name(changes)
+                    python_type(changes)
                 ));
             }
             let paths = item["changes"]
