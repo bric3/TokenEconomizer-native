@@ -830,7 +830,7 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 44 of 67 pytest modules are complete, with 1,055 of
+- Final test conversion: 45 of 67 pytest modules are complete, with 1,087 of
   1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
@@ -4710,6 +4710,22 @@ complete while any runtime component delegates production behaviour to Python.
   cases through the adapter pass. Production behaviour is unchanged.
   Logs use `validation/results/test-conversion-29-*`. Conversion maps 1,055 cases
   across 44 complete modules; remaining conversion and parity audits stay open.
+
+- The thirtieth test-conversion batch completes all 32 workload cases. It retains
+  published identities, extensions, exclusions, image tags, JSON manifests and
+  task filtering order. Native dataset cursors preserve export order, Verified
+  precedence and grading fields. Both optional registry checks also run isolated
+  Web-Bench fixtures for ordered exports, missing files, missing IDs and stale
+  driver output. Configured external registries remain conditional and were
+  unavailable here. Native host calls check timeout defaults, overrides, caps and
+  preload settings. The SWE-bench source inspection now constructs a runner and
+  verifies its 3,600-second timeout alongside Web-Bench's 260-second cap. The
+  preload file must exist; URI encoding has a fixed stand-in at the SDK boundary.
+  Provider and constructor fixtures are shared with routing tests. All 41 native
+  tests across both consumers, formatting, all-target Clippy and all 44 original
+  cases through the adapter pass on macOS. Production behaviour is unchanged.
+  Logs use `validation/results/test-conversion-30-*`. Conversion maps 1,087 cases
+  across 45 complete modules; remaining conversion and parity audits stay open.
 
 ## Dependencies
 

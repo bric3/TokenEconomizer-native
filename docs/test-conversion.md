@@ -368,6 +368,21 @@ stand-ins; routing decisions execute in Rust. All nine tests pass on macOS;
 formatting, all-target Clippy and all 12 original cases through the adapter pass.
 Production behaviour is unchanged.
 
+The thirtieth batch completes all 32 functions and cases in
+`experiments/tests/test_workloads.py`. It retains published task identities,
+extensions, exclusions, image tags, committed JSON manifests and filtered task
+order. The dataset cursor checks stream order, Verified-split precedence and
+grading fields. Both optional Web-Bench registry checks also run isolated
+fixtures for ordered exports, missing files, missing IDs and stale driver output.
+Configured external registries remain conditional and were unavailable here.
+Timeout and preload tests call native host helpers. The SWE-bench introspection
+check now constructs a runner and verifies its 3,600-second timeout alongside
+Web-Bench's 260-second cap. The preload file must exist; URI encoding uses a fixed
+stand-in at the SDK boundary. Routing and workload tests share the provider and
+constructor fixtures. All 41 native tests across both consumers, formatting,
+all-target Clippy and all 44 original cases through the adapter pass on macOS.
+Production behaviour is unchanged.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -383,8 +398,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 44 pytest modules are complete, with 1,055 of
-1,591 original cases mapped, including conditional Windows cases. The other 536
+Conversion remains in progress: 45 pytest modules are complete, with 1,087 of
+1,591 original cases mapped, including conditional Windows cases. The other 504
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.
