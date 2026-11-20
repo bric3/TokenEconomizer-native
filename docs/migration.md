@@ -830,7 +830,7 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 36 of 67 pytest modules are complete, with 873 of
+- Final test conversion: 37 of 67 pytest modules are complete, with 890 of
   1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
@@ -4598,6 +4598,18 @@ complete while any runtime component delegates production behaviour to Python.
   and `validation/results/test-conversion-20-all.log`. Conversion maps 873
   cases across 36 complete modules; remaining conversion and parity audits
   stay open.
+
+- The twenty-second test-conversion batch completes spiral policy's 17 cases.
+  It keeps shell-patch events and trajectory edits, repeated-green detection,
+  runaway thresholds, distinct nudge reasons, arm configuration and envelope
+  units. Native field access checks guard counters, and the controller's real
+  telemetry row supplies its tool-turn count. The shared invocation fixture now
+  serves both guard and spiral tests. All 33 tests across those two suites,
+  formatting, all-target Clippy and all 17 original spiral cases through the
+  adapter pass. The installed Codex CLI's resume help accepts the generated
+  flags. Production is unchanged. Logs use
+  `validation/results/test-conversion-22-*`. Conversion maps 890 cases across
+  37 complete modules; remaining conversion and parity audits stay open.
 
 ## Dependencies
 

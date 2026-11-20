@@ -1,7 +1,10 @@
 // Converted from reference/upstream/experiments/tests/test_answer_key_guard.py.
 pub mod fixtures;
+#[path = "support/codex_argv.rs"]
+mod invocation_fixture;
 mod support;
 
+use invocation_fixture::codex_argv;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -14,9 +17,7 @@ use std::{
 use support::TempDir;
 use tokeneconomizer::experiments::{
     net_guard,
-    swebench::{
-        self, Failure, codex_config, codex_trace, containers, guard_install, invocation, providers,
-    },
+    swebench::{self, Failure, codex_config, codex_trace, containers, guard_install},
 };
 
 const ABUSIVE: &[&str] = &[
@@ -238,21 +239,9 @@ fn the_merge_program_appends_once_and_keeps_what_was_there() {
 
 #[derive(Default)]
 struct Codex {
-    slots: Map<String, Value>,
     scripts: Vec<String>,
     copies: Vec<Value>,
     guard: String,
-}
-
-impl Codex {
-    fn argv(&mut self, operation: &str, hook: bool) -> Value {
-        self.slots = json!({"hook":hook,"session_id":"th","model":null,"effort":null})
-            .as_object()
-            .unwrap()
-            .clone();
-        let result = invocation::dispatch(operation, "codex", self).unwrap();
-        self.slots[result["provider_ref"].as_str().unwrap()].clone()
-    }
 }
 
 impl swebench::Runtime for Codex {
@@ -299,55 +288,6 @@ impl swebench::Runtime for Codex {
             "config_set" => {
                 assert_eq!(args[0], "_guard_python");
                 self.guard = slot(1).into();
-            }
-            "runner_function" => {
-                self.slots.insert(
-                    "function".into(),
-                    providers::optimizer_constants()["codex"][slot(0)].clone(),
-                );
-            }
-            "provider_copy" => {
-                self.slots
-                    .insert(slot(0).into(), self.slots[slot(1)].clone());
-            }
-            "provider_literal" => {
-                self.slots.insert(slot(0).into(), args[1].clone());
-            }
-            "provider_bool" => {
-                let value = &self.slots[slot(0)];
-                assert!(value.is_null() || value.is_boolean());
-                return Ok(json!(value.as_bool().unwrap_or(false)));
-            }
-            "eval_list" => {
-                let values: Vec<_> = args[1]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|name| self.slots[name.as_str().unwrap()].clone())
-                    .collect();
-                self.slots.insert(slot(0).into(), json!(values));
-            }
-            "eval_append" => {
-                let value = self.slots[slot(1)].clone();
-                self.slots[slot(0)].as_array_mut().unwrap().push(value);
-            }
-            "web_binary" => {
-                assert!(matches!(slot(0), "add" | "iadd"));
-                let mut values = self.slots[slot(1)].as_array().unwrap().clone();
-                values.extend(self.slots[slot(2)].as_array().unwrap().iter().cloned());
-                self.slots.insert(slot(3).into(), json!(values));
-            }
-            "eval_builtin" => {
-                assert_eq!(args, json!(["str"]));
-                self.slots.insert("function".into(), json!("str"));
-            }
-            "runner_invoke" => {
-                assert_eq!(self.slots["function"], "str");
-                let value = self.slots[args[0][0].as_str().unwrap()]
-                    .as_str()
-                    .unwrap()
-                    .to_owned();
-                self.slots.insert("called".into(), json!(value));
             }
             _ => panic!("unexpected callback: {method} {args}"),
         }
@@ -401,7 +341,10 @@ fn codex_arms_its_hook_in_codex_home_and_with_it_the_trust_bypass() {
     let doc: Value = serde_json::from_slice(&fs::read(hooks).unwrap()).unwrap();
     assert_eq!(doc["hooks"]["PreToolUse"][0]["matcher"], "Bash");
     for operation in ["build", "resume"] {
-        let argv = runtime.argv(operation, !runtime.guard.is_empty());
+        let argv = codex_argv(
+            operation,
+            json!({"hook":!runtime.guard.is_empty(),"session_id":"th"}),
+        );
         assert!(
             argv.as_array()
                 .unwrap()
@@ -409,8 +352,7 @@ fn codex_arms_its_hook_in_codex_home_and_with_it_the_trust_bypass() {
         );
     }
     assert!(
-        !runtime
-            .argv("build", false)
+        !codex_argv("build", json!({"hook":false}))
             .as_array()
             .unwrap()
             .contains(&json!("--dangerously-bypass-hook-trust"))

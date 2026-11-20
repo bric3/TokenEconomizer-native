@@ -269,6 +269,17 @@ guard-signature and Web-Bench construction cases remain pending. All 16 original
 cases still pass through the native adapter. The full native suite through the
 twentieth batch passes with GPG-agent access for its signed Git fixture.
 
+The twenty-second batch completes `experiments/tests/test_spiral.py`: all 17
+functions and cases. It retains shipped and defensive policies, shell-patch
+events, trajectory edits, repeated-green checks, runaway thresholds, distinct
+nudge reasons, arm configuration and envelope units. Native field access checks
+the guard counters; the Codex SDK's `segment` property reads `nudges_done`.
+The envelope test now checks the native controller's telemetry row instead of
+inspecting its source. A shared argv fixture supplies SDK object operations to
+the production invocation builder. The installed Codex CLI's resume help accepts
+every generated flag; without that CLI the test checks argv and reports the
+missing external check.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -284,8 +295,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 36 pytest modules are complete, with 873 of
-1,591 original cases mapped, including the conditional Windows case. The other 718
+Conversion remains in progress: 37 pytest modules are complete, with 890 of
+1,591 original cases mapped, including the conditional Windows case. The other 701
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.
