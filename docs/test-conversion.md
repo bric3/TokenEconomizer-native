@@ -241,6 +241,16 @@ use native code. Separate recording tests run the actual native hook process
 and check enablement layers, side-call suppression, email removal and input and
 output caps. The settle test removes only the owned spool.
 
+The nineteenth batch converts 16 functions and 32 cases in
+`experiments/tests/test_answer_key_guard.py`. It retains every abusive and
+legitimate command, hosts entries, native hook exit codes, the lift switch,
+trace counts and idempotent hook merging. The Codex installer uses recorded
+container calls and a validated ELF fixture; it checks native hook registration
+and fresh and resumed trust flags without running Docker. A real native hook
+installer checks the matcher. Container removal injects a timeout and verifies
+that the live set is cleared. The Python SDK's shared-export identity assertion
+remains pending; the other original guard cases also pass through the adapter.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -256,8 +266,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 35 pytest modules are complete, covering 810 of
-1,591 original cases, including the conditional Windows case. The other 781
+Conversion remains in progress: 35 pytest modules are complete, with 842 of
+1,591 original cases mapped, including the conditional Windows case. The other 749
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.
