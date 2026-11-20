@@ -347,6 +347,16 @@ with no Python on PATH. The full native suite through this batch passes on
 macOS with GPG-agent access for its signed Git fixture.
 The six native Windows tests remain uncompiled and unrun here.
 
+The twenty-eighth batch completes `experiments/tests/test_model_spelling.py`:
+nine native functions cover all 25 original cases. They retain alternate model
+IDs, backend-specific spelling, strict mode and stable result-tree tags. A native
+Copilot child fixture records every probed model and checks the forwarded effort
+argument. The tests preserve retry order, the exported `MODEL` change, subscription
+refusal and provider 404 diagnostics. Shell variable changes are read from the
+native launch context's returned `changed` map. All nine tests pass on macOS;
+all-target Clippy, formatting and all 25 original cases through the adapter pass.
+Production behaviour is unchanged.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -362,8 +372,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 42 pytest modules are complete, with 1,018 of
-1,591 original cases mapped, including conditional Windows cases. The other 573
+Conversion remains in progress: 43 pytest modules are complete, with 1,043 of
+1,591 original cases mapped, including conditional Windows cases. The other 548
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

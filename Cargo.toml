@@ -78,3 +78,7 @@ path = "validation/console_probe.rs"
 [[bin]]
 name = "te-stream-probe"
 path = "validation/stream_probe.rs"
+
+[[bin]]
+name = "te-model-probe"
+path = "validation/model_probe.rs"

@@ -830,7 +830,7 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 42 of 67 pytest modules are complete, with 1,018 of
+- Final test conversion: 43 of 67 pytest modules are complete, with 1,043 of
   1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
@@ -4684,6 +4684,18 @@ complete while any runtime component delegates production behaviour to Python.
   cases remain uncompiled and unrun here.
   Logs use `validation/results/test-conversion-27-*`.
   Conversion maps 1,018 cases across 42 complete modules; remaining conversion
+  and parity audits stay open.
+
+- The twenty-eighth test-conversion batch completes all nine model-spelling
+  functions and 25 original cases. Direct launch-context calls retain alternate
+  IDs, backend spelling, strict mode and result-tree tags. A native Copilot child
+  records every probed model and checks the forwarded effort argument. Assertions
+  preserve retry order, exported `MODEL` changes, subscription refusals and
+  provider 404 diagnostics. The launch context's returned `changed` map exposes
+  shell variable changes. All nine tests pass on macOS; formatting, all-target
+  Clippy and all 25 original cases through the adapter pass. Production behaviour
+  is unchanged. Logs use `validation/results/test-conversion-28-*`.
+  Conversion maps 1,043 cases across 43 complete modules; remaining conversion
   and parity audits stay open.
 
 ## Dependencies
