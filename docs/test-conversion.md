@@ -383,6 +383,22 @@ constructor fixtures. All 41 native tests across both consumers, formatting,
 all-target Clippy and all 44 original cases through the adapter pass on macOS.
 Production behaviour is unchanged.
 
+The thirty-first batch converts all 36 functions and 42 cases in
+`experiments/tests/test_codex_routing.py` across three Rust files. Direct calls
+retain endpoint resolution, credential names, request configuration, usage
+decomposition, model tags, capability gates, prompt pruning and scaffold wiring.
+Registry labels are checked in the shipped SDK templates; the native stages
+exercise the mechanism gates. HTTP stand-ins record the actual native request
+body and headers, retain catalogue caching and inject connection failure.
+The process fixture starts a real descendant and checks that native cleanup
+removes it before fallback teardown. Both cleanup cases now run on macOS; their
+original `/proc` guard skipped that platform. Codex 0.169.0 supplies the installed
+skills and accepts the generated MCP configuration. CLI execution and the
+process-group fixture are Unix-only; Windows equivalents remain open.
+All 110 selected native tests across the suite and shared-fixture consumers,
+formatting and all-target Clippy pass. The original suite through the adapter
+passes 40 cases with two `/proc` skips. Production behaviour is unchanged.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -398,8 +414,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 45 pytest modules are complete, with 1,087 of
-1,591 original cases mapped, including conditional Windows cases. The other 504
-cases and standalone executable smoke tests
+Conversion remains in progress: 46 pytest modules have all test functions mapped,
+with 1,129 of 1,591 original cases mapped, including conditional platform cases.
+Another 462 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

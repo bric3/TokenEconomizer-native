@@ -1,6 +1,8 @@
 use serde_json::{Map, Value, json};
-use std::path::Path;
-use tokeneconomizer::experiments::swebench::{Failure, Result, Runtime, providers, setup};
+use std::{collections::BTreeMap, path::Path};
+use tokeneconomizer::experiments::swebench::{
+    Failure, Result, Runtime, optimizer, providers, setup,
+};
 
 fn truthy(value: &Value) -> bool {
     match value {
@@ -18,6 +20,10 @@ pub struct Provider {
     pub env: Map<String, Value>,
     slots: Value,
     pub logs: Vec<String>,
+    pub http_response: Value,
+    pub http_error: bool,
+    pub requests: Vec<Value>,
+    cache: BTreeMap<(String, String), Value>,
 }
 impl Provider {
     pub fn new(agent: &'static str, env: Value) -> Self {
@@ -26,6 +32,10 @@ impl Provider {
             env: env.as_object().unwrap().clone(),
             slots: Value::Null,
             logs: Vec::new(),
+            http_response: Value::Null,
+            http_error: false,
+            requests: Vec::new(),
+            cache: BTreeMap::new(),
         }
     }
     pub fn constant(&self, name: &str) -> Value {
@@ -55,13 +65,37 @@ impl Provider {
             .unwrap()
             .extend(arguments.as_object().unwrap().clone());
         let result = providers::dispatch(&format!("{}.{name}", self.agent), self)?;
+        if let Some(encoded) = result.get("provider_encoded").and_then(Value::as_str) {
+            return Ok(serde_json::from_str(encoded).unwrap());
+        }
         Ok(match result.get("provider_ref").and_then(Value::as_str) {
             Some(slot) => self.slots[slot].clone(),
             None => result,
         })
     }
-    fn nested(&self, name: &str) -> Result<Value> {
-        Provider::new(self.agent, json!(self.env)).run(name)
+    fn cache_key(&self) -> (String, String) {
+        (
+            self.slots["base_url"].as_str().unwrap().into(),
+            self.slots["api_key"].as_str().unwrap().into(),
+        )
+    }
+    fn nested(&mut self, name: &str, args: Value) -> Result<Value> {
+        let arguments = if name == "fetch_catalog" {
+            assert_eq!(args.as_array().unwrap().len(), 2);
+            json!({"base_url":self.slots[args[0].as_str().unwrap()],"api_key":self.slots[args[1].as_str().unwrap()],"timeout":10})
+        } else {
+            assert_eq!(args, json!([]));
+            json!({})
+        };
+        let mut child = Provider::new(self.agent, json!(self.env));
+        child.http_response = self.http_response.clone();
+        child.http_error = self.http_error;
+        child.cache = std::mem::take(&mut self.cache);
+        let result = child.run_with(name, arguments);
+        self.cache = child.cache;
+        self.requests.extend(child.requests);
+        self.logs.extend(child.logs);
+        result
     }
 }
 impl Runtime for Provider {
@@ -81,16 +115,22 @@ impl Runtime for Provider {
             "provider_constant" => self.slots[a(0)] = self.constant(a(1)),
             "provider_copy" => self.slots[a(0)] = self.slots[a(1)].clone(),
             "provider_names" => return Ok(self.constant(a(0))),
+            "provider_data" | "provider_string" => return Ok(self.slots[a(0)].clone()),
             "provider_collect" => {
                 let value = self.slots[a(1)].clone();
                 self.slots["output"][a(0)] = value;
             }
             "provider_log" => self.logs.push(a(0).into()),
-            "provider_function" => {
-                assert_eq!(p[1], json!([]));
-                self.slots["called"] = self.nested(a(0))?;
+            "provider_pricing" => {
+                tokeneconomizer::pricing::weights_for(
+                    &json!({"model":self.slots["model"],"agent":self.slots["agent"]}),
+                )
+                .map_err(|error| Failure::new("ValueError", error.to_string()))?;
             }
-            "host_function" => self.slots[a(1)] = self.nested(a(0))?,
+            "provider_function" => {
+                self.slots["called"] = self.nested(a(0), p[1].clone())?;
+            }
+            "host_function" => self.slots[a(1)] = self.nested(a(0), json!([]))?,
             "host_update" => {
                 let additions = self.slots[a(1)].as_object().unwrap().clone();
                 self.slots[a(0)].as_object_mut().unwrap().extend(additions);
@@ -116,7 +156,7 @@ impl Runtime for Provider {
             }
             "web_decimal" => return Ok(json!(self.slots[a(0)].as_i64().unwrap().to_string())),
             "web_integer_literal" => self.slots[a(0)] = json!(a(1).parse::<i64>().unwrap()),
-            "web_abort" => self.slots["abort"] = self.nested("webbench_undici_abort")?,
+            "web_abort" => self.slots["abort"] = self.nested("webbench_undici_abort", json!([]))?,
             "optimizer_capture_log" => {}
             "logger_format" => {
                 return Ok(json!(
@@ -158,9 +198,117 @@ impl Runtime for Provider {
                 );
             }
             "provider_method" => {
-                assert_eq!(a(1), "strip");
-                assert_eq!(p[2], json!([]));
-                self.slots[a(3)] = json!(self.slots[a(0)].as_str().unwrap().trim());
+                let text = self.slots[a(0)].as_str().unwrap();
+                self.slots[a(3)] = json!(match a(1) {
+                    "strip" => {
+                        assert_eq!(p[2], json!([]));
+                        text.trim()
+                    }
+                    "rstrip" => {
+                        assert_eq!(p[2], json!(["/"]));
+                        text.trim_end_matches('/')
+                    }
+                    _ => panic!("unexpected method {p}"),
+                });
+            }
+            "provider_routing_item" => self.slots[a(0)] = self.slots["routing"][a(1)].clone(),
+            "provider_format" => return Ok(json!(self.slots[a(0)].as_str().unwrap())),
+            "provider_repr" => {
+                let text = self.slots[a(0)].as_str().unwrap();
+                assert!(!text.contains(['\'', '\\']));
+                return Ok(json!(format!("'{text}'")));
+            }
+            "provider_is_none" => return Ok(json!(self.slots[a(0)].is_null())),
+            "provider_contains" => {
+                return Ok(json!(
+                    self.slots[a(1)]
+                        .as_array()
+                        .unwrap()
+                        .contains(&self.slots[a(0)])
+                ));
+            }
+            "provider_items" => return Ok(json!(self.slots[a(0)].to_string())),
+            "provider_cache_begin" => return Ok(json!(self.cache.contains_key(&self.cache_key()))),
+            "provider_cache_get" => self.slots["catalogue"] = self.cache[&self.cache_key()].clone(),
+            "provider_cache_put" => {
+                self.cache
+                    .insert(self.cache_key(), self.slots["catalogue"].clone());
+            }
+            "provider_catalogue_value" => {
+                self.slots["catalogue"] = if p[0].is_null() {
+                    Value::Null
+                } else {
+                    json!(
+                        p[0].as_array()
+                            .unwrap()
+                            .iter()
+                            .map(
+                                |encoded| serde_json::from_str::<Value>(encoded.as_str().unwrap())
+                                    .unwrap()
+                            )
+                            .collect::<Vec<_>>()
+                    )
+                }
+            }
+            "provider_request" => self.requests.push(json!({"url":p[0],"headers":p[1]})),
+            "provider_http_enter" => {
+                if self.http_error {
+                    return Err(Failure::new("OSError", "connection refused"));
+                }
+            }
+            "provider_http_read" => {
+                return Ok(json!({"text":self.http_response.to_string(),"int_max_digits":4300}));
+            }
+            "provider_http_exit" => return Ok(json!(false)),
+            "optimizer_json" => return Ok(json!(self.slots[a(0)].to_string())),
+            "optimizer_format" => return Ok(json!(self.slots[a(0)].to_string())),
+            "optimizer_capture_request" | "optimizer_record" => {}
+            "optimizer_request" => {
+                let mut headers = Map::new();
+                for header in p[2].as_array().unwrap() {
+                    headers.insert(
+                        header[0].as_str().unwrap().into(),
+                        match header[1].as_str().unwrap() {
+                            "value" => header[2].clone(),
+                            "ref" => self.slots[header[2].as_str().unwrap()].clone(),
+                            "encoded" => serde_json::from_str(header[2].as_str().unwrap()).unwrap(),
+                            _ => panic!("unexpected request header {header}"),
+                        },
+                    );
+                }
+                self.requests.push(json!({"url":serde_json::from_str::<Value>(a(0)).unwrap(),"body":serde_json::from_str::<Value>(a(1)).unwrap(),"headers":headers}));
+            }
+            "optimizer_response_text" => {
+                self.slots["data"] = serde_json::from_str(a(0)).unwrap();
+                let result = optimizer::response_text_call(self)?;
+                self.slots["text"] =
+                    serde_json::from_str(result["provider_encoded"].as_str().unwrap()).unwrap();
+                return Ok(json!({"data":p[0],"text":result["provider_encoded"]}));
+            }
+            "optimizer_usage_from_response" => {
+                self.slots["usage"] = self.slots["data"]["usage"].clone()
+            }
+            "optimizer_usage_field" => return Ok(json!(self.slots["usage"][a(0)].to_string())),
+            "optimizer_pricing" => {
+                let mut record = json!({"model":self.slots["mid"]});
+                for (key, reference) in p.as_object().unwrap() {
+                    record[key] = match reference[0].as_str().unwrap() {
+                        "integer" => json!(reference[1].as_str().unwrap().parse::<i64>().unwrap()),
+                        "value" => reference[1].clone(),
+                        "ref" => self.slots[reference[1].as_str().unwrap()].clone(),
+                        _ => panic!("unexpected price input {reference}"),
+                    };
+                }
+                self.slots["effective"] = json!(
+                    tokeneconomizer::pricing::effective_tokens(&record, None)
+                        .map_err(|error| Failure::new("ValueError", error.to_string()))?
+                );
+            }
+            "optimizer_finish" => {
+                self.slots["optimizer_result"] = json!([
+                    serde_json::from_str::<Value>(a(0)).unwrap(),
+                    self.slots["effective"]
+                ])
             }
             _ => panic!("unexpected provider callback {method}: {p}"),
         }

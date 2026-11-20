@@ -27,6 +27,7 @@ pub fn codex_argv(operation: &str, arguments: Value) -> Value {
                         Value::Null => false,
                         Value::Bool(value) => *value,
                         Value::String(value) => !value.is_empty(),
+                        Value::Object(value) => !value.is_empty(),
                         _ => panic!("unexpected boolean input: {value}"),
                     }));
                 }
@@ -55,6 +56,19 @@ pub fn codex_argv(operation: &str, arguments: Value) -> Value {
                 }
                 "runner_invoke" => {
                     let argument = &self.0[args[0][0].as_str().unwrap()];
+                    if let Some(method) = self.0["function"].as_array() {
+                        assert_eq!(method[0], "update");
+                        let target = method[1].as_str().unwrap().to_owned();
+                        let additions = argument.as_object().unwrap().clone();
+                        self.0
+                            .get_mut(&target)
+                            .unwrap()
+                            .as_object_mut()
+                            .unwrap()
+                            .extend(additions);
+                        self.0.insert("called".into(), Value::Null);
+                        return Ok(Value::Null);
+                    }
                     let text = match self.0["function"].as_str().unwrap() {
                         "str" => argument.as_str().unwrap().to_owned(),
                         "json.dumps" => serde_json::to_string(argument).unwrap(),
@@ -81,6 +95,14 @@ pub fn codex_argv(operation: &str, arguments: Value) -> Value {
                         .map(|c| char::from_u32(c.as_u64().unwrap() as u32).unwrap())
                         .collect();
                     self.0.insert(slot(0).into(), json!(text));
+                }
+                "eval_field" => {
+                    let value = self.0[slot(2)].clone();
+                    self.0.get_mut(slot(0)).unwrap()[slot(1)] = value;
+                }
+                "stdout_member" => {
+                    assert_eq!(slot(1), "update");
+                    self.0.insert(slot(2).into(), json!(["update", slot(0)]));
                 }
                 _ => panic!("unexpected callback: {method} {args}"),
             }

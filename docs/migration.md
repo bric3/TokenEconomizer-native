@@ -830,8 +830,8 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 45 of 67 pytest modules are complete, with 1,087 of
-  1,591 original cases. See
+- Final test conversion: 46 of 67 pytest modules have all test functions mapped,
+  with 1,129 of 1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
 
@@ -4726,6 +4726,24 @@ complete while any runtime component delegates production behaviour to Python.
   cases through the adapter pass on macOS. Production behaviour is unchanged.
   Logs use `validation/results/test-conversion-30-*`. Conversion maps 1,087 cases
   across 45 complete modules; remaining conversion and parity audits stay open.
+
+- The thirty-first test-conversion batch maps all 36 Codex-routing functions and
+  42 original cases across three Rust files. It retains endpoint resolution,
+  credential names, request configuration, usage decomposition, model tags,
+  capability gates, prompt pruning and scaffold wiring. SDK templates supply
+  registry labels; native stages exercise the mechanism gates. HTTP stand-ins
+  record native request bodies and headers, retain catalogue caching and inject
+  connection failure. A real descendant checks that native process cleanup runs
+  before fallback teardown. Both cleanup cases now run on macOS, where the
+  original `/proc` guard skipped them. Codex 0.169.0 supplies installed skills
+  and accepts generated MCP configuration. CLI execution and the process-group
+  fixture are Unix-only; Windows equivalents remain open. All 110 selected native
+  tests across the suite and shared-fixture consumers, formatting and all-target
+  Clippy pass. The original suite through the adapter passes 40 cases with two
+  `/proc` skips. Production behaviour is unchanged. Logs use
+  `validation/results/test-conversion-31-*`. Conversion maps 1,129 cases across
+  46 modules with all test names mapped; remaining conversion and parity audits
+  stay open.
 
 ## Dependencies
 

@@ -82,3 +82,7 @@ path = "validation/stream_probe.rs"
 [[bin]]
 name = "te-model-probe"
 path = "validation/model_probe.rs"
+
+[[bin]]
+name = "te-codex-probe"
+path = "validation/codex_probe.rs"
