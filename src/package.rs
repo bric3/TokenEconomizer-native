@@ -230,7 +230,14 @@ fn native_payload(plugin: &Path, binaries: &Path, suffix: &str, droid: bool) -> 
         }
         fs::write(
             scripts.join(format!("{name}.cmd")),
-            format!("@echo off\r\n\"%~dp0{name}.exe\" %*\r\nexit /b %ERRORLEVEL%\r\n"),
+            format!(
+                "@echo off\r\nif not exist \"%~dp0{name}.exe\" (\r\n{}\r\n)\r\n\"%~dp0{name}.exe\" %*\r\nexit /b %ERRORLEVEL%\r\n",
+                if name == "te-hook" {
+                    "  echo {}\r\n  exit /b 0"
+                } else {
+                    "  >&2 echo TokenEconomizer: te.exe is missing from the plugin scripts directory.\r\n  exit /b 1"
+                }
+            ),
         )?;
     }
     if droid {

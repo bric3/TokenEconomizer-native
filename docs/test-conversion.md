@@ -331,6 +331,22 @@ macOS with GPG-agent access for its signed Git fixture.
 Timestamp fixtures request writable file handles and, for Windows directories,
 write-attribute access. The Windows branch remains uncompiled and unrun here.
 
+The twenty-seventh batch completes `test_antigravity.py`: 31 functions cover 34
+original cases. Native transcripts retain incremental offsets, tool-result
+pairing, resumed conversations, usage, prompt counts and private replay state.
+Hook fixtures check event arguments, ordered expansion, merged context, ephemeral
+redirects and the absence of proposer or judge calls. Packaging checks the three
+registered events and their deadlines. The six Windows launcher cases adapt
+Python discovery to bundled executable availability, independence from the legacy
+`TE_PYTHON` setting and execution under paths with spaces. The native hook wrapper
+now returns `{}` with exit code 0 when its executable is missing; the CLI reports
+the missing executable with exit code 1. All 25 macOS tests, all-target Clippy and
+the original suite through the adapter pass (28 passed, six Windows skips).
+The release package probe passes relocation, ZIP, Droid and output-guard checks
+with no Python on PATH. The full native suite through this batch passes on
+macOS with GPG-agent access for its signed Git fixture.
+The six native Windows tests remain uncompiled and unrun here.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -346,8 +362,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 41 pytest modules are complete, with 984 of
-1,591 original cases mapped, including the conditional Windows case. The other 607
+Conversion remains in progress: 42 pytest modules are complete, with 1,018 of
+1,591 original cases mapped, including conditional Windows cases. The other 573
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

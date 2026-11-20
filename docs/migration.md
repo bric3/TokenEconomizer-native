@@ -830,7 +830,7 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 41 of 67 pytest modules are complete, with 984 of
+- Final test conversion: 42 of 67 pytest modules are complete, with 1,018 of
   1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
@@ -4665,6 +4665,26 @@ complete while any runtime component delegates production behaviour to Python.
   Production is unchanged. Logs use `validation/results/test-conversion-26-*`.
   Conversion maps 984 cases across 41 complete modules; remaining conversion and
   parity audits stay open.
+
+- The twenty-seventh test-conversion batch completes Antigravity's 31 functions
+  and 34 original cases. Native transcript fixtures check incremental replay,
+  tool-result pairing, resumed conversations, usage and private state. Hook
+  fixtures retain event arguments, ordered expansion, merged context, ephemeral
+  redirects and the absence of proposer or judge calls. Package assertions retain
+  the three registered events and their deadlines. Six Windows cases adapt
+  Python discovery to bundled executable availability, legacy `TE_PYTHON`
+  independence and execution under paths with spaces. The generated Windows hook
+  wrapper now returns `{}` with exit code 0 when its executable is missing; the
+  CLI reports the missing executable with exit code 1. All 25 macOS tests,
+  formatting, all-target Clippy and the original suite through the adapter pass
+  (28 passed, six Windows skips). The release package probe passes relocation,
+  ZIP, Droid and output-guard checks with no Python on PATH. The full native suite
+  through this batch passes on macOS with GPG-agent access for its signed Git
+  fixture. The pinned archive's 256 files remain unchanged. The six native Windows
+  cases remain uncompiled and unrun here.
+  Logs use `validation/results/test-conversion-27-*`.
+  Conversion maps 1,018 cases across 42 complete modules; remaining conversion
+  and parity audits stay open.
 
 ## Dependencies
 
