@@ -261,6 +261,14 @@ when merging segment fields after the grading failure. The test records that
 existing behaviour: `grading_error` survives and excludes the row from the
 graded denominator. No production behaviour changes in this conversion.
 
+The twenty-first batch converts 14 accounting functions in
+`experiments/tests/test_usage_recovery.py`. It retains cumulative-message
+deduplication, missing-output flags, session-log duplicates, exact recovery,
+in-flight turns and degradation across both segment orders. The two Python
+guard-signature and Web-Bench construction cases remain pending. All 16 original
+cases still pass through the native adapter. The full native suite through the
+twentieth batch passes with GPG-agent access for its signed Git fixture.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -276,8 +284,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 36 pytest modules are complete, with 859 of
-1,591 original cases mapped, including the conditional Windows case. The other 732
+Conversion remains in progress: 36 pytest modules are complete, with 873 of
+1,591 original cases mapped, including the conditional Windows case. The other 718
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.
