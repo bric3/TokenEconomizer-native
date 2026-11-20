@@ -830,7 +830,7 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 33 of 67 pytest modules are complete, covering 778 of
+- Final test conversion: 35 of 67 pytest modules are complete, covering 810 of
   1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
@@ -4551,6 +4551,17 @@ complete while any runtime component delegates production behaviour to Python.
   and all-target Clippy pass. Production is unchanged. Logs use
   `validation/results/test-conversion-17-*`. Conversion covers 778 cases across
   33 complete modules; remaining conversion and parity audits stay open.
+
+- The eighteenth test-conversion batch completes Cursor's host and recording
+  suites: 22 functions cover 32 original cases. Native hook/controller code
+  handles payloads, spools, stop states, envelope updates and transcript fallback.
+  Its fixture records fold requests and keeps background maintenance idle while
+  the tests inspect the spool. Recording tests run the real native hook binary
+  and retain enablement layers, side-call suppression, email removal and size
+  caps. All 22 new tests, formatting and all-target Clippy pass. Production is
+  unchanged. Logs use `validation/results/test-conversion-18-*`. Conversion
+  covers 810 cases across 35 complete modules; remaining conversion and parity
+  audits stay open.
 
 ## Dependencies
 

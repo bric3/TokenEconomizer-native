@@ -231,6 +231,16 @@ then learn facts and price five sessions. The native session-start hook returns
 the learned fact. Packaging checks the native Droid bundle; the original Python
 library-presence assertion checks the native hook executable instead.
 
+The eighteenth batch converts `test_cursor.py` and `test_cursor_recording.py`:
+22 functions cover 32 original cases. It retains captured payloads, hook
+declarations, trace reconstruction, stop statuses, headless turn closure,
+transcript fallback and newline-containing tool IDs. The hook/controller fixture
+records fold requests and leaves background maintenance idle so the tests can
+inspect the captured spool; recording, parsing, turn state and envelope updates
+use native code. Separate recording tests run the actual native hook process
+and check enablement layers, side-call suppression, email removal and input and
+output caps. The settle test removes only the owned spool.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -246,8 +256,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 33 pytest modules are complete, covering 778 of
-1,591 original cases, including the conditional Windows case. The other 813
+Conversion remains in progress: 35 pytest modules are complete, covering 810 of
+1,591 original cases, including the conditional Windows case. The other 781
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.
