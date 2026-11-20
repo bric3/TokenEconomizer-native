@@ -831,7 +831,7 @@ complete while any runtime component delegates production behaviour to Python.
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
 - Final test conversion: 49 of 67 pytest modules have all test functions mapped,
-  with 1,248 of 1,591 original cases. See
+  with 1,257 of 1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
 
@@ -4813,6 +4813,17 @@ complete while any runtime component delegates production behaviour to Python.
   Copilot subfolders and Windows case-insensitive paths. Fourteen native
   cases and all-target Clippy pass on macOS. The two Windows cases remain
   unverified. Logs use `validation/results/test-conversion-37-*`.
+
+- The thirty-eighth test-conversion batch maps nine tool-pruning evidence
+  cases. Native folds cover proposal and automatic modes, prompt and session
+  thresholds, the higher threshold for high-risk tools and removal of old
+  rules for protected tools. The restored-tools test caught a native CLI
+  error: the restore-all request carries null, which the runtime rejected
+  as an invalid list. The runtime now passes an empty item list to the
+  deny-list writer for this request. The test verifies that restored tools
+  stay available through later folds and that explicitly applying a rule
+  drops its keep entry. All 23 tests in the updated suite pass on macOS.
+  Logs use `validation/results/test-conversion-38-*`.
 
 ## Dependencies
 

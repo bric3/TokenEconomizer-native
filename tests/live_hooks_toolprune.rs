@@ -37,34 +37,61 @@ fn context(f: &HookFixture) -> LiveContext {
 fn pending_repo(root: &Path) -> HookFixture {
     let mut f = fixture(root, "claude");
     f.environment.env.remove("TE_TOOLPRUNE_QUIET_MINUTES");
-    let state = root.join("state");
-    let catalog = adapter::catalog_path(&state, "claude");
-    fs::create_dir_all(catalog.parent().unwrap()).unwrap();
-    let tools = [
-        "Bash",
-        "Read",
-        "Edit",
-        "Write",
-        "AskUserQuestion",
-        "Workflow",
-        "CronCreate",
-        "ShareOnboardingGuide",
-        "WebFetch",
-    ];
-    fs::write(catalog, json!({"tools":tools}).to_string()).unwrap();
+    observe_unused_tools(&mut f);
+    assert_eq!(untool(&f)["auto_pending"]["items"], json!(UNUSED));
+    f
+}
+
+fn catalog(f: &HookFixture, tools: &[&str]) {
+    let path = adapter::catalog_path(&f.environment.home.join("state"), &f.host);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(path, json!({"tools":tools}).to_string()).unwrap();
+}
+
+fn observe_unused_tools(f: &mut HookFixture) {
+    catalog(
+        f,
+        &[
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "AskUserQuestion",
+            "Workflow",
+            "CronCreate",
+            "ShareOnboardingGuide",
+            "WebFetch",
+        ],
+    );
     for i in 0..5 {
         let sid = format!("u{i}");
-        let log = transcript(root, &sid);
         let prompts = [
             json!(["look", [["Read",{"file_path":f.repo.join("a.py")},"x",false],
                 ["Bash",{"command":"ls"},"a.py",false]]]),
             json!(["and again", []]),
         ];
-        fixtures::write_claude_session(&log, &prompts, "claude-opus-5-5");
-        session(&mut f, &sid, &log, "startup");
+        fold_transcript(f, &sid, &prompts);
     }
-    assert_eq!(untool(&f)["auto_pending"]["items"], json!(UNUSED));
-    f
+}
+
+fn fold_transcript(f: &mut HookFixture, sid: &str, prompts: &[Value]) {
+    let log = transcript(&f.environment.home, sid);
+    fixtures::write_claude_session(&log, prompts, "claude-opus-5-5");
+    session(f, sid, &log, "startup");
+}
+
+fn fold_prompts(f: &mut HookFixture, sid: &str, count: usize) {
+    let prompts: Vec<_> = (0..count)
+        .map(|index| {
+            let calls = if index == 0 {
+                json!([["Bash", {"command":"ls"}, "a.py", false]])
+            } else {
+                json!([])
+            };
+            json!([format!("prompt {index}"), calls])
+        })
+        .collect();
+    fold_transcript(f, sid, &prompts);
 }
 
 fn untool(f: &HookFixture) -> Value {
@@ -101,6 +128,196 @@ fn start(f: &mut HookFixture, sid: &str, path: &Path) -> Value {
         "hook_event_name":"SessionStart", "session_id":sid, "source":"startup",
         "transcript_path":path, "cwd":f.repo
     }))
+}
+
+fn propose(f: &mut HookFixture) {
+    f.environment
+        .env
+        .insert("TE_TOOLPRUNE".into(), json!("propose"));
+}
+
+#[test]
+fn with_propose_unused_tools_are_proposed_but_nothing_changes_until_applied() {
+    let tmp = TempDir::new("toolprune-proposal");
+    let mut f = fixture(tmp.path(), "claude");
+    propose(&mut f);
+    observe_unused_tools(&mut f);
+    assert_eq!(untool(&f)["proposal"], json!(UNUSED));
+    assert!(!denylist::settings_path(&f.repo, "claude").exists());
+    let log = transcript(tmp.path(), "next");
+    File::create(&log).unwrap();
+    let value = start(&mut f, "n", &log);
+    let notice = value["systemMessage"].as_str().unwrap();
+    assert!(
+        notice.contains("3 tool(s) went unused") && notice.contains("/tokeneconomizer:toolprune")
+    );
+    assert!(notice.contains("nothing changes until you run `/tokeneconomizer:toolprune apply`"));
+}
+
+#[test]
+fn by_default_unused_tools_are_removed_from_the_next_session_and_it_says_so() {
+    let tmp = TempDir::new("toolprune-auto");
+    let mut f = fixture(tmp.path(), "claude");
+    observe_unused_tools(&mut f);
+    assert_eq!(deny(&f), UNUSED);
+    assert_eq!(untool(&f)["proposal"], json!([]));
+    let log = transcript(tmp.path(), "next");
+    File::create(&log).unwrap();
+    let output = start(&mut f, "n1", &log);
+    let notice = output["systemMessage"].as_str().unwrap();
+    assert!(notice.contains("removed 3 tool(s) this repository's sessions never used"));
+    assert!(notice.contains("`/tokeneconomizer:toolprune restore` gives them back"));
+    assert!(start(&mut f, "n2", &log).get("systemMessage").is_none());
+}
+
+#[test]
+fn tools_given_back_stay_back_until_named_again() {
+    let tmp = TempDir::new("toolprune-kept");
+    let mut f = fixture(tmp.path(), "claude");
+    catalog(&f, &["Bash", "Read", "Workflow", "CronCreate"]);
+    for i in 0..5 {
+        fold_prompts(&mut f, &format!("a{i}"), 2);
+    }
+    assert_eq!(deny(&f), ["CronCreate", "Workflow"]);
+    let restored = cli(&f, &["toolprune", "restore"]);
+    let output = String::from_utf8(restored.stdout).unwrap();
+    assert!(restored.status.success(), "{output}");
+    assert!(output.contains("kept from now on"));
+    assert!(deny(&f).is_empty());
+    for i in 0..6 {
+        fold_prompts(&mut f, &format!("b{i}"), 2);
+    }
+    assert!(deny(&f).is_empty());
+    let show = cli(&f, &["toolprune", "show"]);
+    assert!(show.status.success());
+    let text = String::from_utf8(show.stdout).unwrap();
+    assert!(text.contains("proposed: -") && text.contains("kept, as you gave them back"));
+    assert!(
+        cli(&f, &["toolprune", "apply", "Workflow"])
+            .status
+            .success()
+    );
+    assert_eq!(deny(&f), ["Workflow"]);
+    assert_eq!(
+        denylist::kept_for(&f.store, &f.repo, "claude").unwrap(),
+        ["CronCreate"]
+    );
+}
+
+#[test]
+fn ten_prompts_over_two_sessions_are_enough_and_one_sessions_are_not() {
+    let tmp = TempDir::new("toolprune-two-sessions");
+    let mut f = fixture(tmp.path(), "claude");
+    propose(&mut f);
+    let tools = ["Bash", "Read", "Workflow", "CronCreate"];
+    catalog(&f, &tools);
+    fold_prompts(&mut f, "long", 10);
+    let data = untool(&f);
+    assert_eq!(data["proposal"], json!([]));
+    assert_eq!(data["streaks"]["Workflow"], 1);
+    assert_eq!(data["prompt_streaks"]["Workflow"], 10);
+    fold_prompts(&mut f, "short", 1);
+    assert_eq!(untool(&f)["proposal"], json!(["CronCreate", "Workflow"]));
+
+    for (count, expected) in [(9, json!([])), (10, json!(["CronCreate", "Workflow"]))] {
+        let tmp = TempDir::new("toolprune-one-session");
+        let mut solo = fixture(tmp.path(), "claude");
+        propose(&mut solo);
+        solo.environment
+            .env
+            .insert("TE_TOOLPRUNE_MIN_SESSIONS".into(), json!("1"));
+        catalog(&solo, &tools);
+        fold_prompts(&mut solo, "s", count);
+        assert_eq!(untool(&solo)["proposal"], expected);
+    }
+}
+
+#[test]
+fn five_sessions_are_enough_however_short() {
+    let tmp = TempDir::new("toolprune-five-sessions");
+    let mut f = fixture(tmp.path(), "claude");
+    propose(&mut f);
+    catalog(&f, &["Bash", "Workflow"]);
+    for i in 0..4 {
+        fold_prompts(&mut f, &format!("s{i}"), 1);
+    }
+    assert_eq!(untool(&f)["proposal"], json!([]));
+    fold_prompts(&mut f, "s4", 1);
+    assert_eq!(untool(&f)["proposal"], json!(["Workflow"]));
+}
+
+#[test]
+fn a_session_without_prompts_is_no_evidence() {
+    let tmp = TempDir::new("toolprune-empty-session");
+    let mut f = fixture(tmp.path(), "claude");
+    propose(&mut f);
+    catalog(&f, &["Bash", "Workflow"]);
+    fold_prompts(&mut f, "some", 4);
+    fold_prompts(&mut f, "none", 0);
+    let data = untool(&f);
+    assert_eq!(data["sessions"], 1);
+    assert_eq!(data["streaks"]["Workflow"], 1);
+    assert_eq!(data["prompt_streaks"]["Workflow"], 4);
+}
+
+#[test]
+fn a_high_risk_tool_needs_three_times_the_prompts() {
+    let tmp = TempDir::new("toolprune-high-risk");
+    let mut f = fixture(tmp.path(), "claude");
+    propose(&mut f);
+    catalog(&f, &["Bash", "Workflow", "NotebookEdit"]);
+    fold_prompts(&mut f, "a", 20);
+    fold_prompts(&mut f, "b", 9);
+    assert_eq!(untool(&f)["proposal"], json!(["Workflow"]));
+    fold_prompts(&mut f, "c", 1);
+    assert_eq!(untool(&f)["proposal"], json!(["NotebookEdit", "Workflow"]));
+}
+
+#[test]
+fn a_protected_tool_is_never_left_out_and_a_rule_already_written_comes_back() {
+    let tmp = TempDir::new("toolprune-protect-applied");
+    let mut f = fixture(tmp.path(), "claude");
+    let candidate = "mcp__headroom__headroom_retrieve";
+    catalog(&f, &["Bash", candidate, "Workflow"]);
+    let path = denylist::settings_path(&f.repo, "claude");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(path, json!({"permissions":{"deny":["Mine"]}}).to_string()).unwrap();
+    for i in 0..5 {
+        fold_prompts(&mut f, &format!("a{i}"), 3);
+    }
+    assert_eq!(deny(&f), ["Mine", "Workflow", candidate]);
+    f.environment.env.insert(
+        "TE_TOOLPRUNE_PROTECT".into(),
+        json!("mcp__headroom__*, Nothing"),
+    );
+    fold_prompts(&mut f, "b", 3);
+    assert_eq!(deny(&f), ["Mine", "Workflow"]);
+    assert!(
+        !untool(&f)["proposal"]
+            .as_array()
+            .unwrap()
+            .contains(&json!(candidate))
+    );
+}
+
+#[test]
+fn the_web_is_never_proposed_and_an_old_deny_rule_for_it_is_given_back() {
+    let tmp = TempDir::new("toolprune-web-protected");
+    let mut f = fixture(tmp.path(), "claude");
+    catalog(&f, &["Bash", "Read", "CronCreate", "WebFetch", "WebSearch"]);
+    apply(&f, &["CronCreate", "WebFetch", "WebSearch"]);
+    for i in 0..20 {
+        fold_prompts(&mut f, &format!("w{i}"), 1);
+    }
+    assert_eq!(
+        denylist::applied_for(&f.store, &f.repo, "claude").unwrap(),
+        ["CronCreate"]
+    );
+    assert_eq!(deny(&f), ["CronCreate"]);
+    let data = untool(&f);
+    for tool in ["WebFetch", "WebSearch"] {
+        assert!(!data["proposal"].as_array().unwrap().contains(&json!(tool)));
+    }
 }
 
 #[test]

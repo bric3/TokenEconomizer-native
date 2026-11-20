@@ -462,6 +462,14 @@ Copilot trust checks cover subfolders and config comments. Fourteen native
 cases, formatting and all-target Clippy pass on macOS. Two Windows path
 case checks remain unverified.
 
+The thirty-eighth batch maps nine tool-pruning evidence cases. Real transcripts
+drive the prompt and session thresholds, proposal and automatic modes, and
+protection of web tools and configured patterns. The native CLI test caught a
+restore-all failure. The runtime now interprets the CLI's null request as an
+empty item list, which restores all owned rules. The test checks that later
+folds honour the restored tools and that applying a named rule removes its
+keep entry. All 23 tests in the updated suite pass on macOS.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -478,7 +486,7 @@ behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
 Conversion remains in progress: 49 pytest modules have all test functions mapped,
-with 1,248 of 1,591 original cases mapped, including conditional platform cases.
-Another 343 cases and standalone executable smoke tests
+with 1,257 of 1,591 original cases mapped, including conditional platform cases.
+Another 334 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

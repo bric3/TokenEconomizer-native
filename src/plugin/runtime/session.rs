@@ -185,13 +185,20 @@ impl Services<'_> {
                 &ctx.host,
                 &mut denylist::NativeRuntime
             )?),
-            "deny_restore" => json!(denylist::restore(
-                &ctx.repo.root,
-                &ctx.store,
-                &strings(&args[0])?,
-                &ctx.host,
-                &mut denylist::NativeRuntime
-            )?),
+            "deny_restore" => {
+                let items = if args[0].is_null() {
+                    Vec::new()
+                } else {
+                    strings(&args[0])?
+                };
+                json!(denylist::restore(
+                    &ctx.repo.root,
+                    &ctx.store,
+                    &items,
+                    &ctx.host,
+                    &mut denylist::NativeRuntime
+                )?)
+            }
             "set_kept" => json!(denylist::set_kept(
                 &ctx.store,
                 &ctx.repo.root,
