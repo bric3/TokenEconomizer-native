@@ -1302,6 +1302,8 @@ fn a_malformed_history_file_never_empties_the_session_start() {
         refuse_enqueue: false,
         history_failure: Some("ValueError: a field history.json should not have".into()),
         repo_map: None,
+        fold_settings: Box::new(denylist::NativeRuntime),
+        session_runtime: None,
         repo: f.ctx.repo.root.clone(),
         environment: f.environment.clone(),
         store: f.ctx.store.clone(),

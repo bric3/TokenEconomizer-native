@@ -830,8 +830,8 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 49 of 67 pytest modules have all test functions mapped,
-  with 1,264 of 1,591 original cases. See
+- Final test conversion: 50 of 67 pytest modules have all test functions mapped,
+  with 1,277 of 1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
 
@@ -4832,6 +4832,16 @@ complete while any runtime component delegates production behaviour to Python.
   are enabled again. MCP server evidence, automatic removal and restoration
   preserve user settings. All seven new native tests and affected transcript,
   side-call and hook tests pass. Logs use `validation/results/test-conversion-39-*`.
+
+- The fortieth test-conversion batch completes all 99 live-hook cases. Codex
+  rollouts drive capability evidence, protection and automatic removal.
+  The tests cover TOML ownership, validation rollback and the tracked-config
+  guard using Git's index. Codex validation replies are controlled. The
+  OpenCode fold requests an export in the session's checkout when its copy
+  is empty and records the exported prompt and priced usage. All 13 new
+  native tests pass. The original live-hook suite through the adapter passes
+  97 cases with two Windows skips. Logs use
+  `validation/results/test-conversion-40-*`.
 
 ## Dependencies
 

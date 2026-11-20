@@ -477,6 +477,15 @@ native CLI resumes model calls when micro-skills are enabled again. The
 MCP server tests cover whole-server evidence, prior use, automatic removal and
 ownership of settings. All seven new native tests and affected suites pass.
 
+The fortieth batch completes all 99 live-hook cases across 80 Rust test
+functions. Native Codex rollouts drive capability evidence, protection and
+automatic removal. The tests use Git's index for tracked config and control
+Codex validation replies to test rollback. A controlled OpenCode export
+verifies that the fold requests the session from its checkout and prices the
+exported transcript when the plugin's copy is empty. All 13 new native tests
+pass. The original suite through the adapter passes 97 cases with two
+Windows skips.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -492,8 +501,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 49 pytest modules have all test functions mapped,
-with 1,264 of 1,591 original cases mapped, including conditional platform cases.
-Another 327 cases and standalone executable smoke tests
+Conversion remains in progress: 50 pytest modules have all test functions mapped,
+with 1,277 of 1,591 original cases mapped, including conditional platform cases.
+Another 314 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

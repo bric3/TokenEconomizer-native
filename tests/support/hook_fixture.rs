@@ -13,7 +13,7 @@ use tokeneconomizer::{
     plugin::{
         context::LiveContext,
         controller::{self, LiveController},
-        fold, history, hook, hookqueue,
+        denylist, fold, history, hook, hookqueue,
         hosts::{
             session::{self, Environment},
             state,
@@ -50,6 +50,8 @@ pub struct HookFixture {
     pub refuse_enqueue: bool,
     pub history_failure: Option<String>,
     pub repo_map: Option<MapHandler>,
+    pub fold_settings: Box<dyn denylist::Runtime>,
+    pub session_runtime: Option<Box<dyn session::Runtime>>,
     pub repo: PathBuf,
     pub environment: Environment,
     pub store: Store,
@@ -91,6 +93,8 @@ impl HookFixture {
             refuse_enqueue: false,
             history_failure: None,
             repo_map: None,
+            fold_settings: Box::new(denylist::NativeRuntime),
+            session_runtime: None,
             repo,
             store,
             environment: Environment {
@@ -357,6 +361,7 @@ impl fold::Runtime for HookFixture {
             &self.environment,
             method,
             &args,
+            self.session_runtime.as_deref_mut(),
         )
         .map_err(|error| match error {
             session::Error::Io(error) => fold::Error::Io(error),
@@ -429,5 +434,31 @@ impl fold::Runtime for HookFixture {
     }
     fn fold(&mut self, ctx: &LiveContext, sid: &str, path: Option<&str>) -> fold::Result<Value> {
         fold::fold_locked(ctx, sid, path, false, None, self)
+    }
+    fn apply(
+        &mut self,
+        ctx: &LiveContext,
+        root: &Path,
+        items: &[String],
+    ) -> fold::Result<Vec<String>> {
+        Ok(denylist::apply(
+            root,
+            items,
+            &ctx.store,
+            &ctx.host,
+            self.fold_settings.as_mut(),
+        )?)
+    }
+    fn restore(&mut self, ctx: &LiveContext, items: &[String]) -> fold::Result<Vec<String>> {
+        Ok(denylist::restore(
+            &ctx.repo.root,
+            &ctx.store,
+            items,
+            &ctx.host,
+            self.fold_settings.as_mut(),
+        )?)
+    }
+    fn git_tracked(&mut self, root: &Path, relative: &str) -> fold::Result<bool> {
+        Ok(self.fold_settings.git_tracked(root, relative)?)
     }
 }

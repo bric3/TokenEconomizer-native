@@ -273,6 +273,7 @@ impl HistoryFixture {
             &self.environment,
             method,
             args,
+            None,
         )
     }
 }

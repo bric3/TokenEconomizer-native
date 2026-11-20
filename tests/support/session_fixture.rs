@@ -8,7 +8,13 @@ pub fn host_call(
     env: &Environment,
     method: &str,
     args: &Value,
+    runtime: Option<&mut (dyn session::Runtime + 'static)>,
 ) -> session::Result<Value> {
+    let mut native = session::NativeRuntime { environment: env };
+    let runtime: &mut dyn session::Runtime = match runtime {
+        Some(runtime) => runtime,
+        None => &mut native,
+    };
     let path = || env.path(Path::new(args[0].as_str().unwrap()));
     Ok(match method {
         "history" => json!(session::history(
@@ -70,16 +76,10 @@ pub fn host_call(
             &args[3],
             env,
             &session::Limits::default(),
-            &mut session::NativeRuntime { environment: env },
+            runtime,
         )?,
         "settle" => {
-            session::settle(
-                host,
-                args[0].as_str().map(Path::new),
-                15.0,
-                60.0,
-                &mut session::NativeRuntime { environment: env },
-            )?;
+            session::settle(host, args[0].as_str().map(Path::new), 15.0, 60.0, runtime)?;
             Value::Null
         }
         "last_active" => json!(session::last_active(host, &path(), &args[1])?),

@@ -5,10 +5,21 @@ pub mod live_fixture;
 mod support;
 
 use live_fixture::{copilot_session, fixture, session, stuck, transcript, turn, warm};
-use serde_json::{Value, json};
-use std::fs;
+use serde_json::{Map, Value, json};
+use std::{
+    cell::Cell,
+    fs, io,
+    path::{Path, PathBuf},
+    rc::Rc,
+};
 use support::TempDir;
-use tokeneconomizer::plugin::{cli, context::LiveContext, history, hosts, sidecall};
+use tokeneconomizer::plugin::{
+    cli,
+    context::LiveContext,
+    history,
+    hosts::{self, session as host_session},
+    process, sidecall,
+};
 
 #[test]
 fn claude_code_failure_payloads_parse_with_their_exit_code() {
@@ -292,4 +303,68 @@ fn measure_reports_a_failed_probe_in_one_line() {
     assert!(parsed.exit.is_none());
     assert_eq!(cli::toolprune(&parsed.args, &mut probe).unwrap(), 1);
     assert_eq!(probe.lines, ["not measured: `claude -p` exited 1: boom"]);
+}
+
+#[test]
+fn an_opencode_session_whose_copy_is_empty_is_folded_from_opencodes_export() {
+    struct Export {
+        repo: PathBuf,
+        calls: Rc<Cell<usize>>,
+    }
+    impl host_session::Runtime for Export {
+        fn program(&mut self, cli: &str) -> host_session::Result<Vec<String>> {
+            assert_eq!(cli, "opencode");
+            Ok(vec![cli.into()])
+        }
+        fn run(
+            &mut self,
+            argv: &[String],
+            cwd: &Path,
+            env: Option<&Map<String, Value>>,
+            _: f64,
+        ) -> io::Result<process::Output> {
+            assert_eq!(argv, ["opencode", "session", "export", "ses_f"]);
+            assert_eq!(cwd, self.repo);
+            assert_eq!(env.unwrap()["TE_SIDECALL"], "1");
+            self.calls.set(self.calls.get() + 1);
+            Ok(process::Output {
+                code: 0,
+                stderr: String::new(),
+                stdout: fixtures::opencode_session_export("ses_f").to_string(),
+            })
+        }
+        fn ancestors(
+            &mut self,
+            _: i64,
+            _: u32,
+            _: bool,
+            _: &Path,
+        ) -> host_session::Result<Vec<String>> {
+            panic!("Unexpected ancestor lookup")
+        }
+    }
+    let tmp = TempDir::new("live-hook-opencode-export");
+    let mut f = fixture(tmp.path(), "opencode");
+    let calls = Rc::new(Cell::new(0));
+    f.session_runtime = Some(Box::new(Export {
+        repo: f.repo.clone(),
+        calls: calls.clone(),
+    }));
+    let copy = tmp.path().join("ses_f.json");
+    fs::write(
+        &copy,
+        json!({"info":{"id":"ses_f"},"messages":[]}).to_string(),
+    )
+    .unwrap();
+    session(&mut f, "ses_f", &copy, "startup");
+    assert_eq!(calls.get(), 1);
+    let ledger = f.store.read_lines("ledger.jsonl", None).unwrap();
+    let sessions: Vec<_> = ledger
+        .iter()
+        .filter(|record| record["kind"] == "session")
+        .collect();
+    assert_eq!(sessions.len(), 1);
+    assert_eq!(sessions[0]["prompts"], 1);
+    assert!(sessions[0].get("error").is_none());
+    assert!(sessions[0]["effective_tokens"].as_f64().unwrap() > 0.0);
 }
