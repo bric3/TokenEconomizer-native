@@ -20,6 +20,21 @@ pub fn write_claude_transcript(path: &Path, calls: &[Value]) -> PathBuf {
     path.into()
 }
 
+pub fn write_claude_transcript_with_catalog(
+    path: &Path,
+    tools: &[&str],
+    calls: &[Value],
+) -> PathBuf {
+    let mut lines = vec![json!({"type":"system","subtype":"init","tools":tools}).to_string()];
+    for (index, call) in calls.iter().enumerate() {
+        let id = format!("t{index}");
+        lines.push(json!({"type":"assistant","message":{"content":[{"type":"tool_use","id":id,"name":call[0],"input":call[1]}]}}).to_string());
+        lines.push(json!({"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":id,"content":call[2]}]}}).to_string());
+    }
+    fs::write(path, lines.join("\n")).unwrap();
+    path.into()
+}
+
 // Interactive fixture from reference/upstream/tests/test_live_hooks.py.
 pub fn write_claude_session(path: &Path, prompts: &[Value], model: &str) -> PathBuf {
     let mut lines = Vec::new();

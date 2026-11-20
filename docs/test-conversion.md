@@ -399,6 +399,22 @@ All 110 selected native tests across the suite and shared-fixture consumers,
 formatting and all-target Clippy pass. The original suite through the adapter
 passes 40 cases with two `/proc` skips. Production behaviour is unchanged.
 
+The thirty-second batch maps all 29 functions and cases in
+`experiments/tests/test_tooling.py`. Native profiles retain the complete first
+contract, core and completed-use protection, evidence thresholds and demotion of
+unused web, goals and interactive guidance. Real transcript fixtures drive
+catalogue learning and usage counts. The native adapter trait exposes
+observations; retired static-prior methods are outside that contract. One
+observed task still earns no mask at a three-task threshold. Real guard processes
+check both payload formats, network opt-out and malformed input. Native task
+execution records guard installation and hit counts through container stand-ins.
+Both native configuration builders write JSON whose applied mask contains the
+network block and preserves protected tools. Codex 0.169.0 accepts the full
+capability mask. Installed-CLI validation uses the Unix fixture; Windows remains
+open. All 29 native tests, all 29 original cases through the adapter, formatting
+and all-target Clippy pass. The archive's 256 files remain unchanged. Production
+behaviour is unchanged.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -414,8 +430,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 46 pytest modules have all test functions mapped,
-with 1,129 of 1,591 original cases mapped, including conditional platform cases.
-Another 462 cases and standalone executable smoke tests
+Conversion remains in progress: 47 pytest modules have all test functions mapped,
+with 1,158 of 1,591 original cases mapped, including conditional platform cases.
+Another 433 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

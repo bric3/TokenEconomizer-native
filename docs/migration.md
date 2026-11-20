@@ -830,8 +830,8 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 46 of 67 pytest modules have all test functions mapped,
-  with 1,129 of 1,591 original cases. See
+- Final test conversion: 47 of 67 pytest modules have all test functions mapped,
+  with 1,158 of 1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
 
@@ -4744,6 +4744,23 @@ complete while any runtime component delegates production behaviour to Python.
   `validation/results/test-conversion-31-*`. Conversion maps 1,129 cases across
   46 modules with all test names mapped; remaining conversion and parity audits
   stay open.
+
+- The thirty-second test-conversion batch maps all 29 tool-pruning cases. Native
+  profiles retain the complete first contract, core and completed-use protection,
+  evidence thresholds and unused-package demotion. Real transcripts drive
+  catalogue learning and usage counts. The adapter trait exposes observations;
+  retired static-prior methods are outside its contract. One observed task still
+  earns no mask at a three-task threshold. Real guard processes check payloads,
+  network opt-out and malformed input. Native task execution records guard
+  installation and hit counts through container stand-ins. Both configuration
+  builders write JSON whose applied mask includes the network block and retains
+  protected tools. Codex 0.169.0 accepts the full capability mask. Installed-CLI
+  validation uses the Unix fixture; Windows remains open. All 29 native tests,
+  all 29 original cases through the adapter, formatting and all-target Clippy
+  pass. The pinned archive's 256 files remain unchanged. Production behaviour is
+  unchanged. Logs use `validation/results/test-conversion-32-*`. Conversion maps
+  1,158 cases across 47 modules with all test names mapped; remaining conversion
+  and parity audits stay open.
 
 ## Dependencies
 
