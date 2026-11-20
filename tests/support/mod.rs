@@ -1,3 +1,6 @@
+#[allow(dead_code)]
+pub mod session_fixture;
+
 use std::{
     fs,
     path::{Path, PathBuf},

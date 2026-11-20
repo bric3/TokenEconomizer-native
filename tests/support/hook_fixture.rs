@@ -1,13 +1,19 @@
+#[path = "recording_runner.rs"]
+pub mod recording_runner;
+
+use crate::support::session_fixture;
 use serde_json::{Value, json};
 use std::{
+    cell::RefCell,
     fs, io,
     path::{Path, PathBuf},
+    rc::Rc,
 };
 use tokeneconomizer::{
     plugin::{
         context::LiveContext,
         controller::{self, LiveController},
-        history, hook, hookqueue,
+        fold, history, hook, hookqueue,
         hosts::{
             session::{self, Environment},
             state,
@@ -21,6 +27,15 @@ use tokeneconomizer::{
 pub struct HookFixture {
     pub host: String,
     pub inline_judge: bool,
+    pub inline_folds: bool,
+    pub fold_wait: f64,
+    pub proposer_reply: Option<(String, f64)>,
+    pub proposer_models: Rc<RefCell<Vec<String>>>,
+    pub judge_result: Option<bool>,
+    pub judge_digests: Vec<String>,
+    pub judge_jobs: Vec<String>,
+    pub defer_judge: bool,
+    pub paused_models: bool,
     pub queue_wait: Option<f64>,
     pub enqueue_after_post: bool,
     pub fail_replay: bool,
@@ -52,6 +67,15 @@ impl HookFixture {
         Self {
             host: host.into(),
             inline_judge: false,
+            inline_folds: false,
+            fold_wait: fold::FOLD_LOCK_WAIT_S,
+            proposer_reply: None,
+            proposer_models: Rc::default(),
+            judge_result: None,
+            judge_digests: vec![],
+            judge_jobs: vec![],
+            defer_judge: false,
+            paused_models: false,
             queue_wait: None,
             enqueue_after_post: false,
             fail_replay: false,
@@ -70,6 +94,36 @@ impl HookFixture {
     pub fn run(&mut self, payload: Value) -> Value {
         let host = self.host.clone();
         hook::run(payload, &self.environment.clone(), Some(&host), self).unwrap()
+    }
+    pub fn main(&mut self, payload: Value) -> Value {
+        let args = vec!["--host".into(), self.host.clone()];
+        let output = hook::main(
+            &args,
+            Ok(payload.to_string().into_bytes()),
+            &self.environment.clone(),
+            0,
+            self,
+        )
+        .unwrap();
+        let errors = paths::state_root(&self.environment.env, &self.environment.home)
+            .unwrap()
+            .join("errors.log");
+        assert!(!errors.exists(), "{}", fs::read_to_string(errors).unwrap());
+        let mut lines: Vec<Value> = output
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        let mut result = lines.pop().unwrap();
+        if !lines.is_empty() {
+            assert!(lines.iter().all(|line| line["type"] == "progress"));
+            result["progress"] = json!(
+                lines
+                    .into_iter()
+                    .map(|line| line["message"].clone())
+                    .collect::<Vec<_>>()
+            );
+        }
+        result
     }
     pub fn resolved_turns(&self) -> Vec<f64> {
         let envelope = self.store.read("envelope.json", json!({})).unwrap();
@@ -129,6 +183,9 @@ impl session::Runtime for HookFixture {
         _windows: bool,
         _cwd: &Path,
     ) -> session::Result<Vec<String>> {
+        if self.inline_folds {
+            return Ok(vec![]);
+        }
         panic!("Unexpected process lookup")
     }
 }
@@ -138,7 +195,13 @@ impl judge::Runtime for HookFixture {
             self.inline_judge,
             "These cold turns must not select a model"
         );
-        Ok(false)
+        Ok(self.paused_models
+            || (self.inline_folds
+                && !sidecall::paused(
+                    &self.host,
+                    &paths::state_root(&self.environment.env, &self.environment.home)?,
+                )
+                .is_null()))
     }
     fn runner(
         &mut self,
@@ -146,10 +209,25 @@ impl judge::Runtime for HookFixture {
         _local_only: bool,
     ) -> Result<Option<Box<dyn Runner>>, String> {
         assert!(self.inline_judge, "Unexpected model selection");
-        Ok(None)
+        Ok(self
+            .judge_result
+            .map(|_| Box::new(recording_runner::RecordingRunner::new("", 0.0)) as Box<dyn Runner>))
+    }
+    fn judge(&mut self, digest: &str, _: &mut dyn Runner) -> Result<Value, String> {
+        self.judge_digests.push(digest.into());
+        Ok(
+            json!({"stuck":self.judge_result.unwrap(),"confidence":0.95,"reason":"loop","_tokens":1000.0}),
+        )
+    }
+    fn nudge(&mut self, _: &str, _: &mut dyn Runner) -> Result<Value, String> {
+        Ok(json!({"text":"Read the failing assertion before editing again.","_tokens":300.0}))
     }
     fn spawn_job(&mut self, sid: &str, id: &str) -> Result<(), String> {
         assert!(self.inline_judge, "Unexpected judge job");
+        self.judge_jobs.push(id.into());
+        if self.defer_judge {
+            return Ok(());
+        }
         let store = self.store.clone();
         let host = self.host.clone();
         judge::run_job(&store, &host, sid, id, 0.7, self).map(|_| ())
@@ -205,6 +283,9 @@ impl controller::Runtime for HookFixture {
         Ok(sidecall::call_name(&self.host))
     }
     fn local_routes(&mut self) -> Result<bool, String> {
+        if self.inline_folds {
+            return Ok(false);
+        }
         panic!("Unexpected local model routing")
     }
     fn map(&mut self, _ctx: &LiveContext, _method: &str, _args: Value) -> Result<Value, String> {
@@ -228,13 +309,89 @@ impl controller::Runtime for HookFixture {
     }
     fn pending_sessions(
         &mut self,
-        _ctx: &LiveContext,
-        _exclude: &[String],
+        ctx: &LiveContext,
+        exclude: &[String],
     ) -> Result<Vec<String>, String> {
+        if self.inline_folds {
+            return fold::pending_sessions(ctx, exclude, fold::STALE_S, history::now(), self)
+                .map_err(|error| error.to_string());
+        }
         Ok(vec![])
     }
-    fn spawn_folds(&mut self, _ctx: &LiveContext, sessions: &[String]) -> Result<(), String> {
+    fn spawn_folds(&mut self, ctx: &LiveContext, sessions: &[String]) -> Result<(), String> {
         self.folds.extend_from_slice(sessions);
+        if self.inline_folds {
+            fold::spawn_fold(ctx, sessions, self.fold_wait, self)
+                .map_err(|error| error.to_string())?;
+        }
         Ok(())
+    }
+}
+
+impl fold::Runtime for HookFixture {
+    fn host(&mut self, method: &str, args: Value) -> fold::Result<Value> {
+        session_fixture::host_call(
+            &self.host,
+            &self.environment.env,
+            &self.environment,
+            method,
+            &args,
+        )
+        .map_err(|error| match error {
+            session::Error::Io(error) => fold::Error::Io(error),
+            session::Error::Invalid(error) => fold::Error::Value(error),
+            session::Error::Later(_) => fold::Error::Later,
+            error => fold::Error::Failed(error.to_string()),
+        })
+    }
+    fn proposer(&mut self, ctx: &LiveContext) -> fold::Result<Option<Box<dyn Runner>>> {
+        let Some((text, tokens)) = &self.proposer_reply else {
+            return Ok(None);
+        };
+        struct Reply {
+            text: String,
+            tokens: f64,
+            models: Rc<RefCell<Vec<String>>>,
+        }
+        impl sidecall::Runtime for Reply {
+            fn override_available(&mut self) -> Result<Option<bool>, String> {
+                Ok(Some(false))
+            }
+            fn override_call(
+                &mut self,
+                method: &str,
+                args: &Value,
+            ) -> Result<Option<(Value, Option<f64>)>, sidecall::Failure> {
+                assert_ne!(method, "fm_call");
+                self.models
+                    .borrow_mut()
+                    .push(args["kwargs"]["model"].as_str().unwrap_or("").into());
+                Ok(Some((json!(self.text), Some(self.tokens))))
+            }
+            fn which(&mut self, cli: &str) -> Result<Option<String>, String> {
+                panic!("Unexpected side-call program lookup: {cli}")
+            }
+        }
+        let mut runner = sidecall::runner::RoutedRunner::new(
+            Default::default(),
+            sidecall::runner::Context::new(self.environment.clone(), ctx.root.clone()),
+            Reply {
+                text: text.clone(),
+                tokens: *tokens,
+                models: self.proposer_models.clone(),
+            },
+        );
+        let selected = if sidecall::paused(&ctx.host, &ctx.root).is_null() {
+            runner.select(&ctx.host, &ctx.config, Some("proposer"), false)
+        } else {
+            runner.select_local("proposer", &ctx.config)
+        }?;
+        Ok(selected.then(|| Box::new(runner) as Box<dyn Runner>))
+    }
+    fn spawn(&mut self, argv: &[String], _: &str) -> fold::Result<Value> {
+        panic!("Unexpected fold process spawn: {argv:?}")
+    }
+    fn fold(&mut self, ctx: &LiveContext, sid: &str, path: Option<&str>) -> fold::Result<Value> {
+        fold::fold_locked(ctx, sid, path, false, None, self)
     }
 }

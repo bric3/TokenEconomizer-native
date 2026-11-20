@@ -415,6 +415,17 @@ open. All 29 native tests, all 29 original cases through the adapter, formatting
 and all-target Clippy pass. The archive's 256 files remain unchanged. Production
 behaviour is unchanged.
 
+The thirty-third batch maps 44 cases from `tests/test_live_hooks.py` in 25 native
+tests. The hook learns and injects facts from session transcripts, preserves
+Copilot's injection history on resume and routes and charges the proposer. The
+guard redirects and delivers a single notice across five hosts, two modes and
+both accepted settings. The judge tests cover deferred jobs, token charges,
+paused calls and the backstop. The fold tests cover once-only pricing, lock
+contention and recovery after a missed session end. The hook also handles
+malformed input, internal errors and UTF-8 checkout paths. Model replies and job
+scheduling use controlled fixtures. The original suite through the adapter passes
+97 cases with two Windows-only skips.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -431,7 +442,7 @@ behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
 Conversion remains in progress: 47 pytest modules have all test functions mapped,
-with 1,158 of 1,591 original cases mapped, including conditional platform cases.
-Another 433 cases and standalone executable smoke tests
+with 1,202 of 1,591 original cases mapped, including conditional platform cases.
+Another 389 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

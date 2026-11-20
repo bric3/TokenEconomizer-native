@@ -831,7 +831,7 @@ complete while any runtime component delegates production behaviour to Python.
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
 - Final test conversion: 47 of 67 pytest modules have all test functions mapped,
-  with 1,158 of 1,591 original cases. See
+  with 1,202 of 1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
 
@@ -4761,6 +4761,18 @@ complete while any runtime component delegates production behaviour to Python.
   unchanged. Logs use `validation/results/test-conversion-32-*`. Conversion maps
   1,158 cases across 47 modules with all test names mapped; remaining conversion
   and parity audits stay open.
+
+- The thirty-third test-conversion batch maps 44 cases from the live-hook suite.
+  Native hook input drives fact learning, injection, resume behaviour and
+  proposer routing on archived transcript shapes. The guard runs across five
+  hosts, two modes and both accepted settings. Its judge tests cover deferred
+  jobs, token charges, paused calls and the backstop. The fold tests cover
+  once-only pricing, lock contention and recovery after a missed session end.
+  The hook also handles malformed input, internal errors and UTF-8 checkout
+  paths. Model replies and job scheduling use controlled fixtures. The original
+  suite through the adapter passes 97 cases with two Windows-only skips.
+  Logs use `validation/results/test-conversion-33-*`. Conversion maps 1,202 cases
+  across 47 modules with all test names mapped.
 
 ## Dependencies
 
