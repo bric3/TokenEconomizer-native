@@ -453,6 +453,15 @@ timeout cleanup with a local stand-in. The real Aider case is opt-in and remains
 unverified. When Aider is installed, set `TE_REPOMAP_PYTHON` to its Python
 interpreter before running the case with `--ignored`.
 
+The thirty-seventh batch maps 16 deny-list and trust cases from the live-hook
+suite. Folded transcripts create the pending lists used to check the idle
+window, activity in session logs, maximum wait, waiter coordination and
+protection at apply time. The native writer preserves user rules and recovers
+from either write failure. Codex trust checks cover linked worktree precedence.
+Copilot trust checks cover subfolders and config comments. Fourteen native
+cases, formatting and all-target Clippy pass on macOS. Two Windows path
+case checks remain unverified.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -469,7 +478,7 @@ behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
 Conversion remains in progress: 49 pytest modules have all test functions mapped,
-with 1,232 of 1,591 original cases mapped, including conditional platform cases.
-Another 359 cases and standalone executable smoke tests
+with 1,248 of 1,591 original cases mapped, including conditional platform cases.
+Another 343 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

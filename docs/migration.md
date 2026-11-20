@@ -831,7 +831,7 @@ complete while any runtime component delegates production behaviour to Python.
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
 - Final test conversion: 49 of 67 pytest modules have all test functions mapped,
-  with 1,232 of 1,591 original cases. See
+  with 1,248 of 1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
 
@@ -4804,6 +4804,15 @@ complete while any runtime component delegates production behaviour to Python.
   Real Aider generation has a native opt-in case and remains unverified because
   Aider is unavailable. Logs use `validation/results/test-conversion-36-*`.
   Conversion maps 1,232 cases across 49 modules with all test names mapped.
+
+- The thirty-seventh test-conversion batch maps 16 deny-list and trust cases.
+  Folded transcripts create a pending list. The tests then check the idle
+  window, log activity, maximum wait, waiter coordination and protection at
+  apply time. The native deny-list writer preserves user rules and recovers
+  from either write failure. Trust tests cover Codex worktree precedence,
+  Copilot subfolders and Windows case-insensitive paths. Fourteen native
+  cases and all-target Clippy pass on macOS. The two Windows cases remain
+  unverified. Logs use `validation/results/test-conversion-37-*`.
 
 ## Dependencies
 
