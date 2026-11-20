@@ -360,7 +360,8 @@ fn set_modified(path: &Path, time: SystemTime) {
     let mut options = OpenOptions::new();
     options.read(true);
     #[cfg(windows)]
-    options.custom_flags(0x02000000); // FILE_FLAG_BACKUP_SEMANTICS opens queue directories.
+    // Windows needs FILE_WRITE_ATTRIBUTES and FILE_FLAG_BACKUP_SEMANTICS for directories.
+    options.access_mode(0x0100).custom_flags(0x02000000);
     options
         .open(path)
         .unwrap()

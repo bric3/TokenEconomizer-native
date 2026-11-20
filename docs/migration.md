@@ -830,7 +830,7 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 40 of 67 pytest modules are complete, with 953 of
+- Final test conversion: 41 of 67 pytest modules are complete, with 984 of
   1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
@@ -4646,6 +4646,25 @@ complete while any runtime component delegates production behaviour to Python.
   uncompiled and unrun here. Production is unchanged. Logs use
   `validation/results/test-conversion-25-*`. Conversion maps 953 cases across
   40 complete modules; remaining conversion and parity audits stay open.
+
+- The twenty-sixth test-conversion batch completes all 31 history-import cases.
+  Fixtures preserve log metadata, times, deferred tools, interrupted prompts and
+  completed replies. Native hooks and CLI processes verify automatic/manual
+  import, notices, dry runs, accounting and repository merges. Native callbacks
+  control budget clocks, worker requests and fold failures. Typed cancellation
+  before and after a fold retains checkpoints and bounds retries. A real thread
+  verifies waiting behind a live fold; a state change between lock checks keeps
+  another live fold pending. Imports preserve deny lists and call no proposer.
+  Malformed notices retain learned facts, including when both history handlers
+  fail. All 103 tests across the shared-fixture consumers, formatting,
+  all-target Clippy and all 31 original history cases through the adapter pass.
+  The full native suite also passes on macOS with GPG-agent access for its signed
+  Git fixture.
+  Timestamp fixtures request writable file handles and Windows directory
+  write-attribute access; the Windows branch remains uncompiled and unrun here.
+  Production is unchanged. Logs use `validation/results/test-conversion-26-*`.
+  Conversion maps 984 cases across 41 complete modules; remaining conversion and
+  parity audits stay open.
 
 ## Dependencies
 

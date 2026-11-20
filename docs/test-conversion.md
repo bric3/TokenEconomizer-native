@@ -314,6 +314,23 @@ the adapter pass. The full native suite also passes with GPG-agent access for
 its signed Git fixture. The Windows directory-handle branch for ageing directories
 remains uncompiled and unrun here.
 
+The twenty-sixth batch completes all 31 functions and cases in
+`test_history_import.py`. Its logs retain session metadata, timestamps, deferred
+tools, interrupted prompts and finished assistant messages. Real native hooks
+and CLI processes check automatic and manual import, notices, dry runs, separate
+cost accounting and repository merges. Native history and fold callbacks record
+worker requests, advance the budget clock and inject failures. Cancellation
+before and after a fold checks saved attempts, bounded retries and envelope
+replay. A real thread holds the fold lock while the import waits; another case
+changes import state between the live fold's two checks. Imports use their own
+tools, preserve deny lists and call no proposer. The malformed-notice fixture
+checks that both history errors leave learned facts available. All 103 native
+tests across the shared-fixture consumers, all-target Clippy and all 31 original
+history cases through the adapter pass. The full native suite also passes on
+macOS with GPG-agent access for its signed Git fixture.
+Timestamp fixtures request writable file handles and, for Windows directories,
+write-attribute access. The Windows branch remains uncompiled and unrun here.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -329,8 +346,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 40 pytest modules are complete, with 953 of
-1,591 original cases mapped, including the conditional Windows case. The other 638
+Conversion remains in progress: 41 pytest modules are complete, with 984 of
+1,591 original cases mapped, including the conditional Windows case. The other 607
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

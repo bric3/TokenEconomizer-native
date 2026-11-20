@@ -25,6 +25,7 @@ pub struct HookFixture {
     pub enqueue_after_post: bool,
     pub fail_replay: bool,
     pub refuse_enqueue: bool,
+    pub history_failure: Option<String>,
     pub repo: PathBuf,
     pub environment: Environment,
     pub store: Store,
@@ -55,6 +56,7 @@ impl HookFixture {
             enqueue_after_post: false,
             fail_replay: false,
             refuse_enqueue: false,
+            history_failure: None,
             repo,
             store,
             environment: Environment {
@@ -209,9 +211,15 @@ impl controller::Runtime for HookFixture {
         panic!("Unexpected repository map")
     }
     fn history_notice(&mut self, ctx: &LiveContext) -> Result<Value, String> {
+        if let Some(error) = &self.history_failure {
+            return Err(error.clone());
+        }
         history::notice(ctx, &history::Limits::default()).map_err(|e| e.to_string())
     }
     fn history_start(&mut self, ctx: &LiveContext) -> Result<(), String> {
+        if let Some(error) = &self.history_failure {
+            return Err(error.clone());
+        }
         assert_eq!(ctx.config["history_import"], false);
         Ok(())
     }
