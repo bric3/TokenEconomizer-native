@@ -434,6 +434,15 @@ writer takes a JSON value, so the failure test injects a replacement error and
 checks the previous state and temporary-file cleanup. All 12 native and
 original adapter cases, formatting and all-target Clippy pass.
 
+The thirty-fifth batch maps ten more live-hook cases. Claude Code failure
+payloads retain their exit code and event name and count towards the guard.
+The packaged hook asset registers failures. A failed Copilot tool also counts
+towards turn length. Pi learns from its session files, injects on the next
+start and uses the headless stop hint in print mode. An authentication failure
+pauses side calls for its host, while a rate-limit reply leaves the host active.
+The CLI reports a failed tool-pruning measurement as one line. All ten native
+tests, formatting and all-target Clippy pass.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -450,7 +459,7 @@ behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
 Conversion remains in progress: 48 pytest modules have all test functions mapped,
-with 1,214 of 1,591 original cases mapped, including conditional platform cases.
-Another 377 cases and standalone executable smoke tests
+with 1,224 of 1,591 original cases mapped, including conditional platform cases.
+Another 367 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

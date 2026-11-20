@@ -831,7 +831,7 @@ complete while any runtime component delegates production behaviour to Python.
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
 - Final test conversion: 48 of 67 pytest modules have all test functions mapped,
-  with 1,214 of 1,591 original cases. See
+  with 1,224 of 1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
 
@@ -4783,6 +4783,16 @@ complete while any runtime component delegates production behaviour to Python.
   All 12 native and original adapter cases pass. Logs use
   `validation/results/test-conversion-34-*`. Conversion maps 1,214 cases across
   48 modules with all test names mapped.
+
+- The thirty-fifth test-conversion batch maps another ten live-hook cases.
+  Claude Code failure events retain their exit code and event name and count
+  towards turn length and the guard. A failed Copilot tool also counts. Pi
+  learns from its session files, injects on the next start and supplies the
+  headless stop hint in print mode. An authentication failure pauses side
+  calls for its host, while a rate-limit reply leaves the host active. The
+  native CLI handler reports a failed measurement as one line. All ten native
+  tests and all-target Clippy pass. Logs use `validation/results/test-conversion-35-*`.
+  Conversion maps 1,224 cases across 48 modules with all test names mapped.
 
 ## Dependencies
 
