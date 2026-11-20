@@ -830,8 +830,8 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 48 of 67 pytest modules have all test functions mapped,
-  with 1,224 of 1,591 original cases. See
+- Final test conversion: 49 of 67 pytest modules have all test functions mapped,
+  with 1,232 of 1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
 
@@ -4771,6 +4771,7 @@ complete while any runtime component delegates production behaviour to Python.
   The hook also handles malformed input, internal errors and UTF-8 checkout
   paths. Model replies and job scheduling use controlled fixtures. The original
   suite through the adapter passes 97 cases with two Windows-only skips.
+  The full native suite and all-target Clippy pass.
   Logs use `validation/results/test-conversion-33-*`. Conversion maps 1,202 cases
   across 47 modules with all test names mapped.
 
@@ -4793,6 +4794,16 @@ complete while any runtime component delegates production behaviour to Python.
   native CLI handler reports a failed measurement as one line. All ten native
   tests and all-target Clippy pass. Logs use `validation/results/test-conversion-35-*`.
   Conversion maps 1,224 cases across 48 modules with all test names mapped.
+
+- The thirty-sixth test-conversion batch maps all eight repository-map cases.
+  The hooks inject a prompt-ranked map once per session where supported.
+  Codex and start mode use the cached map at session start. The tests cover
+  timeout fallback, shadow and off modes, and a named Python without Aider.
+  Seven native and seven original adapter cases pass. The Java process probe
+  verifies the generator invocation and timeout cleanup with a local stand-in.
+  Real Aider generation has a native opt-in case and remains unverified because
+  Aider is unavailable. Logs use `validation/results/test-conversion-36-*`.
+  Conversion maps 1,232 cases across 49 modules with all test names mapped.
 
 ## Dependencies
 

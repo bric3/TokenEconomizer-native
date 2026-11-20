@@ -24,6 +24,8 @@ use tokeneconomizer::{
     store::Store,
 };
 
+pub type MapHandler = fn(&LiveContext, &Environment, &str, Value) -> Result<Value, String>;
+
 pub struct HookFixture {
     pub host: String,
     pub inline_judge: bool,
@@ -41,6 +43,7 @@ pub struct HookFixture {
     pub fail_replay: bool,
     pub refuse_enqueue: bool,
     pub history_failure: Option<String>,
+    pub repo_map: Option<MapHandler>,
     pub repo: PathBuf,
     pub environment: Environment,
     pub store: Store,
@@ -81,6 +84,7 @@ impl HookFixture {
             fail_replay: false,
             refuse_enqueue: false,
             history_failure: None,
+            repo_map: None,
             repo,
             store,
             environment: Environment {
@@ -288,8 +292,8 @@ impl controller::Runtime for HookFixture {
         }
         panic!("Unexpected local model routing")
     }
-    fn map(&mut self, _ctx: &LiveContext, _method: &str, _args: Value) -> Result<Value, String> {
-        panic!("Unexpected repository map")
+    fn map(&mut self, ctx: &LiveContext, method: &str, args: Value) -> Result<Value, String> {
+        self.repo_map.expect("Unexpected repository map")(ctx, &self.environment, method, args)
     }
     fn history_notice(&mut self, ctx: &LiveContext) -> Result<Value, String> {
         if let Some(error) = &self.history_failure {

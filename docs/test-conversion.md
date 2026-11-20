@@ -424,7 +424,8 @@ paused calls and the backstop. The fold tests cover once-only pricing, lock
 contention and recovery after a missed session end. The hook also handles
 malformed input, internal errors and UTF-8 checkout paths. Model replies and job
 scheduling use controlled fixtures. The original suite through the adapter passes
-97 cases with two Windows-only skips.
+97 cases with two Windows-only skips. The full native suite and all-target
+Clippy pass.
 
 The thirty-fourth batch maps all 12 cases in `tests/test_microskills_forget.py`.
 The native CLI removes facts from injection and preserves the saved lifecycle
@@ -443,6 +444,15 @@ pauses side calls for its host, while a rate-limit reply leaves the host active.
 The CLI reports a failed tool-pruning measurement as one line. All ten native
 tests, formatting and all-target Clippy pass.
 
+The thirty-sixth batch maps all eight cases in `tests/test_live_repomap.py`.
+Native hooks inject the ranked map at the first prompt where supported, and use
+the cached map for Codex and start mode. The tests cover timeout fallback,
+shadow and off modes, and a named Python without Aider. Seven native and seven
+original adapter cases pass. The Java process probe verifies invocation and
+timeout cleanup with a local stand-in. The real Aider case is opt-in and remains
+unverified. When Aider is installed, set `TE_REPOMAP_PYTHON` to its Python
+interpreter before running the case with `--ignored`.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -458,8 +468,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 48 pytest modules have all test functions mapped,
-with 1,224 of 1,591 original cases mapped, including conditional platform cases.
-Another 367 cases and standalone executable smoke tests
+Conversion remains in progress: 49 pytest modules have all test functions mapped,
+with 1,232 of 1,591 original cases mapped, including conditional platform cases.
+Another 359 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.
