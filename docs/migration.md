@@ -830,7 +830,7 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 35 of 67 pytest modules are complete, with 842 of
+- Final test conversion: 36 of 67 pytest modules are complete, with 859 of
   1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
@@ -4572,6 +4572,19 @@ complete while any runtime component delegates production behaviour to Python.
   cases also pass through the native adapter. Production is unchanged. Logs use
   `validation/results/test-conversion-19-*`. Conversion maps 842 cases across
   35 complete modules; remaining conversion and parity audits stay open.
+
+- The twentieth test-conversion batch completes grading integrity's 17 cases.
+  It keeps container naming, ungraded denominators, overhead copying and project
+  environment selection. The grading-stall case now exercises native task
+  execution with failures in patch extraction and grading, checks cleanup and
+  retained usage, then runs the next task. Both implementations overwrite the
+  grading failure's `is_error` and `api_error_status` with segment fields; this
+  pre-existing reporting issue remains open. The surviving `grading_error`
+  excludes the row from the graded denominator. All 17 new tests, formatting,
+  all-target Clippy and all 17 original cases through the adapter pass.
+  Production is unchanged. Logs use `validation/results/test-conversion-20-*`.
+  Conversion maps 859 cases across 36 complete modules; remaining conversion
+  and parity audits stay open.
 
 ## Dependencies
 

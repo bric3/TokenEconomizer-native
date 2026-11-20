@@ -251,6 +251,16 @@ installer checks the matcher. Container removal injects a timeout and verifies
 that the live set is cleared. The Python SDK's shared-export identity assertion
 remains pending; the other original guard cases also pass through the adapter.
 
+The twentieth batch completes `experiments/tests/test_grading_integrity.py`:
+17 functions cover all 17 cases. It retains container naming, ungraded
+denominators, every declared overhead key and project-environment selection.
+The source-inspection stall test now injects both timeout and runtime failures
+into patch extraction and grading, verifies cleanup and retained usage, and runs
+the next task. Both implementations overwrite `is_error` and `api_error_status`
+when merging segment fields after the grading failure. The test records that
+existing behaviour: `grading_error` survives and excludes the row from the
+graded denominator. No production behaviour changes in this conversion.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -266,8 +276,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 35 pytest modules are complete, with 842 of
-1,591 original cases mapped, including the conditional Windows case. The other 749
+Conversion remains in progress: 36 pytest modules are complete, with 859 of
+1,591 original cases mapped, including the conditional Windows case. The other 732
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.
