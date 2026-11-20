@@ -830,7 +830,7 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 39 of 67 pytest modules are complete, with 936 of
+- Final test conversion: 40 of 67 pytest modules are complete, with 953 of
   1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
@@ -4632,6 +4632,20 @@ complete while any runtime component delegates production behaviour to Python.
   pass. Production is unchanged. Logs use
   `validation/results/test-conversion-24-*`. Conversion maps 936 cases across
   39 complete modules; remaining conversion and parity audits stay open.
+
+- The twenty-fifth test-conversion batch completes the hook queue's 16
+  functions and 17 cases. Nine actual native hook processes record every call
+  in one session. Held-lock tests retain replay ordering, enqueue fallback,
+  replay errors, unreadable entries and active-lock pruning. Warmed turns check
+  deferred redirects, their event names, dropped redirects and stop notices.
+  Timeout checks use generated native hook files. All 72 tests across the four
+  shared-fixture consumers, formatting, all-target Clippy and all 17 original
+  queue cases through the adapter pass. The full native suite also passes with
+  GPG-agent access for its signed Git fixture. All 256 upstream files match the
+  pinned tree. The Windows directory-handle branch for ageing directories remains
+  uncompiled and unrun here. Production is unchanged. Logs use
+  `validation/results/test-conversion-25-*`. Conversion maps 953 cases across
+  40 complete modules; remaining conversion and parity audits stay open.
 
 ## Dependencies
 

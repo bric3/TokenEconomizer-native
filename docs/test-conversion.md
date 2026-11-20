@@ -301,6 +301,19 @@ disabled injection and a token cap below the block header. A global disable
 with a repository opt-in creates session state only in the enabled repository.
 All 16 native tests, all-target Clippy and the 18 original adapter cases pass.
 
+The twenty-fifth batch completes `test_hook_queue.py`: 16 functions cover 17
+original cases. A real native hook process primes the session, then eight more
+run together; all nine calls reach one session record. The queue tests retain
+held-lock replay, ordering, fallback after enqueue failure, replay-error logging,
+unreadable entries and active-lock pruning. The shared fixture injects the
+original handler faults and short waits. Warmed turns check both deferred-event
+spellings, one-time redirects, dropped redirects and deferred stop notices.
+Timeout checks read the generated native hook files. All 72 tests across the
+four fixture consumers, all-target Clippy and all 17 original queue cases through
+the adapter pass. The full native suite also passes with GPG-agent access for
+its signed Git fixture. The Windows directory-handle branch for ageing directories
+remains uncompiled and unrun here.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -316,8 +329,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 39 pytest modules are complete, with 936 of
-1,591 original cases mapped, including the conditional Windows case. The other 655
+Conversion remains in progress: 40 pytest modules are complete, with 953 of
+1,591 original cases mapped, including the conditional Windows case. The other 638
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

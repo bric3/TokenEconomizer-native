@@ -7,7 +7,7 @@ use tokeneconomizer::{
     plugin::{
         context::LiveContext,
         controller::{self, LiveController},
-        history, hook,
+        history, hook, hookqueue,
         hosts::{
             session::{self, Environment},
             state,
@@ -21,6 +21,10 @@ use tokeneconomizer::{
 pub struct HookFixture {
     pub host: String,
     pub inline_judge: bool,
+    pub queue_wait: Option<f64>,
+    pub enqueue_after_post: bool,
+    pub fail_replay: bool,
+    pub refuse_enqueue: bool,
     pub repo: PathBuf,
     pub environment: Environment,
     pub store: Store,
@@ -47,6 +51,10 @@ impl HookFixture {
         Self {
             host: host.into(),
             inline_judge: false,
+            queue_wait: None,
+            enqueue_after_post: false,
+            fail_replay: false,
+            refuse_enqueue: false,
             repo,
             store,
             environment: Environment {
@@ -150,7 +158,30 @@ impl judge::Runtime for HookFixture {
 }
 impl controller::Runtime for HookFixture {
     fn dispatch(&mut self, controller: &mut LiveController, method: &str) -> Result<Value, String> {
-        controller.invoke(method, self)
+        if method == "post_tool" && controller.replaying && self.fail_replay {
+            return Err("RuntimeError: replayed".into());
+        }
+        let output = controller.invoke(method, self)?;
+        if method == "post_tool" && !controller.replaying && self.enqueue_after_post {
+            let queue = controller
+                .ctx
+                .root
+                .join("locks")
+                .join(&self.host)
+                .join(format!("{}.queue", hookqueue::safe(&json!(controller.sid))));
+            assert!(hookqueue::enqueue(&queue, &controller.p));
+        }
+        Ok(output)
+    }
+    fn queue_limits(&self, event: &str) -> hookqueue::Limits {
+        let mut limits = hookqueue::Limits::for_event(event);
+        if let Some(wait) = self.queue_wait {
+            limits.wait = wait;
+        }
+        limits
+    }
+    fn enqueue(&mut self, queue: &Path, payload: &Value) -> bool {
+        !self.refuse_enqueue && hookqueue::enqueue(queue, payload)
     }
     fn launcher(&mut self, ctx: &LiveContext) -> io::Result<()> {
         paths::ensure_native_launcher(
