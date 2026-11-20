@@ -426,6 +426,14 @@ malformed input, internal errors and UTF-8 checkout paths. Model replies and job
 scheduling use controlled fixtures. The original suite through the adapter passes
 97 cases with two Windows-only skips.
 
+The thirty-fourth batch maps all 12 cases in `tests/test_microskills_forget.py`.
+The native CLI removes facts from injection and preserves the saved lifecycle
+for unforget. The tests replay evidence after forgetting and cover unknown IDs,
+missing records, older state files and quoted Pi arguments. The Rust atomic
+writer takes a JSON value, so the failure test injects a replacement error and
+checks the previous state and temporary-file cleanup. All 12 native and
+original adapter cases, formatting and all-target Clippy pass.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -441,8 +449,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 47 pytest modules have all test functions mapped,
-with 1,202 of 1,591 original cases mapped, including conditional platform cases.
-Another 389 cases and standalone executable smoke tests
+Conversion remains in progress: 48 pytest modules have all test functions mapped,
+with 1,214 of 1,591 original cases mapped, including conditional platform cases.
+Another 377 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

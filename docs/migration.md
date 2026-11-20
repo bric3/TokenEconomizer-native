@@ -830,8 +830,8 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 47 of 67 pytest modules have all test functions mapped,
-  with 1,202 of 1,591 original cases. See
+- Final test conversion: 48 of 67 pytest modules have all test functions mapped,
+  with 1,214 of 1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
 
@@ -4773,6 +4773,16 @@ complete while any runtime component delegates production behaviour to Python.
   suite through the adapter passes 97 cases with two Windows-only skips.
   Logs use `validation/results/test-conversion-33-*`. Conversion maps 1,202 cases
   across 47 modules with all test names mapped.
+
+- The thirty-fourth test-conversion batch maps all 12 micro-skills forgetting
+  cases. The native CLI removes a fact from the injection, keeps it retired
+  when the same evidence recurs and restores the saved lifecycle on unforget.
+  The tests cover unknown IDs, missing records, old state files and quoted Pi
+  arguments. The atomic writer takes a JSON value, so the failure test injects a
+  replacement error and checks the previous state and temporary-file cleanup.
+  All 12 native and original adapter cases pass. Logs use
+  `validation/results/test-conversion-34-*`. Conversion maps 1,214 cases across
+  48 modules with all test names mapped.
 
 ## Dependencies
 
