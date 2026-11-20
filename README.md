@@ -7,6 +7,9 @@ The port is in progress. The original implementation and tests are preserved in
 `reference/upstream`. See [the migration record](docs/migration.md) for scope,
 validation commands and the required order of work.
 
+See [hook performance](docs/performance.md) for the Rust and Python comparison,
+reproduction commands and coverage gaps.
+
 The Apache-2.0 licence and upstream attribution are preserved.
 
 Build with Rust 1.89 or newer and a C compiler for bundled SQLite and PCRE2.
