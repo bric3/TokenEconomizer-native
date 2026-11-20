@@ -280,6 +280,18 @@ the production invocation builder. The installed Codex CLI's resume help accepts
 every generated flag; without that CLI the test checks argv and reports the
 missing external check.
 
+The twenty-third batch completes `test_grok.py`: 26 functions cover 28 original
+cases. It retains detection and aliases, stop reasons, tool and result mapping,
+turn closure, delayed start context, size caps, trace conversion, token usage,
+side-call isolation and error logging. The stuck-turn test keeps the original
+five warmup turns and 40 alternating edits and failures. Its judge jobs run
+inline and receive no model reply, matching the original shared fixture.
+Cursor and Grok share the hook/controller fixture; background maintenance stays
+idle and fold requests are recorded. Packaging checks the generated native
+Claude hook file used by Grok. The side-call factory assertion checks the
+native host-call route instead of Python function metadata. All 40 native tests
+across Grok and Cursor, and their 52 original cases through the adapter, pass.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -295,8 +307,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 37 pytest modules are complete, with 890 of
-1,591 original cases mapped, including the conditional Windows case. The other 701
+Conversion remains in progress: 38 pytest modules are complete, with 918 of
+1,591 original cases mapped, including the conditional Windows case. The other 673
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

@@ -830,7 +830,7 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 37 of 67 pytest modules are complete, with 890 of
+- Final test conversion: 38 of 67 pytest modules are complete, with 918 of
   1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
@@ -4610,6 +4610,17 @@ complete while any runtime component delegates production behaviour to Python.
   flags. Production is unchanged. Logs use
   `validation/results/test-conversion-22-*`. Conversion maps 890 cases across
   37 complete modules; remaining conversion and parity audits stay open.
+
+- The twenty-third test-conversion batch completes Grok's 26 functions and 28
+  cases. It preserves detection, stop reasons, tool/result mapping, context
+  delivery, turn state, trace conversion, usage, side-call isolation and the
+  stuck-turn nudge. Cursor and Grok now share a hook fixture; judge jobs run
+  inline without model replies when enabled, and maintenance remains idle while
+  fold requests are recorded. Packaging checks the generated native hook file.
+  All 40 native tests across both hosts, formatting, all-target Clippy and their
+  52 original cases through the adapter pass. Production is unchanged. Logs use
+  `validation/results/test-conversion-23-*`. Conversion maps 918 cases across
+  38 complete modules; remaining conversion and parity audits stay open.
 
 ## Dependencies
 
