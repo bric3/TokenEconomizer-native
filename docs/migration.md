@@ -830,7 +830,7 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 38 of 67 pytest modules are complete, with 918 of
+- Final test conversion: 39 of 67 pytest modules are complete, with 936 of
   1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
@@ -4621,6 +4621,17 @@ complete while any runtime component delegates production behaviour to Python.
   52 original cases through the adapter pass. Production is unchanged. Logs use
   `validation/results/test-conversion-23-*`. Conversion maps 918 cases across
   38 complete modules; remaining conversion and parity audits stay open.
+
+- The twenty-fourth test-conversion batch completes live configuration's 16
+  functions and 18 cases. It retains mechanism switches, typed thresholds,
+  rejected-write atomicity, precedence, legacy names and pinned envelopes.
+  Real hook/controller turns verify changed guard settings. Synchronous native
+  folds learn facts before testing injection switches and caps. Global disable
+  with one repository opt-in leaves the other repository without state. All 16
+  native tests, formatting, all-target Clippy and the 18 original adapter cases
+  pass. Production is unchanged. Logs use
+  `validation/results/test-conversion-24-*`. Conversion maps 936 cases across
+  39 complete modules; remaining conversion and parity audits stay open.
 
 ## Dependencies
 

@@ -292,6 +292,15 @@ Claude hook file used by Grok. The side-call factory assertion checks the
 native host-call route instead of Python function metadata. All 40 native tests
 across Grok and Cursor, and their 52 original cases through the adapter, pass.
 
+The twenty-fourth batch completes `test_live_config.py`: 16 functions cover 18
+original cases. It retains mechanism switches, typed thresholds, atomic rejected
+updates, global/repository/environment precedence, legacy names and pinned
+envelopes. Real hook/controller turns check disabled guards, extra redirects and
+higher turn thresholds. Synchronous native folds learn facts before testing
+disabled injection and a token cap below the block header. A global disable
+with a repository opt-in creates session state only in the enabled repository.
+All 16 native tests, all-target Clippy and the 18 original adapter cases pass.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -307,8 +316,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 38 pytest modules are complete, with 918 of
-1,591 original cases mapped, including the conditional Windows case. The other 673
+Conversion remains in progress: 39 pytest modules are complete, with 936 of
+1,591 original cases mapped, including the conditional Windows case. The other 655
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.
