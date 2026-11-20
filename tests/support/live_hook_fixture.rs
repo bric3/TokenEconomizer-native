@@ -179,3 +179,43 @@ pub fn warm(f: &mut HookFixture) {
         turn(f, "s", &format!("g{k}"), &green());
     }
 }
+
+pub fn copilot_session(f: &mut HookFixture, sid: &str, calls: &[Value], prompts: usize) -> Value {
+    let log = f
+        .environment
+        .home
+        .join("copilot-home/session-state")
+        .join(sid)
+        .join("events.jsonl");
+    fixtures::write_copilot_session(&log, calls, true, &f.repo, sid, prompts);
+    let mut base = json!({
+        "session_id":sid,"cwd":f.repo,"timestamp":"2026-10-08T04:22:15.157Z"
+    });
+    let mut start = base.clone();
+    start["hook_event_name"] = json!("SessionStart");
+    start["source"] = json!("new");
+    let start = f.main(start);
+    let mut prompt = base.clone();
+    prompt["hook_event_name"] = json!("UserPromptSubmit");
+    prompt["prompt"] = json!("fix it");
+    f.main(prompt);
+    for call in calls {
+        let mut name = call[0].as_str().unwrap().to_ascii_lowercase();
+        name[..1].make_ascii_uppercase();
+        let result = if call[3] == true {
+            json!({"result_type":"success","text_result_for_llm":call[2]})
+        } else {
+            json!({"error":call[2]})
+        };
+        f.main(post(&base, &json!(name), &call[1], &result, "tool_result"));
+    }
+    let mut stop = base.clone();
+    stop["hook_event_name"] = json!("Stop");
+    stop["stop_reason"] = json!("end_turn");
+    stop["stop_hook_active"] = json!(false);
+    f.main(stop);
+    base["hook_event_name"] = json!("SessionEnd");
+    base["reason"] = json!("complete");
+    f.main(base);
+    start
+}

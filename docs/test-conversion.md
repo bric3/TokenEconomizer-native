@@ -470,6 +470,13 @@ empty item list, which restores all owned rules. The test checks that later
 folds honour the restored tools and that applying a named rule removes its
 keep entry. All 23 tests in the updated suite pass on macOS.
 
+The thirty-ninth batch maps seven Copilot live-hook cases. Copilot logs drive
+fact injection, usage pricing and turn counts. A controlled proposer reply
+exercises the authentication pause and the one-time progress notice. The
+native CLI resumes model calls when micro-skills are enabled again. The
+MCP server tests cover whole-server evidence, prior use, automatic removal and
+ownership of settings. All seven new native tests and affected suites pass.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -486,7 +493,7 @@ behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
 Conversion remains in progress: 49 pytest modules have all test functions mapped,
-with 1,257 of 1,591 original cases mapped, including conditional platform cases.
-Another 334 cases and standalone executable smoke tests
+with 1,264 of 1,591 original cases mapped, including conditional platform cases.
+Another 327 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

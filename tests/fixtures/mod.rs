@@ -135,14 +135,30 @@ pub fn opencode_run_events() -> String {
 
 // Copilot event fixture from reference/upstream/tests/test_live_core.py.
 pub fn write_copilot_events(path: &Path, calls: &[Value], shutdown: bool) -> PathBuf {
+    write_copilot_session(path, calls, shutdown, Path::new("/w/repo"), "cp1", 1)
+}
+
+pub fn write_copilot_session(
+    path: &Path,
+    calls: &[Value],
+    shutdown: bool,
+    cwd: &Path,
+    sid: &str,
+    prompts: usize,
+) -> PathBuf {
     let mut events = vec![
-        json!({"type":"session.start","data":{"sessionId":"cp1","copilotVersion":"1.0.83","selectedModel":"gpt-5.4","context":{"cwd":"/w/repo"}}}),
+        json!({"type":"session.start","data":{"sessionId":sid,"copilotVersion":"1.0.83","selectedModel":"gpt-5.4","context":{"cwd":cwd}}}),
         json!({"type":"user.message","data":{"content":"fix it","turnId":"0"}}),
     ];
     for (n, call) in calls.iter().enumerate() {
         events.push(json!({"type":"tool.execution_start","data":{"toolCallId":format!("c{n}"),"toolName":call[0],"arguments":call[1],"turnId":"0"}}));
         events.push(json!({"type":"tool.execution_complete","data":{"toolCallId":format!("c{n}"),"success":call[3],"turnId":"0",
             "result":{"content":call[2],"detailedContent":call[2]}}}));
+    }
+    for k in 1..prompts {
+        events.push(
+            json!({"type":"user.message","data":{"content":"and then","turnId":k.to_string()}}),
+        );
     }
     if shutdown {
         events.push(json!({"type":"session.shutdown","data":{"modelMetrics":{"gpt-5.4":{"requests":{"count":4},"usage":{

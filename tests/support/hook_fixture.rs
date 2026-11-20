@@ -26,12 +26,18 @@ use tokeneconomizer::{
 
 pub type MapHandler = fn(&LiveContext, &Environment, &str, Value) -> Result<Value, String>;
 
+#[derive(Clone)]
+pub enum ProposerReply {
+    Answer(String, f64),
+    SignedOut(String),
+}
+
 pub struct HookFixture {
     pub host: String,
     pub inline_judge: bool,
     pub inline_folds: bool,
     pub fold_wait: f64,
-    pub proposer_reply: Option<(String, f64)>,
+    pub proposer_reply: Option<ProposerReply>,
     pub proposer_models: Rc<RefCell<Vec<String>>>,
     pub judge_result: Option<bool>,
     pub judge_digests: Vec<String>,
@@ -112,7 +118,18 @@ impl HookFixture {
         let errors = paths::state_root(&self.environment.env, &self.environment.home)
             .unwrap()
             .join("errors.log");
-        assert!(!errors.exists(), "{}", fs::read_to_string(errors).unwrap());
+        if errors.exists() {
+            let error = fs::read_to_string(errors).unwrap();
+            let expected = match &self.proposer_reply {
+                Some(ProposerReply::SignedOut(reason)) => {
+                    format!("sidecall {}: no reply (exit 1) {reason}", self.host)
+                }
+                _ => panic!("{error}"),
+            };
+            let lines: Vec<_> = error.lines().collect();
+            assert_eq!(lines.len(), 1, "{error}");
+            assert!(lines[0].ends_with(&expected), "{error}");
+        }
         let mut lines: Vec<Value> = output
             .lines()
             .map(|line| serde_json::from_str(line).unwrap())
@@ -349,12 +366,13 @@ impl fold::Runtime for HookFixture {
         })
     }
     fn proposer(&mut self, ctx: &LiveContext) -> fold::Result<Option<Box<dyn Runner>>> {
-        let Some((text, tokens)) = &self.proposer_reply else {
+        let Some(reply) = &self.proposer_reply else {
             return Ok(None);
         };
         struct Reply {
-            text: String,
-            tokens: f64,
+            host: String,
+            root: PathBuf,
+            reply: ProposerReply,
             models: Rc<RefCell<Vec<String>>>,
         }
         impl sidecall::Runtime for Reply {
@@ -370,7 +388,20 @@ impl fold::Runtime for HookFixture {
                 self.models
                     .borrow_mut()
                     .push(args["kwargs"]["model"].as_str().unwrap_or("").into());
-                Ok(Some((json!(self.text), Some(self.tokens))))
+                Ok(Some(match &self.reply {
+                    ProposerReply::Answer(text, tokens) => (json!(text), Some(*tokens)),
+                    ProposerReply::SignedOut(reason) => {
+                        sidecall::no_reply(
+                            &self.host,
+                            &self.root,
+                            "",
+                            reason,
+                            &json!(1),
+                            history::now(),
+                        );
+                        (json!(""), None)
+                    }
+                }))
             }
             fn which(&mut self, cli: &str) -> Result<Option<String>, String> {
                 panic!("Unexpected side-call program lookup: {cli}")
@@ -380,8 +411,9 @@ impl fold::Runtime for HookFixture {
             Default::default(),
             sidecall::runner::Context::new(self.environment.clone(), ctx.root.clone()),
             Reply {
-                text: text.clone(),
-                tokens: *tokens,
+                host: ctx.host.clone(),
+                root: ctx.root.clone(),
+                reply: reply.clone(),
                 models: self.proposer_models.clone(),
             },
         );

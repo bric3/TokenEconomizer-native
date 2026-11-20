@@ -831,7 +831,7 @@ complete while any runtime component delegates production behaviour to Python.
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
 - Final test conversion: 49 of 67 pytest modules have all test functions mapped,
-  with 1,257 of 1,591 original cases. See
+  with 1,264 of 1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
 
@@ -4824,6 +4824,14 @@ complete while any runtime component delegates production behaviour to Python.
   stay available through later folds and that explicitly applying a rule
   drops its keep entry. All 23 tests in the updated suite pass on macOS.
   Logs use `validation/results/test-conversion-38-*`.
+
+- The thirty-ninth test-conversion batch maps seven Copilot live-hook cases.
+  Its session logs drive fact injection, usage pricing and turn counts.
+  An intercepted proposer reply exercises the real authentication pause and
+  one-time progress notice. The native CLI clears the pause when micro-skills
+  are enabled again. MCP server evidence, automatic removal and restoration
+  preserve user settings. All seven new native tests and affected transcript,
+  side-call and hook tests pass. Logs use `validation/results/test-conversion-39-*`.
 
 ## Dependencies
 

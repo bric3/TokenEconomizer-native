@@ -4,6 +4,7 @@ pub mod fixtures;
 pub mod live_fixture;
 mod support;
 
+use live_fixture::hook_fixture::ProposerReply;
 use live_fixture::{CLAIM, FID, HookFixture, claude_log, cli, env_state, fixture, session};
 use serde_json::{Value, json};
 use std::fs;
@@ -104,7 +105,7 @@ fn micro_skills_on_runs_the_proposer_without_paid_and_charges_it() {
     f.environment
         .env
         .insert("TE_MICROSKILLS".into(), json!("on"));
-    f.proposer_reply = Some(("{}".into(), 120.0));
+    f.proposer_reply = Some(ProposerReply::Answer("{}".into(), 120.0));
     for i in 0..5 {
         let sid = format!("s{i}");
         let path = claude_log(root.path(), &f, &sid, i, false, 1);

@@ -4,7 +4,7 @@ pub mod fixtures;
 pub mod live_fixture;
 mod support;
 
-use live_fixture::{fixture, session, stuck, transcript, turn, warm};
+use live_fixture::{copilot_session, fixture, session, stuck, transcript, turn, warm};
 use serde_json::{Value, json};
 use std::fs;
 use support::TempDir;
@@ -226,33 +226,13 @@ fn only_a_signed_out_answer_pauses_the_model_calls() {
 fn a_failed_copilot_tool_reaches_the_guard() {
     let tmp = TempDir::new("hook-copilot-failure");
     let mut f = fixture(tmp.path(), "copilot");
-    let log = tmp.path().join("copilot-home/session-state/f/events.jsonl");
     let args = json!({"path":f.repo.join("nope.py")});
-    fixtures::write_copilot_events(
-        &log,
+    copilot_session(
+        &mut f,
+        "f",
         &[json!(["view", args, "Path does not exist", false])],
-        true,
+        1,
     );
-    let mut payload = json!({
-        "session_id":"f", "cwd":f.repo, "timestamp":"2026-10-08T04:22:15.157Z",
-        "hook_event_name":"SessionStart", "source":"new"
-    });
-    f.main(payload.clone());
-    payload["hook_event_name"] = json!("UserPromptSubmit");
-    payload["prompt"] = json!("fix it");
-    f.main(payload.clone());
-    payload["hook_event_name"] = json!("PostToolUseFailure");
-    payload["tool_name"] = json!("View");
-    payload["tool_input"] = args;
-    payload["error"] = json!("Path does not exist");
-    f.main(payload.clone());
-    payload["hook_event_name"] = json!("Stop");
-    payload["stop_reason"] = json!("end_turn");
-    payload["stop_hook_active"] = json!(false);
-    f.main(payload.clone());
-    payload["hook_event_name"] = json!("SessionEnd");
-    payload["reason"] = json!("complete");
-    f.main(payload);
     let events = f.store.read_lines("events.jsonl", None).unwrap();
     let turns: Vec<_> = events
         .iter()
