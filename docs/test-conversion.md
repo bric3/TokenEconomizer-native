@@ -486,6 +486,13 @@ exported transcript when the plugin's copy is empty. All 13 new native tests
 pass. The original suite through the adapter passes 97 cases with two
 Windows skips.
 
+The forty-first batch maps all 11 cases in `tests/test_dead_code.py`. The
+native executable distinguishes production and test-only references, honours
+exports and allowlists, resolves overrides and renders Markdown and JSON. Its
+fix mode removes unreferenced definitions while preserving parseable source.
+Repeated fixes converge. A read-only scan leaves the pinned archive's Git
+status unchanged. All 11 native and original adapter cases pass.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -501,8 +508,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 50 pytest modules have all test functions mapped,
-with 1,277 of 1,591 original cases mapped, including conditional platform cases.
-Another 314 cases and standalone executable smoke tests
+Conversion remains in progress: 51 pytest modules have all test functions mapped,
+with 1,288 of 1,591 original cases mapped, including conditional platform cases.
+Another 303 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

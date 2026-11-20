@@ -830,8 +830,8 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 50 of 67 pytest modules have all test functions mapped,
-  with 1,277 of 1,591 original cases. See
+- Final test conversion: 51 of 67 pytest modules have all test functions mapped,
+  with 1,288 of 1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
 
@@ -4842,6 +4842,14 @@ complete while any runtime component delegates production behaviour to Python.
   native tests pass. The original live-hook suite through the adapter passes
   97 cases with two Windows skips. Logs use
   `validation/results/test-conversion-40-*`.
+
+- The forty-first test-conversion batch maps all 11 dead-code cases. The
+  native command distinguishes production and test-only references, honours
+  exports and allowlists, resolves overrides, and renders Markdown and JSON.
+  Its fix mode preserves parseable files, keeps class bodies valid and
+  repeats until no further definitions can be removed. A read-only scan
+  leaves the pinned archive's Git status unchanged. All 11 native and
+  original adapter cases pass. Logs use `validation/results/test-conversion-41-*`.
 
 ## Dependencies
 
