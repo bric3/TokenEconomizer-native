@@ -357,6 +357,17 @@ native launch context's returned `changed` map. All nine tests pass on macOS;
 all-target Clippy, formatting and all 25 original cases through the adapter pass.
 Production behaviour is unchanged.
 
+The twenty-ninth batch completes `experiments/tests/test_routing.py`: nine native
+functions cover all 12 original cases. They check the required Anthropic API key,
+ignored endpoint notices, an unchanged caller environment and the steering-variable
+set. Copilot tests retain subscription defaults, exact provider settings, secret
+names and separation from unrelated credentials. The original constructor source
+inspection now runs both native Claude constructors and checks their resolved key
+and stored API endpoint. CLI discovery, pricing and preflight dependencies use
+stand-ins; routing decisions execute in Rust. All nine tests pass on macOS;
+formatting, all-target Clippy and all 12 original cases through the adapter pass.
+Production behaviour is unchanged.
+
 Run the native suite and the conversion inventory from the checkout root:
 
 ```sh
@@ -372,8 +383,8 @@ functions. Name matching does not verify assertions, parameter values, fixture
 behaviour or execution; those require source review and native test runs.
 The inventory's Python dependency is limited to collecting the archived suite.
 
-Conversion remains in progress: 43 pytest modules are complete, with 1,043 of
-1,591 original cases mapped, including conditional Windows cases. The other 548
+Conversion remains in progress: 44 pytest modules are complete, with 1,055 of
+1,591 original cases mapped, including conditional Windows cases. The other 536
 cases and standalone executable smoke tests
 still need native equivalents. The broader parity and platform audits in
 [the migration record](migration.md) remain open.

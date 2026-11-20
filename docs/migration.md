@@ -830,7 +830,7 @@ complete while any runtime component delegates production behaviour to Python.
   command, core SDK and runtime packaging are implemented; built-in harness
   parity audits remain open.
 - Simplification passes: 3 of 3. Performance passes: 3 of 3.
-- Final test conversion: 43 of 67 pytest modules are complete, with 1,043 of
+- Final test conversion: 44 of 67 pytest modules are complete, with 1,055 of
   1,591 original cases. See
   [the conversion record](test-conversion.md). Standalone executable smoke tests
   and the remaining modules are pending.
@@ -4697,6 +4697,19 @@ complete while any runtime component delegates production behaviour to Python.
   is unchanged. Logs use `validation/results/test-conversion-28-*`.
   Conversion maps 1,043 cases across 43 complete modules; remaining conversion
   and parity audits stay open.
+
+- The twenty-ninth test-conversion batch completes all nine routing functions
+  and 12 original cases. Direct provider calls retain Anthropic key requirements,
+  ignored endpoint notices, caller-environment preservation and the ignored
+  steering-variable set. Copilot tests check subscription defaults, exact provider
+  settings, secret names and isolation from unrelated credentials. The original
+  constructor source inspection now runs both native Claude constructors and
+  checks the resolved key and recorded API endpoint. CLI discovery, pricing and
+  preflight dependencies use stand-ins; routing decisions execute in Rust.
+  All nine tests pass on macOS; formatting, all-target Clippy and all 12 original
+  cases through the adapter pass. Production behaviour is unchanged.
+  Logs use `validation/results/test-conversion-29-*`. Conversion maps 1,055 cases
+  across 44 complete modules; remaining conversion and parity audits stay open.
 
 ## Dependencies
 
