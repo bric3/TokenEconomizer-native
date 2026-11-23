@@ -1,14 +1,27 @@
 # TokenEconomizer native
 
 Rust port of [Microsoft TokenEconomizer](https://github.com/microsoft/TokenEconomizer),
-pinned at `583fff78bf504b59d542f953c31e87d01d02ab42`.
+from `583fff78bf504b59d542f953c31e87d01d02ab42`.
 
-The port is in progress. The original implementation and tests are preserved in
-`reference/upstream`. See [the migration record](docs/migration.md) for scope,
-validation commands and the required order of work.
+The original implementation and tests are preserved in `reference/upstream`. 
+See [the migration record](docs/migration.md) for scope and validation history.
 
-See [hook performance](docs/performance.md) for the Rust and Python comparison,
-reproduction commands and coverage gaps.
+On an Apple M4 Max, the native release hook ran 1.9x to 4.8x faster than the
+pinned Python hook across four offline Claude Code workloads. The controlled
+rerun on 20 November 2026 recorded these medians:
+
+| Workload          | Python wall, ms | Rust wall, ms | Python CPU, ms | Rust CPU, ms | Python peak RSS, bytes | Rust peak RSS, bytes |
+| ----------------- | --------------: | ------------: | -------------: | -----------: | ---------------------: | -------------------: |
+| Start a session   |           74.25 |         15.45 |             60 |            0 |             27,131,904 |            9,830,400 |
+| Record one result |           70.59 |         15.38 |             50 |            0 |             27,148,288 |           10,715,136 |
+| Fold 96 calls     |           84.27 |         23.21 |             50 |            0 |             27,590,656 |           15,663,104 |
+| Fold 3,072 calls  |          166.68 |         89.47 |            140 |           60 |             42,827,776 |           30,654,464 |
+
+CPU is user plus system time; macOS reports each component in 10 ms steps, so
+the 0 ms entries have limited precision. Wall time and CPU/peak resident memory
+(RSS) came from separate passes. These measurements cover the hook process with
+synthetic transcripts and no model calls. See [hook performance](docs/performance.md)
+for runtime versions, reproduction commands and coverage gaps.
 
 The Apache-2.0 licence and upstream attribution are preserved.
 
@@ -443,5 +456,3 @@ adjacent surrogates, during log truncation, classification and version reporting
 Both domains' optimizer and preflight methods also use native routing, and their
 runner factories use native defaults and scaffold validation. SDK bindings retain
 argument, helper and constructor references, including when Web-Bench loads later.
-
-Installed host verification and the remaining migration gates are still in progress.
