@@ -1,7 +1,7 @@
 # TokenEconomizer native
 
 Rust port of [Microsoft TokenEconomizer](https://github.com/microsoft/TokenEconomizer),
-from `583fff78bf504b59d542f953c31e87d01d02ab42`.
+from microsoft/TokenEconomizer@583fff78bf504b59d542f953c31e87d01d02ab42
 
 The original implementation and tests are preserved in `reference/upstream`. 
 See [the migration record](docs/migration.md) for scope and validation history.
